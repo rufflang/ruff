@@ -82,7 +82,7 @@ Purpose: capture additive, non-breaking work that can improve safety, maintainab
   - Evidence (2026-05-24, loop 4 closure): Final verification and closure artifacts completed.
     Evidence: `bash scripts/generate_unsafe_inventory.sh`, `bash scripts/check_jit_safety_contracts.sh`, `cargo test --test unsafe_inventory_contract` (2 passed), `cargo test --test jit_safety_contract_checker` (8 passed), `cargo test --test jit_execution_contract` (3 passed), and `cargo test --test vm_interpreter_parity_surfaces` (87 passed). Closure note: `notes/2026-05-24_07-46_v1h-unsafe-002-jit-safety-contract-closure.md`.
 
-- [ ] **V1H-UNSAFE-003**: Reduce executable unsafe callsites via safe wrappers where behavior is unchanged.
+- [x] **V1H-UNSAFE-003**: Reduce executable unsafe callsites via safe wrappers where behavior is unchanged.
   - Scope: trim ad hoc unsafe deref/transmute callsites without broad rewrites.
   - Acceptance criteria:
     - Executable unsafe count reduced or centralized with equivalent behavior.
@@ -110,6 +110,8 @@ Purpose: capture additive, non-breaking work that can improve safety, maintainab
     Evidence: `docs/generated/UNSAFE_INVENTORY.md` still reports concentrated executable unsafe rows in `src/jit.rs`.
   - Blocker (2026-05-23): Revalidated before `V1H-FEAT-003`; executable unsafe reduction remains sequenced after unresolved invariant annotation standardization.
     Evidence: `docs/generated/UNSAFE_INVENTORY.md` still reports concentrated executable unsafe rows in `src/jit.rs`.
+  - Evidence (2026-05-24): Centralized repeated JIT pointer-deref/transmute patterns into audited wrappers and reduced executable unsafe density without behavior drift.
+    Evidence: `scripts/check_jit_safety_contracts.sh` moved from `Checked 47 executable unsafe boundaries in src/jit.rs; missing contracts: 0` to `Checked 43 executable unsafe boundaries in src/jit.rs; missing contracts: 0`; `docs/generated/UNSAFE_INVENTORY.md` executable summary reduced `59 -> 55`; validation passed for `unsafe_inventory_contract` (3), `jit_safety_contract_checker` (8), `jit_execution_contract` (3), and `vm_interpreter_parity_surfaces` (87). Closure note: `notes/2026-05-24_08-05_v1h-unsafe-003-unsafe-centralization.md`.
 
 - [x] **V1H-UNSAFE-004**: Add optional sanitizer/Miri-oriented safety gate for CI/nightly verification.
   - Scope: machine-verifiable unsafe regression signal beyond unit tests.

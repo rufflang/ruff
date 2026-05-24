@@ -49,6 +49,54 @@ fn dense_int_dict_int_full_with_len(len: usize) -> Vec<i64> {
     values
 }
 
+#[inline]
+fn with_vm_context_mut<R>(ctx: *mut VMContext, f: impl FnOnce(&mut VMContext) -> R) -> Option<R> {
+    if ctx.is_null() {
+        return None;
+    }
+
+    // SAFETY:
+    // - Preconditions: `ctx` is checked non-null and points to a live `VMContext` for this call.
+    // - Postconditions: mutable context reference is scoped to this closure invocation and never stored.
+    let vm_ctx = unsafe { &mut *ctx };
+    Some(f(vm_ctx))
+}
+
+#[inline]
+fn with_vm_stack_mut<R>(
+    ctx: *mut VMContext,
+    f: impl FnOnce(&mut VMContext, &mut Vec<Value>) -> R,
+) -> Option<R> {
+    with_vm_context_mut(ctx, |vm_ctx| {
+        if vm_ctx.stack_ptr.is_null() {
+            return None;
+        }
+
+        // SAFETY:
+        // - Preconditions: `vm_ctx.stack_ptr` is checked non-null and belongs to the active VM context.
+        // - Postconditions: mutable stack reference is borrowed only for this closure body.
+        let stack = unsafe { &mut *vm_ctx.stack_ptr };
+        Some(f(vm_ctx, stack))
+    })
+    .flatten()
+}
+
+#[inline]
+fn compiled_fn_from_code_ptr(code_ptr: *const u8) -> CompiledFn {
+    // SAFETY:
+    // - Preconditions: caller ensures `code_ptr` is finalized machine code matching `CompiledFn` ABI/signature.
+    // - Postconditions: returns a typed function pointer without changing code memory ownership.
+    unsafe { std::mem::transmute(code_ptr) }
+}
+
+#[inline]
+fn compiled_fn_with_arg_from_code_ptr(code_ptr: *const u8) -> CompiledFnWithArg {
+    // SAFETY:
+    // - Preconditions: caller ensures `code_ptr` matches `CompiledFnWithArg` ABI/signature.
+    // - Postconditions: returns typed direct-arg function pointer without aliasing mutable code state.
+    unsafe { std::mem::transmute(code_ptr) }
+}
+
 /// Runtime context passed to JIT-compiled functions
 /// This allows JIT code to access VM state (stack, variables, etc.)
 #[repr(C)]
@@ -2729,69 +2777,64 @@ pub unsafe extern "C" fn jit_dict_set(ctx: *mut VMContext) -> i64 {
 /// 1 on success (dict pushed to stack), 0 on error
 #[no_mangle]
 pub extern "C" fn jit_make_dict(ctx: *mut VMContext, num_pairs: i64) -> i64 {
-    // SAFETY:
-    // - Preconditions: JIT caller passes a valid, mutable `VMContext*` with a live `stack_ptr`.
-    // - Postconditions: returns mutable references scoped to this function and only mutates that stack.
-    let vm_ctx = unsafe { &mut *ctx };
-    // SAFETY:
-    // - Preconditions: `vm_ctx.stack_ptr` comes from the same validated context and points to initialized stack data.
-    // - Postconditions: stack reference is used only locally while constructing/pushing the dictionary value.
-    let stack = unsafe { &mut *vm_ctx.stack_ptr };
-    let debug_jit = std::env::var("DEBUG_JIT").is_ok();
-
-    if debug_jit {
-        eprintln!(
-            "JIT: jit_make_dict called with num_pairs={}, stack len={}",
-            num_pairs,
-            stack.len()
-        );
-    }
-
-    // Pop N key-value pairs from the stack
-    let mut map = DictMap::default();
-    map.reserve(num_pairs as usize);
-    for i in 0..num_pairs {
-        // Pop value, then key (reverse order since stack)
-        let Some(value_val) = stack.pop() else {
-            if debug_jit {
-                eprintln!("JIT: MakeDict stack underflow (value) at pair {}", i);
-            }
-            return 0;
-        };
-        let Some(key_val) = stack.pop() else {
-            if debug_jit {
-                eprintln!("JIT: MakeDict stack underflow (key) at pair {}", i);
-            }
-            return 0;
-        };
+    with_vm_stack_mut(ctx, |vm_ctx, stack| {
+        let debug_jit = std::env::var("DEBUG_JIT").is_ok();
 
         if debug_jit {
-            eprintln!("JIT: Pair {}: key={:?}, value={:?}", i, key_val, value_val);
+            eprintln!(
+                "JIT: jit_make_dict called with num_pairs={}, stack len={}",
+                num_pairs,
+                stack.len()
+            );
         }
 
-        // Convert key to string
-        let key_str = match &key_val {
-            Value::Str(s) => Arc::from(s.as_str()),
-            Value::Int(i) => VMContext::jit_int_key_string(vm_ctx, *i),
-            other => {
+        // Pop N key-value pairs from the stack
+        let mut map = DictMap::default();
+        map.reserve(num_pairs as usize);
+        for i in 0..num_pairs {
+            // Pop value, then key (reverse order since stack)
+            let Some(value_val) = stack.pop() else {
                 if debug_jit {
-                    eprintln!("JIT: MakeDict requires string or int keys, got {:?}", other);
+                    eprintln!("JIT: MakeDict stack underflow (value) at pair {}", i);
                 }
                 return 0;
+            };
+            let Some(key_val) = stack.pop() else {
+                if debug_jit {
+                    eprintln!("JIT: MakeDict stack underflow (key) at pair {}", i);
+                }
+                return 0;
+            };
+
+            if debug_jit {
+                eprintln!("JIT: Pair {}: key={:?}, value={:?}", i, key_val, value_val);
             }
-        };
 
-        map.insert(Arc::clone(&key_str), value_val);
-    }
+            // Convert key to string
+            let key_str = match &key_val {
+                Value::Str(s) => Arc::from(s.as_str()),
+                Value::Int(i) => VMContext::jit_int_key_string(vm_ctx, *i),
+                other => {
+                    if debug_jit {
+                        eprintln!("JIT: MakeDict requires string or int keys, got {:?}", other);
+                    }
+                    return 0;
+                }
+            };
 
-    if debug_jit {
-        eprintln!("JIT: Created dict with {} entries", map.len());
-    }
+            map.insert(Arc::clone(&key_str), value_val);
+        }
 
-    // Push the new dict to the stack
-    stack.push(Value::Dict(Arc::new(map)));
+        if debug_jit {
+            eprintln!("JIT: Created dict with {} entries", map.len());
+        }
 
-    1 // Success
+        // Push the new dict to the stack
+        stack.push(Value::Dict(Arc::new(map)));
+
+        1 // Success
+    })
+    .unwrap_or(0)
 }
 
 /// Runtime helper for creating dictionaries with constant string keys (MakeDictWithKeys opcode)
@@ -2810,50 +2853,44 @@ pub extern "C" fn jit_make_dict_with_keys(
     keys_ptr: i64,
     num_keys: i64,
 ) -> i64 {
-    if ctx.is_null() {
-        return 0;
-    }
-
     if num_keys < 0 {
         return 0;
     }
 
-    // SAFETY:
-    // - Preconditions: `ctx` is validated non-null and points to a live VM context with a valid stack pointer.
-    // - Postconditions: mutable context reference remains local to this helper and is not stored beyond the call.
-    let vm_ctx = unsafe { &mut *ctx };
-    // SAFETY:
-    // - Preconditions: `vm_ctx.stack_ptr` references initialized stack storage owned by the active VM context.
-    // - Postconditions: mutable stack reference is only used for bounded pops/pushes in this helper.
-    let stack = unsafe { &mut *vm_ctx.stack_ptr };
-    if num_keys == 0 {
-        stack.push(Value::Dict(Arc::new(DictMap::default())));
-        return 1;
-    }
+    with_vm_stack_mut(ctx, |_vm_ctx, stack| {
+        if num_keys == 0 {
+            stack.push(Value::Dict(Arc::new(DictMap::default())));
+            return 1;
+        }
 
-    if keys_ptr == 0 {
-        return 0;
-    }
-
-    // SAFETY:
-    // - Preconditions: `keys_ptr` is non-zero and points to a live `Arc<Vec<Arc<str>>>` allocated by VM/JIT code.
-    // - Postconditions: keys are read immutably for this call only; ownership stays with the originating Arc.
-    let keys = unsafe { &*(keys_ptr as *const Arc<Vec<Arc<str>>>) };
-    if num_keys as usize != keys.len() {
-        return 0;
-    }
-
-    let mut values = vec![Value::Null; keys.len()];
-    for index in (0..keys.len()).rev() {
-        let Some(value_val) = stack.pop() else {
+        if keys_ptr == 0 {
             return 0;
-        };
+        }
 
-        values[index] = value_val;
-    }
+        // SAFETY:
+        // - Preconditions: `keys_ptr` is non-zero and points to a live `Arc<Vec<Arc<str>>>` allocated by VM/JIT code.
+        // - Postconditions: keys are read immutably for this call only; ownership stays with the originating Arc.
+        let keys = unsafe { &*(keys_ptr as *const Arc<Vec<Arc<str>>>) };
+        if num_keys as usize != keys.len() {
+            return 0;
+        }
 
-    stack.push(Value::FixedDict { keys: Arc::clone(keys), values });
-    1
+        let mut values = vec![Value::Null; keys.len()];
+        for index in (0..keys.len()).rev() {
+            let Some(value_val) = stack.pop() else {
+                return 0;
+            };
+
+            values[index] = value_val;
+        }
+
+        stack.push(Value::FixedDict {
+            keys: Arc::clone(keys),
+            values,
+        });
+        1
+    })
+    .unwrap_or(0)
 }
 
 /// JIT compiler for Ruff bytecode
@@ -6549,10 +6586,7 @@ impl JitCompiler {
 
         // Get the compiled function pointer
         let code_ptr = self.module.get_finalized_function(func_id);
-        // SAFETY:
-        // - Preconditions: `code_ptr` is produced by Cranelift for this signature and matches `CompiledFn` ABI/layout.
-        // - Postconditions: resulting function pointer is callable under existing JIT contract and cached as typed fn.
-        let compiled_fn: CompiledFn = unsafe { std::mem::transmute(code_ptr) };
+        let compiled_fn = compiled_fn_from_code_ptr(code_ptr);
 
         // Cache it
         self.compiled_cache.insert(offset, compiled_fn);
@@ -7189,10 +7223,7 @@ impl JitCompiler {
         let code_ptr = self.module.get_finalized_function(func_id);
 
         // 9. Cast to our function type
-        // SAFETY:
-        // - Preconditions: finalized machine code for `func_id` matches `CompiledFn` (extern "C", VMContext* -> i64).
-        // - Postconditions: cast yields typed entrypoint used immediately/immutably by caller.
-        let compiled_fn: CompiledFn = unsafe { std::mem::transmute(code_ptr) };
+        let compiled_fn = compiled_fn_from_code_ptr(code_ptr);
 
         Ok(compiled_fn)
     }
@@ -7401,10 +7432,7 @@ impl JitCompiler {
         let code_ptr = self.module.get_finalized_function(func_id);
 
         // 9. Cast to our direct-arg function type
-        // SAFETY:
-        // - Preconditions: finalized code for direct-arg variant matches `CompiledFnWithArg` ABI/signature.
-        // - Postconditions: returned pointer is used as typed callable entrypoint without aliasing raw code bytes.
-        let compiled_fn: CompiledFnWithArg = unsafe { std::mem::transmute(code_ptr) };
+        let compiled_fn = compiled_fn_with_arg_from_code_ptr(code_ptr);
 
         Ok(compiled_fn)
     }
@@ -7986,10 +8014,7 @@ impl JitCompiler {
         let code_ptr = self.module.get_finalized_function(func_id);
 
         // Cast to our function type
-        // SAFETY:
-        // - Preconditions: finalized script entrypoint adheres to `CompiledFn` ABI and lifetime of module code memory.
-        // - Postconditions: typed function pointer is returned to caller without mutating code memory.
-        let compiled_fn: CompiledFn = unsafe { std::mem::transmute(code_ptr) };
+        let compiled_fn = compiled_fn_from_code_ptr(code_ptr);
 
         if std::env::var("DEBUG_JIT").is_ok() {
             eprintln!("JIT: Successfully compiled script '{}'", name);

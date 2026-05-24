@@ -93,3 +93,60 @@ fn unsafe_inventory_script_is_deterministic_for_repo_scan() {
     let csv_b = fs::read_to_string(&output_csv_b).expect("second csv output should exist");
     assert_eq!(csv_a, csv_b);
 }
+
+#[test]
+fn unsafe_inventory_enforces_current_executable_budget() {
+    let dir = unique_temp_dir("budget");
+    let output_md = dir.join("unsafe_inventory_budget.md");
+    let output_csv = dir.join("unsafe_inventory_budget.csv");
+
+    let output = Command::new("bash")
+        .arg(script_path())
+        .arg("--output-md")
+        .arg(&output_md)
+        .arg("--output-csv")
+        .arg(&output_csv)
+        .arg("--strict")
+        .current_dir(env!("CARGO_MANIFEST_DIR"))
+        .output()
+        .expect("failed to execute unsafe inventory script");
+
+    assert!(
+        output.status.success(),
+        "unsafe inventory script should succeed: stdout={} stderr={}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let markdown = fs::read_to_string(&output_md).expect("unsafe inventory markdown should exist");
+    let executable_line = markdown
+        .lines()
+        .find(|line| line.starts_with("- Executable matches:"))
+        .expect("summary should contain executable matches");
+    let executable_count: usize = executable_line
+        .split(':')
+        .nth(1)
+        .expect("executable summary should contain value")
+        .trim()
+        .parse()
+        .expect("executable summary value should be numeric");
+
+    assert!(
+        executable_count <= 55,
+        "executable unsafe budget regression: expected <= 55, got {}",
+        executable_count
+    );
+
+    let csv = fs::read_to_string(&output_csv).expect("unsafe inventory csv should exist");
+    let jit_executable_count = csv
+        .lines()
+        .skip(1)
+        .filter(|line| line.contains("\"src/jit.rs\"") && line.contains("\"executable\""))
+        .count();
+
+    assert!(
+        jit_executable_count <= 45,
+        "jit executable unsafe budget regression: expected <= 45, got {}",
+        jit_executable_count
+    );
+}
