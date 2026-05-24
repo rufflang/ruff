@@ -230,6 +230,7 @@ Behavior highlights:
 - Adds baseline response-safety headers (`X-Content-Type-Options: nosniff`, `Referrer-Policy: no-referrer`) plus conservative cache defaults when explicit max-age is not configured.
 - Adds stricter hardened-mode headers (`X-Frame-Options`, COOP/CORP, CSP, Permissions-Policy).
 - Adds `Strict-Transport-Security` only for secure (TLS) requests.
+- `html_response(...)` is raw body output and does not perform XSS sanitization; escape untrusted content before interpolation (see `docs/NATIVE_API_SECURITY_POSTURE.md` threat-model guidance).
 
 Machine-readable output and automation contracts are documented in [docs/CLI_MACHINE_READABLE_CONTRACTS.md](docs/CLI_MACHINE_READABLE_CONTRACTS.md).
 

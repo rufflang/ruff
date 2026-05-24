@@ -116,6 +116,34 @@ Operational guidance:
 - Bind server listeners to explicit interfaces and non-privileged ports.
 - Treat large unvalidated payloads as hostile by default.
 
+### 4.2.1 HTML Response Threat Model (`html_response`)
+
+`html_response(...)` is a raw response-construction helper. It does **not** sanitize or escape attacker-controlled content.
+
+Threat model boundary:
+
+- If untrusted input is interpolated into HTML without escaping, downstream browsers can execute injected markup/script.
+- Ruff runtime/server controls do not rewrite response bodies for XSS safety.
+
+Safer usage patterns:
+
+- Prefer JSON responses (`http_response`) for untrusted data APIs.
+- Keep user-controlled data in text nodes only, and escape at least `&`, `<`, `>`, `"`, and `'` before interpolation.
+- For rich HTML pages, render from trusted templates and pass pre-sanitized content only.
+
+Example defensive escaping helper (Ruff script-level):
+
+```ruff
+fn escape_html(input) {
+  let out = replace(input, "&", "&amp;")
+  out = replace(out, "<", "&lt;")
+  out = replace(out, ">", "&gt;")
+  out = replace(out, "\"", "&quot;")
+  out = replace(out, "'", "&#39;")
+  return out
+}
+```
+
 ### 4.3 Filesystem and Archive APIs
 
 Relevant APIs: read/write/delete/path/directory/archive helpers.

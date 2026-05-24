@@ -65,6 +65,8 @@ Purpose: capture additive, non-breaking work that can improve safety, maintainab
     Evidence: `rg -n "\bunsafe\b" src/jit.rs | wc -l` -> `51`; `rg -n "SAFETY:" src/jit.rs | wc -l` -> `3`.
   - Blocker (2026-05-23): Revalidated before `V1H-SEC-002`; invariant annotation gap is unchanged and still requires a dedicated unsafe-boundary documentation loop.
     Evidence: `rg -n "\bunsafe\b" src/jit.rs | wc -l` -> `51`; `rg -n "SAFETY:" src/jit.rs | wc -l` -> `3`.
+  - Blocker (2026-05-23): Revalidated before `V1H-SEC-004`; unsafe-boundary invariant coverage is still unchanged and remains scoped for a dedicated unsafe pass.
+    Evidence: `rg -n "\bunsafe\b" src/jit.rs | wc -l` -> `51`; `rg -n "SAFETY:" src/jit.rs | wc -l` -> `3`.
 
 - [ ] **V1H-UNSAFE-003**: Reduce executable unsafe callsites via safe wrappers where behavior is unchanged.
   - Scope: trim ad hoc unsafe deref/transmute callsites without broad rewrites.
@@ -85,6 +87,8 @@ Purpose: capture additive, non-breaking work that can improve safety, maintainab
   - Blocker (2026-05-23): Revalidated before `V1H-SEC-001`; executable unsafe reduction remains blocked on unresolved unsafe-boundary invariant documentation sequencing.
     Evidence: `docs/generated/UNSAFE_INVENTORY.md` still reports concentrated executable unsafe rows in `src/jit.rs`.
   - Blocker (2026-05-23): Revalidated before `V1H-SEC-002`; executable unsafe reduction remains sequenced after `V1H-UNSAFE-002` invariant standardization.
+    Evidence: `docs/generated/UNSAFE_INVENTORY.md` still reports concentrated executable unsafe rows in `src/jit.rs`.
+  - Blocker (2026-05-23): Revalidated before `V1H-SEC-004`; executable unsafe reduction remains blocked on unresolved `V1H-UNSAFE-002` invariant standardization.
     Evidence: `docs/generated/UNSAFE_INVENTORY.md` still reports concentrated executable unsafe rows in `src/jit.rs`.
 
 - [x] **V1H-UNSAFE-004**: Add optional sanitizer/Miri-oriented safety gate for CI/nightly verification.
@@ -131,6 +135,8 @@ Purpose: capture additive, non-breaking work that can improve safety, maintainab
   - Blocker (2026-05-23): Revalidated before `V1H-SEC-001`; feature-partitioning remains a broader build-surface decision and is still deferred outside this single security-hardening loop.
     Evidence: `Cargo.toml` still has heavyweight runtime subsystems in always-on `[dependencies]` without an incremental feature matrix scaffold.
   - Blocker (2026-05-23): Revalidated before `V1H-SEC-002`; dependency feature-partitioning remains a multi-surface build-matrix change and is deferred outside this scoped URL-hardening loop.
+    Evidence: `Cargo.toml` still has heavyweight runtime subsystems in always-on `[dependencies]` without an incremental feature matrix scaffold.
+  - Blocker (2026-05-23): Revalidated before `V1H-SEC-004`; feature-gate partitioning remains a broader build-matrix decision outside this docs-only hardening loop.
     Evidence: `Cargo.toml` still has heavyweight runtime subsystems in always-on `[dependencies]` without an incremental feature matrix scaffold.
 
 - [x] **V1H-SIZE-003**: Consolidate duplicated runtime helpers shared by VM and interpreter.
@@ -240,12 +246,23 @@ Purpose: capture additive, non-breaking work that can improve safety, maintainab
   - Validation:
     - focused native function tests
     - `cargo test --test native_api_security_boundaries`
+  - Blocker (2026-05-23): Revalidated and deferred; current production native surfaces still contain many `lock().unwrap()` sites across network/database/concurrency paths and require a dedicated staged conversion plan to avoid broad runtime regression risk in a single loop.
+    Evidence: `rg -n "lock\\(\\)\\.unwrap\\(\\)" src/interpreter/native_functions src/builtins.rs src/main.rs` reports extensive occurrences across `network.rs`, `database.rs`, `concurrency.rs`, and shared runtime surfaces.
 
-- [ ] **V1H-SEC-004**: Add explicit threat-model documentation for script-generated HTML responses.
+- [x] **V1H-SEC-004**: Add explicit threat-model documentation for script-generated HTML responses.
   - Scope: clarify that `html_response` can propagate unescaped content; provide safe usage guidance and helper recommendations.
   - Acceptance criteria:
     - docs include actionable XSS-safe patterns for Ruff HTTP handlers.
     - no behavior break to existing response helpers.
+  - Completed (2026-05-23):
+    - Added explicit `html_response` threat-model boundary docs, including XSS risk statement and safe usage patterns in `docs/NATIVE_API_SECURITY_POSTURE.md`.
+    - Added a concrete script-level `escape_html` example for defensive output encoding.
+    - Added README callout that `html_response` is raw output and requires caller-side escaping for untrusted content.
+    - Validation:
+      - `cargo test --test security_posture_docs_contract` (2 passed)
+      - `cargo test --test readme_contracts` (1 passed)
+      - `cargo test --test native_api_security_boundaries` (48 passed)
+      - `cargo test --test runtime_security` (9 passed)
 
 ---
 
