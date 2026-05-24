@@ -67,6 +67,8 @@ Purpose: capture additive, non-breaking work that can improve safety, maintainab
     Evidence: `rg -n "\bunsafe\b" src/jit.rs | wc -l` -> `51`; `rg -n "SAFETY:" src/jit.rs | wc -l` -> `3`.
   - Blocker (2026-05-23): Revalidated before `V1H-SEC-004`; unsafe-boundary invariant coverage is still unchanged and remains scoped for a dedicated unsafe pass.
     Evidence: `rg -n "\bunsafe\b" src/jit.rs | wc -l` -> `51`; `rg -n "SAFETY:" src/jit.rs | wc -l` -> `3`.
+  - Blocker (2026-05-23): Revalidated before `V1H-FEAT-004`; unsafe-boundary invariant coverage remains unchanged and still requires dedicated unsafe-loop closure.
+    Evidence: `rg -n "\bunsafe\b" src/jit.rs | wc -l` -> `51`; `rg -n "SAFETY:" src/jit.rs | wc -l` -> `3`.
 
 - [ ] **V1H-UNSAFE-003**: Reduce executable unsafe callsites via safe wrappers where behavior is unchanged.
   - Scope: trim ad hoc unsafe deref/transmute callsites without broad rewrites.
@@ -89,6 +91,8 @@ Purpose: capture additive, non-breaking work that can improve safety, maintainab
   - Blocker (2026-05-23): Revalidated before `V1H-SEC-002`; executable unsafe reduction remains sequenced after `V1H-UNSAFE-002` invariant standardization.
     Evidence: `docs/generated/UNSAFE_INVENTORY.md` still reports concentrated executable unsafe rows in `src/jit.rs`.
   - Blocker (2026-05-23): Revalidated before `V1H-SEC-004`; executable unsafe reduction remains blocked on unresolved `V1H-UNSAFE-002` invariant standardization.
+    Evidence: `docs/generated/UNSAFE_INVENTORY.md` still reports concentrated executable unsafe rows in `src/jit.rs`.
+  - Blocker (2026-05-23): Revalidated before `V1H-FEAT-004`; executable unsafe reduction remains sequenced after unresolved invariant-standardization work.
     Evidence: `docs/generated/UNSAFE_INVENTORY.md` still reports concentrated executable unsafe rows in `src/jit.rs`.
 
 - [x] **V1H-UNSAFE-004**: Add optional sanitizer/Miri-oriented safety gate for CI/nightly verification.
@@ -137,6 +141,8 @@ Purpose: capture additive, non-breaking work that can improve safety, maintainab
   - Blocker (2026-05-23): Revalidated before `V1H-SEC-002`; dependency feature-partitioning remains a multi-surface build-matrix change and is deferred outside this scoped URL-hardening loop.
     Evidence: `Cargo.toml` still has heavyweight runtime subsystems in always-on `[dependencies]` without an incremental feature matrix scaffold.
   - Blocker (2026-05-23): Revalidated before `V1H-SEC-004`; feature-gate partitioning remains a broader build-matrix decision outside this docs-only hardening loop.
+    Evidence: `Cargo.toml` still has heavyweight runtime subsystems in always-on `[dependencies]` without an incremental feature matrix scaffold.
+  - Blocker (2026-05-23): Revalidated before `V1H-FEAT-004`; feature-gate partitioning remains a multi-surface build-matrix change beyond this downstream-doc loop.
     Evidence: `Cargo.toml` still has heavyweight runtime subsystems in always-on `[dependencies]` without an incremental feature matrix scaffold.
 
 - [x] **V1H-SIZE-003**: Consolidate duplicated runtime helpers shared by VM and interpreter.
@@ -248,6 +254,8 @@ Purpose: capture additive, non-breaking work that can improve safety, maintainab
     - `cargo test --test native_api_security_boundaries`
   - Blocker (2026-05-23): Revalidated and deferred; current production native surfaces still contain many `lock().unwrap()` sites across network/database/concurrency paths and require a dedicated staged conversion plan to avoid broad runtime regression risk in a single loop.
     Evidence: `rg -n "lock\\(\\)\\.unwrap\\(\\)" src/interpreter/native_functions src/builtins.rs src/main.rs` reports extensive occurrences across `network.rs`, `database.rs`, `concurrency.rs`, and shared runtime surfaces.
+  - Blocker (2026-05-23): Revalidated before `V1H-FEAT-004`; `lock().unwrap()` conversion scope remains broad and still requires a dedicated staged runtime-hardening loop with poison-lock contract tests.
+    Evidence: `rg -n "lock\\(\\)\\.unwrap\\(\\)" src/interpreter/native_functions src/builtins.rs src/main.rs` still reports extensive occurrences across production runtime surfaces.
 
 - [x] **V1H-SEC-004**: Add explicit threat-model documentation for script-generated HTML responses.
   - Scope: clarify that `html_response` can propagate unescaped content; provide safe usage guidance and helper recommendations.
@@ -277,24 +285,39 @@ Purpose: capture additive, non-breaking work that can improve safety, maintainab
     - `cargo run -- test --runtime vm`
     - `cargo run -- test --runtime dual`
     - `cargo test --test vm_interpreter_parity_surfaces`
+  - Blocker (2026-05-23): Revalidated and deferred; P0 parity burn-down remains a multi-fixture runtime track that requires a dedicated parity loop with fixture-by-fixture closure evidence.
+    Evidence: `docs/generated/VM_RUNTIME_MISMATCH_INVENTORY.md` still reports `P0 runtime-parity-bug (runtime-owner): 25`.
 
 - [ ] **V1H-FEAT-002**: Resolve P2 harness debt to improve signal quality.
   - Scope: normalize/refresh fixture expectations where both runtimes are correct but contract snapshots are stale/noisy.
   - Acceptance criteria:
     - `harness-debt` count reduced from current baseline (`16`).
     - contract rationale documented per touched fixture family.
+  - Blocker (2026-05-23): Revalidated and deferred; harness-debt normalization remains a dedicated fixture-contract burn-down track outside this docs loop.
+    Evidence: `docs/generated/VM_RUNTIME_MISMATCH_INVENTORY.md` still reports `P2 harness-debt (harness-owner): 16`.
 
 - [ ] **V1H-FEAT-003**: Tighten type-checker ergonomics for high-impact TODOs.
   - Scope: targeted improvements from `src/type_checker.rs` medium-severity TODO cluster (module checks, struct field inference, generic collection inference).
   - Acceptance criteria:
     - at least one medium-severity TODO cluster closed with tests.
     - no parser/runtime behavior regression.
+  - Blocker (2026-05-23): Revalidated and deferred; type-checker TODO clusters require dedicated semantic design and regression coverage outside this downstream-doc loop.
+    Evidence: `rg -n "TODO|FIXME" src/type_checker.rs` still reports unresolved medium-scope TODO clusters (module checks, struct fields, generic collection inference, method inference).
 
-- [ ] **V1H-FEAT-004**: Remove stale `--interpreter` preference language from downstream-facing docs and examples.
+- [x] **V1H-FEAT-004**: Remove stale `--interpreter` preference language from downstream-facing docs and examples.
   - Scope: ensure docs present VM-first guidance with explicit caveats tied to current parity state.
   - Acceptance criteria:
     - README/docs examples default to VM path unless feature explicitly requires interpreter fallback.
     - references to fallback include concrete limitation rationale.
+  - Completed (2026-05-23):
+    - Updated downstream-facing secure-usage examples in `docs/NATIVE_API_SECURITY_POSTURE.md` from `ruff run --interpreter ...` to VM-default `ruff run ...`.
+    - Added explicit caveat that `--interpreter` remains an optional compatibility/debug isolation mode, not default workflow guidance.
+    - Retained explicit fallback references only where they represent intentional compatibility/runtime-path rationale.
+    - Validation:
+      - `cargo test --test security_posture_docs_contract` (2 passed)
+      - `cargo test --test readme_contracts` (1 passed)
+      - `cargo test --test native_api_security_boundaries` (48 passed)
+      - `cargo test --test runtime_security` (9 passed)
 
 ---
 

@@ -222,16 +222,18 @@ Operator guidance:
 
 ## 6. Safe vs Unsafe Configuration Patterns
 
+These examples intentionally use VM-default `ruff run` paths. Use `--interpreter` only for targeted compatibility/debug isolation when diagnosing a known runtime-path divergence.
+
 ### Safer local review of untrusted script with minimal permissions
 
 ```bash
-ruff run --interpreter --untrusted --allow-fs-read ./script.ruff
+ruff run --untrusted --allow-fs-read ./script.ruff
 ```
 
 ### Safer network client workflow with explicit egress-only capability
 
 ```bash
-ruff run --interpreter --untrusted --allow-net-client ./fetch.ruff
+ruff run --untrusted --allow-net-client ./fetch.ruff
 ```
 
 ### Unsafe pattern: full capability escalation for untrusted input
@@ -243,7 +245,7 @@ ruff run --allow-all ./untrusted.ruff
 ### Unsafe pattern: enabling shell execution for interpolated user input
 
 ```bash
-ruff run --interpreter --untrusted --allow-shell-exec ./script_that_builds_shell_strings.ruff
+ruff run --untrusted --allow-shell-exec ./script_that_builds_shell_strings.ruff
 ```
 
 ## 7. Recommended External Sandboxing Controls
