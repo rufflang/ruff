@@ -267,6 +267,95 @@ fn vm_and_interpreter_match_dict_override_and_dict_method_surface() {
 }
 
 #[test]
+fn vm_and_interpreter_match_null_optional_and_pipe_operator_surface() {
+    let script = r#"
+        func double(x) {
+            return x * 2
+        }
+
+        func add_ten(x) {
+            return x + 10
+        }
+
+        func square(x) {
+            return x * x
+        }
+
+        value1 := null ?? "default"
+        value2 := "actual" ?? "default"
+        value3 := null ?? null ?? "fallback"
+        value4 := null ?? "first" ?? "second"
+        num1 := null ?? 42
+        num2 := 10 ?? 42
+
+        dict1 := {"name": "Bob", "age": 30}
+        null_dict := null
+        name1 := dict1?.name
+        missing := dict1?.missing_field
+        name2 := null_dict?.name
+        default_name := null_dict?.name ?? "Anonymous"
+        actual_name := dict1?.name ?? "Anonymous"
+
+        result1 := 5 |> double
+        result2 := 3 |> double |> add_ten |> square
+
+        ops_ok :=
+            value1 == "default" &&
+            value2 == "actual" &&
+            value3 == "fallback" &&
+            value4 == "first" &&
+            num1 == 42 &&
+            num2 == 10 &&
+            name1 == "Bob" &&
+            missing == null &&
+            name2 == null &&
+            default_name == "Anonymous" &&
+            actual_name == "Bob" &&
+            result1 == 10 &&
+            result2 == 256
+    "#;
+
+    assert_interpreter_and_vm_bool(script, "ops_ok");
+}
+
+#[test]
+fn vm_and_interpreter_match_struct_unary_overload_surface() {
+    let script = r#"
+        struct Vector {
+            x: float,
+            y: float,
+
+            func op_neg() {
+                return Vector { x: -x, y: -y }
+            }
+        }
+
+        struct Flag {
+            value: bool,
+
+            func op_not() {
+                return Flag { value: !value }
+            }
+        }
+
+        v := Vector { x: 3.0, y: 4.0 }
+        neg_v := -v
+
+        f := Flag { value: true }
+        not_f := !f
+        double_not := !!f
+
+        unary_ok :=
+            neg_v.x == -3.0 &&
+            neg_v.y == -4.0 &&
+            not_f.value == false &&
+            double_not.value == true
+    "#;
+
+    assert_interpreter_and_vm_bool(script, "unary_ok");
+}
+
+#[test]
 fn vm_and_interpreter_match_enum_match_binding_surface() {
     let script = r#"
         result_value := Result::Ok(42)

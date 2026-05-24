@@ -7052,6 +7052,22 @@ impl VM {
         Some(self.call_function_from_jit(method_value, vec![left.clone(), right.clone()]))
     }
 
+    fn try_call_vm_unary_operator_method(
+        &mut self,
+        value: &Value,
+        op: &str,
+    ) -> Option<Result<Value, String>> {
+        let method_name = crate::ast::operator_methods::unary_op_method(op)?;
+        let struct_name = match value {
+            Value::Struct { name, .. } => name,
+            _ => return None,
+        };
+
+        let method_global_name = format!("{}.{}", struct_name, method_name);
+        let method_value = self.globals.lock().unwrap().get(&method_global_name)?;
+        Some(self.call_function_from_jit(method_value, vec![value.clone()]))
+    }
+
     /// Binary operation
     fn binary_op(&mut self, left: &Value, op: &str, right: &Value) -> Result<Value, String> {
         if let Some(result) = self.try_call_vm_binary_operator_method(left, op, right) {
@@ -7094,7 +7110,11 @@ impl VM {
     }
 
     /// Unary operation
-    fn unary_op(&self, op: &str, value: &Value) -> Result<Value, String> {
+    fn unary_op(&mut self, op: &str, value: &Value) -> Result<Value, String> {
+        if let Some(result) = self.try_call_vm_unary_operator_method(value, op) {
+            return result;
+        }
+
         match (op, value) {
             ("-", Value::Int(n)) => {
                 n.checked_neg().map(Value::Int).ok_or_else(|| format!("Integer overflow: -({})", n))

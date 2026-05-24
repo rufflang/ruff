@@ -1004,6 +1004,79 @@ impl Compiler {
                     return Ok(());
                 }
 
+                if op == "??" {
+                    self.compile_expr(left)?;
+                    self.chunk.emit(OpCode::Dup);
+                    let none_index = self.chunk.add_constant(Constant::None);
+                    self.chunk.emit(OpCode::LoadConst(none_index));
+                    self.chunk.emit(OpCode::Equal);
+
+                    // If left is NOT null, keep it and skip RHS evaluation.
+                    let left_non_null_jump = self.chunk.emit(OpCode::JumpIfFalse(0));
+
+                    // left is null: drop condition + left and evaluate RHS.
+                    self.chunk.emit(OpCode::Pop);
+                    self.chunk.emit(OpCode::Pop);
+                    self.compile_expr(right)?;
+                    let end_jump = self.chunk.emit(OpCode::Jump(0));
+
+                    // left is non-null: drop condition and keep left.
+                    self.chunk.patch_jump(left_non_null_jump);
+                    self.chunk.emit(OpCode::Pop);
+                    self.chunk.patch_jump(end_jump);
+                    return Ok(());
+                }
+
+                if op == "?." {
+                    self.compile_expr(left)?;
+                    self.chunk.emit(OpCode::Dup);
+                    let none_index = self.chunk.add_constant(Constant::None);
+                    self.chunk.emit(OpCode::LoadConst(none_index));
+                    self.chunk.emit(OpCode::Equal);
+
+                    // If left is NOT null, evaluate field access.
+                    let left_non_null_jump = self.chunk.emit(OpCode::JumpIfFalse(0));
+
+                    // left is null: drop condition + left, return null.
+                    self.chunk.emit(OpCode::Pop);
+                    self.chunk.emit(OpCode::Pop);
+                    self.chunk.emit(OpCode::LoadConst(none_index));
+                    let end_jump = self.chunk.emit(OpCode::Jump(0));
+
+                    self.chunk.patch_jump(left_non_null_jump);
+                    self.chunk.emit(OpCode::Pop);
+                    match right.as_ref() {
+                        Expr::String(field_name) => self.chunk.emit(OpCode::FieldGet(field_name.clone())),
+                        _ => {
+                            return Err(
+                                "Optional chaining requires a field-name string on the right-hand side"
+                                    .to_string(),
+                            )
+                        }
+                    };
+                    self.chunk.patch_jump(end_jump);
+                    return Ok(());
+                }
+
+                if op == "|>" {
+                    match right.as_ref() {
+                        Expr::Call { function, args } => {
+                            self.compile_expr(left)?;
+                            for arg in args {
+                                self.compile_expr(arg)?;
+                            }
+                            self.compile_expr(function)?;
+                            self.chunk.emit(OpCode::Call(args.len() + 1));
+                        }
+                        _ => {
+                            self.compile_expr(left)?;
+                            self.compile_expr(right)?;
+                            self.chunk.emit(OpCode::Call(1));
+                        }
+                    }
+                    return Ok(());
+                }
+
                 // Compile operands
                 self.compile_expr(left)?;
                 self.compile_expr(right)?;
