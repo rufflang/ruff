@@ -46,7 +46,7 @@ Purpose: capture additive, non-breaking work that can improve safety, maintainab
     - Captured loop evidence in `notes/2026-05-22_11-25_v1h-unsafe-001-unsafe-truth-set-reconciliation.md`.
     - Validation: `bash scripts/generate_unsafe_inventory.sh`, `cargo test --test unsafe_inventory_contract` (2 passed), and `cargo test --test vm_interpreter_parity_surfaces` (86 passed).
 
-- [ ] **V1H-UNSAFE-002**: Add/standardize `SAFETY:` invariant comments at JIT FFI/pointer boundaries.
+- [x] **V1H-UNSAFE-002**: Add/standardize `SAFETY:` invariant comments at JIT FFI/pointer boundaries.
   - Scope: every executable unsafe boundary in `src/jit.rs` has concise precondition/postcondition notes.
   - Acceptance criteria:
     - No undocumented executable unsafe blocks/functions in `src/jit.rs`.
@@ -79,6 +79,8 @@ Purpose: capture additive, non-breaking work that can improve safety, maintainab
     Evidence: `bash scripts/check_jit_safety_contracts.sh --allow-missing` now reports `Checked 47 executable unsafe boundaries in src/jit.rs; missing contracts: 14` (remaining gaps are non-extern unsafe blocks/calls for loop 3).
   - Progress (2026-05-24, loop 3): Annotated all remaining executable unsafe blocks/calls in `src/jit.rs` and added malformed-heading checker coverage.
     Evidence: strict run `bash scripts/check_jit_safety_contracts.sh` now reports `Checked 47 executable unsafe boundaries in src/jit.rs; missing contracts: 0`.
+  - Evidence (2026-05-24, loop 4 closure): Final verification and closure artifacts completed.
+    Evidence: `bash scripts/generate_unsafe_inventory.sh`, `bash scripts/check_jit_safety_contracts.sh`, `cargo test --test unsafe_inventory_contract` (2 passed), `cargo test --test jit_safety_contract_checker` (8 passed), `cargo test --test jit_execution_contract` (3 passed), and `cargo test --test vm_interpreter_parity_surfaces` (87 passed). Closure note: `notes/2026-05-24_07-46_v1h-unsafe-002-jit-safety-contract-closure.md`.
 
 - [ ] **V1H-UNSAFE-003**: Reduce executable unsafe callsites via safe wrappers where behavior is unchanged.
   - Scope: trim ad hoc unsafe deref/transmute callsites without broad rewrites.
