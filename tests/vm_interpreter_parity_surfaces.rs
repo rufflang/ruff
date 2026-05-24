@@ -153,6 +153,29 @@ fn vm_and_interpreter_match_legacy_method_without_self_field_lookup() {
 }
 
 #[test]
+fn vm_and_interpreter_match_struct_method_named_chain_collision_surface() {
+    let script = r#"
+        struct Calculator {
+            base: float,
+
+            func add(self, x) {
+                return self.base + x
+            }
+
+            func chain(self, x) {
+                temp := self.add(x)
+                return temp * 2.0
+            }
+        }
+
+        calc := Calculator { base: 10.0 }
+        chain_ok := calc.chain(5.0) == 30.0
+    "#;
+
+    assert_interpreter_and_vm_bool(script, "chain_ok");
+}
+
+#[test]
 fn vm_and_interpreter_match_spread_destructuring_surface() {
     let script = r#"
         values := [1, 2, 3, 4]

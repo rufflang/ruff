@@ -1421,7 +1421,7 @@ impl Compiler {
                 // For built-in iterator methods (map, filter, etc.), use native calls
                 match method.as_str() {
                     "map" | "filter" | "reduce" | "collect" | "take" | "skip" | "zip"
-                    | "enumerate" | "chain" | "flatten" | "chunk" => {
+                    | "enumerate" | "flatten" | "chunk" => {
                         // These are native iterator functions
                         self.chunk.emit(OpCode::CallNative(method.clone(), args.len() + 1));
                     }

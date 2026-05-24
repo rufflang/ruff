@@ -247,6 +247,11 @@ Each loop report must include exactly:
     - Evidence: VM/compiler method-call compatibility updates reduced non-intentional mismatch volume; regenerated inventory now reports `P0 runtime-parity-bug (runtime-owner): 24`, `P1 stale-snapshot-expectation: 0`, `P2 harness-debt: 0`.
     - Runtime sweep evidence: `cargo run -- test --runtime vm` improved to `Passed 115/150`; `cargo run -- test --runtime dual` improved to `Passed 128/150` (`vm_primary=115`, `interpreter_fallback=13`).
     - Supporting regression coverage: `cargo test --test vm_interpreter_parity_surfaces` (`90 passed`) including `vm_and_interpreter_match_legacy_method_without_self_field_lookup`.
+  - Blocker note (2026-05-24, chain-method collision retry): still blocked, with further monotonic reduction.
+    - Evidence: compiler now treats struct method name `chain` as regular method lookup (not forced native call), eliminating VM `Unknown native function: chain` failures in method/self fixture surfaces.
+    - Inventory totals after regeneration: `P0 runtime-parity-bug (runtime-owner): 22`, `P1 stale-snapshot-expectation: 0`, `P2 harness-debt: 0`.
+    - Runtime sweep evidence: `cargo run -- test --runtime vm` improved to `Passed 116/150`; `cargo run -- test --runtime dual` improved to `Passed 129/150` (`vm_primary=116`, `interpreter_fallback=13`).
+    - Supporting regression coverage: `cargo test --test vm_interpreter_parity_surfaces` (`91 passed`) including `vm_and_interpreter_match_struct_method_named_chain_collision_surface`.
 
 ### 3) Harness And CLI Runtime Strategy Hardening
 

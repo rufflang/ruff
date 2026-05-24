@@ -56,7 +56,7 @@ tests/test_binary_files.ruff,4,4,yes,yes,both_match_snapshot,none,n/a,P4,snapsho
 tests/test_binary_simple.ruff,4,4,yes,yes,both_match_snapshot,none,n/a,P4,snapshot matches in both runtimes
 tests/test_call_method.ruff,0,0,yes,yes,both_match_snapshot,none,n/a,P4,snapshot matches in both runtimes
 tests/test_chain.ruff,0,0,yes,yes,both_match_snapshot,none,n/a,P4,snapshot matches in both runtimes
-tests/test_chain_debug.ruff,4,4,yes,no,interpreter_only_mismatch,runtime-parity-bug,runtime-owner,P0,runtime-path mismatch against snapshot indicates parity defect or runtime-specific contract drift
+tests/test_chain_debug.ruff,4,4,yes,yes,both_match_snapshot,none,n/a,P4,snapshot matches in both runtimes
 tests/test_collections.ruff,0,0,yes,yes,both_match_snapshot,none,n/a,P4,snapshot matches in both runtimes
 tests/test_comment_edge_cases.ruff,0,0,yes,yes,both_match_snapshot,none,n/a,P4,snapshot matches in both runtimes
 tests/test_connection_pooling.ruff,4,4,no,no,both_mismatch_different_output,runtime-parity-bug,runtime-owner,P0,both runtimes diverge from snapshot and from each other; indicating runtime-path parity drift rather than stale fixture expectations
@@ -115,7 +115,7 @@ tests/test_regex_simple.ruff,4,4,yes,yes,both_match_snapshot,none,n/a,P4,snapsho
 tests/test_self_backward_compat.ruff,0,0,yes,yes,both_match_snapshot,none,n/a,P4,snapshot matches in both runtimes
 tests/test_self_field.ruff,0,0,yes,yes,both_match_snapshot,none,n/a,P4,snapshot matches in both runtimes
 tests/test_self_minimal.ruff,0,0,yes,yes,both_match_snapshot,none,n/a,P4,snapshot matches in both runtimes
-tests/test_self_param.ruff,4,0,no,no,both_mismatch_different_output,runtime-parity-bug,runtime-owner,P0,both runtimes diverge from snapshot and from each other; indicating runtime-path parity drift rather than stale fixture expectations
+tests/test_self_param.ruff,0,0,yes,yes,both_match_snapshot,none,n/a,P4,snapshot matches in both runtimes
 tests/test_self_return.ruff,0,0,yes,yes,both_match_snapshot,none,n/a,P4,snapshot matches in both runtimes
 tests/test_self_simple.ruff,0,0,yes,yes,both_match_snapshot,none,n/a,P4,snapshot matches in both runtimes
 tests/test_simple_random.ruff,0,0,yes,yes,both_match_snapshot,none,n/a,P4,snapshot matches in both runtimes
