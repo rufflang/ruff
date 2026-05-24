@@ -262,6 +262,12 @@ Each loop report must include exactly:
     - Inventory totals after regeneration: `P0 runtime-parity-bug (runtime-owner): 9`, `P1 stale-snapshot-expectation: 1`, `P2 harness-debt: 0` (`vm_matches_snapshot: 153/163`, `93.9%`).
     - Remaining `runtime-parity-bug` fixtures: `env_and_args`, `image_processing_test`, `result_option`, `simple_image_test`, `stdlib_os_path_test`, `stdlib_test`, `test_assertions`, `test_connection_pooling`, `test_generators`.
     - Supporting regression coverage: `cargo test --test vm_interpreter_parity_surfaces` (`95 passed`), `cargo test --test vm_runtime_mismatch_inventory_contract` (`2 passed`), and `cargo test --test vm_runtime_mismatch_baseline_contract` (`4 passed`).
+  - Blocker note (2026-05-24, native exception + try-unwind parity retry): still blocked, with major additional reduction.
+    - Evidence: VM now routes native-call errors through throw/catch handler unwinding (`OpCode::CallNative` and native-function `OpCode::Call` path) and `TryUnwrap` now performs function-frame early return for `Err`/`None` instead of aborting top-level execution.
+    - Inventory totals after regeneration: `P0 runtime-parity-bug (runtime-owner): 4`, `P1 stale-snapshot-expectation: 5`, `P2 harness-debt: 0`.
+    - Remaining `runtime-parity-bug` fixtures: `stdlib_os_path_test`, `stdlib_test`, `test_connection_pooling`, `test_generators`.
+    - Runtime sweep evidence: `cargo run -- test --runtime vm` -> `Passed 128/150`; `cargo run -- test --runtime dual` -> `Passed 129/150` (`vm_primary=128`, `interpreter_fallback=1`).
+    - Supporting regression coverage: `cargo test --test vm_interpreter_parity_surfaces` (`95 passed`), `cargo test --test vm_runtime_mismatch_inventory_contract` (`2 passed`), and `cargo test --test vm_runtime_mismatch_baseline_contract` (`4 passed`).
 
 ### 3) Harness And CLI Runtime Strategy Hardening
 

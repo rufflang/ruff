@@ -465,6 +465,84 @@ impl VM {
         }
     }
 
+    fn throw_runtime_value(&mut self, error_value: Value) -> Result<(), String> {
+        let throw_stack = self.function_call_stack.clone();
+
+        let normalized_error = match error_value {
+            Value::ErrorObject {
+                message,
+                mut stack,
+                line,
+                cause,
+            } => {
+                if stack.is_empty() && !throw_stack.is_empty() {
+                    stack = throw_stack;
+                }
+                Value::ErrorObject { message, stack, line, cause }
+            }
+            Value::Str(message) => Value::ErrorObject {
+                message: message.as_ref().clone(),
+                stack: throw_stack,
+                line: None,
+                cause: None,
+            },
+            Value::Error(message) => Value::ErrorObject {
+                message,
+                stack: throw_stack,
+                line: None,
+                cause: None,
+            },
+            Value::Struct { name, fields } => {
+                let message = match fields.get("message") {
+                    Some(Value::Str(msg)) => msg.as_ref().clone(),
+                    _ => format!("{name} error"),
+                };
+                let cause = fields.get("cause").cloned().map(Box::new);
+                Value::ErrorObject {
+                    message,
+                    stack: throw_stack,
+                    line: None,
+                    cause,
+                }
+            }
+            other => Value::ErrorObject {
+                message: format!("{:?}", other),
+                stack: throw_stack,
+                line: None,
+                cause: None,
+            },
+        };
+
+        if let Some(handler) = self.exception_handlers.pop() {
+            while self.call_frames.len() > handler.frame_offset {
+                if let Some(frame) = self.call_frames.pop() {
+                    self.function_call_stack.pop();
+                    if self.recursion_depth > 0 {
+                        self.recursion_depth -= 1;
+                    }
+                    if self.call_frames.len() == handler.frame_offset {
+                        if let Some(prev_chunk) = frame.prev_chunk {
+                            self.set_chunk(prev_chunk);
+                        }
+                    }
+                }
+            }
+
+            self.stack.truncate(handler.stack_offset);
+            self.stack.push(normalized_error);
+            self.ip = handler.catch_ip;
+            Ok(())
+        } else {
+            let error_msg = match normalized_error {
+                Value::ErrorObject { message, .. } => message,
+                Value::Error(message) => message,
+                Value::Str(value) => value.as_ref().clone(),
+                other => format!("Uncaught exception: {:?}", other),
+            };
+            Err(error_msg)
+        }
+    }
+
     pub fn new() -> Self {
         let vm = Self {
             stack: Vec::new(),
@@ -2983,8 +3061,12 @@ impl VM {
                             self.call_bytecode_function(function.clone(), raw_args, args)?;
                         }
                         Value::NativeFunction(_) => {
-                            let result = self.call_native_function_vm(function.clone(), args)?;
-                            self.stack.push(result);
+                            match self.call_native_function_vm(function.clone(), args) {
+                                Ok(result) => self.stack.push(result),
+                                Err(err) => {
+                                    self.throw_runtime_value(Value::Error(err))?;
+                                }
+                            }
                         }
                         _ => return Err("Cannot call non-function".to_string()),
                     }
@@ -4470,19 +4552,47 @@ impl VM {
                             if is_ok {
                                 self.stack.push(*value);
                             } else {
-                                // Early return with error
-                                return Ok(Value::Result { is_ok: false, value });
+                                // Early return from current function with Err(...)
+                                let early_return = Value::Result { is_ok: false, value };
+                                if let Some(frame) = self.call_frames.pop() {
+                                    self.function_call_stack.pop();
+                                    if self.recursion_depth > 0 {
+                                        self.recursion_depth -= 1;
+                                    }
+                                    self.ip = frame.return_ip;
+                                    if let Some(prev_chunk) = frame.prev_chunk {
+                                        self.set_chunk(prev_chunk);
+                                    }
+                                    self.stack.truncate(frame.stack_offset);
+                                    self.stack.push(early_return);
+                                } else {
+                                    return Ok(early_return);
+                                }
                             }
                         }
                         Value::Option { is_some, value } => {
                             if is_some {
                                 self.stack.push(*value);
                             } else {
-                                // Early return with None
-                                return Ok(Value::Option {
+                                // Early return from current function with None
+                                let early_return = Value::Option {
                                     is_some: false,
                                     value: Box::new(Value::Null),
-                                });
+                                };
+                                if let Some(frame) = self.call_frames.pop() {
+                                    self.function_call_stack.pop();
+                                    if self.recursion_depth > 0 {
+                                        self.recursion_depth -= 1;
+                                    }
+                                    self.ip = frame.return_ip;
+                                    if let Some(prev_chunk) = frame.prev_chunk {
+                                        self.set_chunk(prev_chunk);
+                                    }
+                                    self.stack.truncate(frame.stack_offset);
+                                    self.stack.push(early_return);
+                                } else {
+                                    return Ok(early_return);
+                                }
                             }
                         }
                         _ => return Err("Try operator requires Result or Option".to_string()),
@@ -4780,126 +4890,8 @@ impl VM {
                 }
 
                 OpCode::Throw => {
-                    // Pop error value from stack
                     let error_value = self.stack.pop().ok_or("Stack underflow in Throw")?;
-                    let throw_stack = self.function_call_stack.clone();
-
-                    // Normalize thrown values to ErrorObject so catch blocks receive
-                    // deterministic structured errors with call-stack parity.
-                    let normalized_error = match error_value {
-                        Value::ErrorObject {
-                            message,
-                            mut stack,
-                            line,
-                            cause,
-                        } => {
-                            if stack.is_empty() && !throw_stack.is_empty() {
-                                stack = throw_stack;
-                            }
-                            Value::ErrorObject {
-                                message,
-                                stack,
-                                line,
-                                cause,
-                            }
-                        }
-                        Value::Str(message) => Value::ErrorObject {
-                            message: message.as_ref().clone(),
-                            stack: throw_stack,
-                            line: None,
-                            cause: None,
-                        },
-                        Value::Error(message) => Value::ErrorObject {
-                            message,
-                            stack: throw_stack,
-                            line: None,
-                            cause: None,
-                        },
-                        Value::Struct { name, fields } => {
-                            let message = match fields.get("message") {
-                                Some(Value::Str(msg)) => msg.as_ref().clone(),
-                                _ => format!("{name} error"),
-                            };
-                            let cause = fields.get("cause").cloned().map(Box::new);
-                            Value::ErrorObject {
-                                message,
-                                stack: throw_stack,
-                                line: None,
-                                cause,
-                            }
-                        }
-                        _ => Value::ErrorObject {
-                            message: "error".to_string(),
-                            stack: throw_stack,
-                            line: None,
-                            cause: None,
-                        },
-                    };
-
-                    if std::env::var("DEBUG_VM").is_ok() {
-                        eprintln!("THROW: error_value={:?}", normalized_error);
-                        eprintln!("  Exception handlers: {}", self.exception_handlers.len());
-                        eprintln!("  Call frames: {}", self.call_frames.len());
-                    }
-
-                    // Find nearest exception handler
-                    if let Some(handler) = self.exception_handlers.pop() {
-                        if std::env::var("DEBUG_VM").is_ok() {
-                            eprintln!(
-                                "  Handler found: catch_ip={}, frame_offset={}, stack_offset={}",
-                                handler.catch_ip, handler.frame_offset, handler.stack_offset
-                            );
-                        }
-
-                        // Unwind call frames to handler's frame offset
-                        // We need to restore the chunk from the target frame (or top-level)
-                        while self.call_frames.len() > handler.frame_offset {
-                            if let Some(frame) = self.call_frames.pop() {
-                                // Mirror Return-path cleanup during exceptional unwind.
-                                self.function_call_stack.pop();
-                                if self.recursion_depth > 0 {
-                                    self.recursion_depth -= 1;
-                                }
-
-                                if std::env::var("DEBUG_VM").is_ok() {
-                                    eprintln!("  Unwinding frame: return_ip={}", frame.return_ip);
-                                }
-                                // Restore chunk if this was the last frame to unwind
-                                if self.call_frames.len() == handler.frame_offset {
-                                    if let Some(prev_chunk) = frame.prev_chunk {
-                                        self.set_chunk(prev_chunk);
-                                    }
-                                }
-                            }
-                        }
-
-                        // Unwind stack to handler's stack offset
-                        self.stack.truncate(handler.stack_offset);
-
-                        // Push error value back onto stack for BeginCatch
-                        self.stack.push(normalized_error);
-
-                        // Jump to catch block
-                        self.ip = handler.catch_ip;
-
-                        if std::env::var("DEBUG_VM").is_ok() {
-                            eprintln!(
-                                "  After unwind: ip={}, frames={}, stack={}",
-                                self.ip,
-                                self.call_frames.len(),
-                                self.stack.len()
-                            );
-                        }
-                    } else {
-                        // No exception handler found - uncaught exception
-                        let error_msg = match normalized_error {
-                            Value::Str(s) => s.as_ref().clone(),
-                            Value::Error(e) => e,
-                            Value::ErrorObject { message, .. } => message,
-                            other => format!("Uncaught exception: {:?}", other),
-                        };
-                        return Err(error_msg);
-                    }
+                    self.throw_runtime_value(error_value)?;
                 }
 
                 OpCode::BeginCatch(var_name) => {
@@ -4976,17 +4968,15 @@ impl VM {
                     }
                     args.reverse();
 
-                    let result = match name.as_str() {
-                        "__vm_import_all" => self.vm_import_all(&args),
-                        "__vm_import_symbol" => self.vm_import_symbol(&args),
+                    let result: Result<Value, Value> = match name.as_str() {
+                        "__vm_import_all" => self.vm_import_all(&args).map_err(Value::Error),
+                        "__vm_import_symbol" => self.vm_import_symbol(&args).map_err(Value::Error),
                         _ => {
                             let native_result =
                                 self.interpreter.call_native_function_impl(&name, &args);
                             match native_result {
-                                Value::Error(msg) => Err(msg),
-                                Value::ErrorObject { .. } => {
-                                    Err(format!("Error in native function {}", name))
-                                }
+                                Value::Error(msg) => Err(Value::Error(msg)),
+                                Value::ErrorObject { .. } => Err(native_result),
                                 other => Ok(other),
                             }
                         }
@@ -4994,7 +4984,7 @@ impl VM {
 
                     match result {
                         Ok(value) => self.stack.push(value),
-                        Err(err) => return Err(err),
+                        Err(error_value) => self.throw_runtime_value(error_value)?,
                     }
                 }
 

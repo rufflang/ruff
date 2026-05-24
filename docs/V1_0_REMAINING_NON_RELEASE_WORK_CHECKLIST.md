@@ -26,14 +26,9 @@ Non-release unchecked total: **1** primary blocker item (`V1VM-PAR-004`) plus su
 
 - [ ] **RNR-PAR-001**: Close `V1VM-PAR-004` by reducing non-intentional VM parity mismatches to intentional-divergence-only.
   - Why open: `docs/generated/VM_RUNTIME_MISMATCH_INVENTORY.md` still reports `runtime-parity-bug` fixtures.
-  - Current mismatch set (9 fixtures):
-    - `tests/env_and_args.ruff`
-    - `tests/image_processing_test.ruff`
-    - `tests/result_option.ruff`
-    - `tests/simple_image_test.ruff`
+  - Current mismatch set (4 fixtures):
     - `tests/stdlib_os_path_test.ruff`
     - `tests/stdlib_test.ruff`
-    - `tests/test_assertions.ruff`
     - `tests/test_connection_pooling.ruff`
     - `tests/test_generators.ruff`
   - Exit criteria:
@@ -89,17 +84,27 @@ Use these as execution loops to close `RNR-PAR-001` predictably:
     - Closed loop/function sub-bucket by normalizing VM for-loop iterables in compiler (`__vm_for_iterable`) without changing generic index error semantics.
     - `test_loop_correct`, `test_func_loop_correct`, and `test_function_drop_fix` no longer classify as `runtime-parity-bug`.
     - Remaining targets in this cluster: `test_generators` (runtime-path mismatch) and any residual numeric/runtime semantics from `integer_types`.
+  - Progress (2026-05-24, native error + try-unwind parity pass):
+    - VM `TryUnwrap` now performs function-frame early return semantics for `Err`/`None` instead of aborting script execution, aligning with interpreter behavior in `result_option` flows.
+    - Remaining target in this cluster stays `test_generators` (generator call/resume parity path).
 
 - [ ] **RNR-PAR-G3**: Stdlib/env/IO behavior cluster
   - Targets: `env_and_args`, `stdlib_test`, `stdlib_os_path_test`, `test_connection_pooling`, `image_processing_test`, `simple_image_test`.
   - Focus: deterministic native interop results, environment handling, stable output normalization.
+  - Progress (2026-05-24, native error throw/catch parity pass):
+    - VM native-call errors now route through VM exception handlers (`throw` semantics) instead of terminating execution, closing parity gaps for:
+      - `env_and_args` runtime path progression
+      - `image_processing_test` missing-file catch path
+      - `simple_image_test` missing-file catch path
+    - Remaining targets in this cluster: `stdlib_test`, `stdlib_os_path_test`, `test_connection_pooling`.
 
 - [ ] **RNR-PAR-G4**: Collections/assertion/result semantics cluster
   - Targets: `result_option`, `test_enhanced_collections`, `test_assertions`, `dict_methods_test` (if residual overlap).
   - Focus: container mutation/view parity, Result/Option behavior, assertion output consistency.
   - Progress (2026-05-24):
     - Closed `test_enhanced_collections` parity mismatch by adding `FixedDict` support for `invert`/`update`/`get_default` and correcting `invert` parity behavior to mirror interpreter output.
-    - Remaining targets in this cluster: `result_option` and `test_assertions`.
+    - Closed `result_option` parity by fixing VM `TryUnwrap` early-return unwinding semantics.
+    - Closed `test_assertions` parity by routing native assertion failures through VM try/catch instead of immediate VM abort.
 
 ## D) Verification Matrix For Remaining Work
 
