@@ -8,6 +8,20 @@ use postgres::NoTls;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
+macro_rules! lock_or_db_error {
+    ($mutex:expr, $context:expr) => {
+        match $mutex.lock() {
+            Ok(guard) => guard,
+            Err(_) => {
+                return Some(Value::Error(format!(
+                    "{}: database lock poisoned",
+                    $context
+                )))
+            }
+        }
+    };
+}
+
 fn map_sqlite_value(value: rusqlite::types::Value) -> Value {
     match value {
         rusqlite::types::Value::Integer(number) => Value::Int(number),
@@ -158,7 +172,7 @@ pub fn handle(name: &str, arg_values: &[Value]) -> Option<Value> {
                     let params = arg_values.get(2);
                     match (connection, db_type.as_str()) {
                         (DatabaseConnection::Sqlite(connection), "sqlite") => {
-                            let connection = connection.lock().unwrap();
+                            let connection = lock_or_db_error!(connection, "database.connection");
                             let execute_result = if let Some(Value::Array(param_arr)) = params {
                                 let param_values: Vec<Box<dyn rusqlite::ToSql>> = param_arr
                                     .iter()
@@ -195,7 +209,7 @@ pub fn handle(name: &str, arg_values: &[Value]) -> Option<Value> {
                             }
                         }
                         (DatabaseConnection::Postgres(client), "postgres") => {
-                            let mut client = client.lock().unwrap();
+                            let mut client = lock_or_db_error!(client, "database.client_mut");
                             let execute_result = if let Some(Value::Array(param_arr)) = params {
                                 let postgres_params: Vec<String> = param_arr
                                     .iter()
@@ -226,7 +240,7 @@ pub fn handle(name: &str, arg_values: &[Value]) -> Option<Value> {
                             }
                         }
                         (DatabaseConnection::Mysql(connection), "mysql") => {
-                            let mut connection = connection.lock().unwrap();
+                            let mut connection = lock_or_db_error!(connection, "database.connection_mut");
                             match create_runtime() {
                                 Ok(runtime) => {
                                     let execute_result = if let Some(Value::Array(param_arr)) =
@@ -282,7 +296,7 @@ pub fn handle(name: &str, arg_values: &[Value]) -> Option<Value> {
                     let params = arg_values.get(2);
                     match (connection, db_type.as_str()) {
                         (DatabaseConnection::Sqlite(connection), "sqlite") => {
-                            let connection = connection.lock().unwrap();
+                            let connection = lock_or_db_error!(connection, "database.connection");
 
                             let param_values: Vec<Box<dyn rusqlite::ToSql>> =
                                 if let Some(Value::Array(param_arr)) = params {
@@ -368,7 +382,7 @@ pub fn handle(name: &str, arg_values: &[Value]) -> Option<Value> {
                             Value::Array(Arc::new(results))
                         }
                         (DatabaseConnection::Postgres(client), "postgres") => {
-                            let mut client = client.lock().unwrap();
+                            let mut client = lock_or_db_error!(client, "database.client_mut");
                             let query_result = if let Some(Value::Array(param_arr)) = params {
                                 let postgres_params: Vec<String> = param_arr
                                     .iter()
@@ -424,7 +438,7 @@ pub fn handle(name: &str, arg_values: &[Value]) -> Option<Value> {
                             }
                         }
                         (DatabaseConnection::Mysql(connection), "mysql") => {
-                            let mut connection = connection.lock().unwrap();
+                            let mut connection = lock_or_db_error!(connection, "database.connection_mut");
                             match create_runtime() {
                                 Ok(runtime) => {
                                     let query_result: Result<
@@ -537,7 +551,7 @@ pub fn handle(name: &str, arg_values: &[Value]) -> Option<Value> {
             }
 
             if let Some(Value::DatabasePool { pool }) = arg_values.first() {
-                let pool_guard = pool.lock().unwrap();
+                let pool_guard = lock_or_db_error!(pool, "database.pool");
                 match pool_guard.acquire() {
                     Ok(connection) => Value::Database {
                         connection,
@@ -562,7 +576,7 @@ pub fn handle(name: &str, arg_values: &[Value]) -> Option<Value> {
 
             if let Some(Value::DatabasePool { pool }) = arg_values.first() {
                 if let Some(Value::Database { connection, .. }) = arg_values.get(1) {
-                    let pool_guard = pool.lock().unwrap();
+                    let pool_guard = lock_or_db_error!(pool, "database.pool");
                     pool_guard.release(connection.clone());
                     Value::Bool(true)
                 } else {
@@ -584,7 +598,7 @@ pub fn handle(name: &str, arg_values: &[Value]) -> Option<Value> {
             }
 
             if let Some(Value::DatabasePool { pool }) = arg_values.first() {
-                let pool_guard = pool.lock().unwrap();
+                let pool_guard = lock_or_db_error!(pool, "database.pool");
                 let stats = pool_guard.stats();
                 let mut dict = DictMap::default();
                 for (key, value) in stats {
@@ -602,7 +616,7 @@ pub fn handle(name: &str, arg_values: &[Value]) -> Option<Value> {
             }
 
             if let Some(Value::DatabasePool { pool }) = arg_values.first() {
-                let pool_guard = pool.lock().unwrap();
+                let pool_guard = lock_or_db_error!(pool, "database.pool");
                 pool_guard.close();
                 Value::Bool(true)
             } else {
@@ -629,7 +643,7 @@ pub fn handle(name: &str, arg_values: &[Value]) -> Option<Value> {
                 };
 
             {
-                let in_trans = in_transaction.lock().unwrap();
+                let in_trans = lock_or_db_error!(in_transaction, "database.in_transaction");
                 if *in_trans {
                     return Some(Value::Error(
                         "Transaction already in progress. Commit or rollback first.".to_string(),
@@ -639,21 +653,21 @@ pub fn handle(name: &str, arg_values: &[Value]) -> Option<Value> {
 
             let result = match (connection, db_type.as_str()) {
                 (DatabaseConnection::Sqlite(connection), "sqlite") => {
-                    let connection = connection.lock().unwrap();
+                    let connection = lock_or_db_error!(connection, "database.connection");
                     connection
                         .execute("BEGIN TRANSACTION", [])
                         .map(|_| ())
                         .map_err(|e| format!("Failed to begin transaction: {}", e))
                 }
                 (DatabaseConnection::Postgres(client), "postgres") => {
-                    let mut client = client.lock().unwrap();
+                    let mut client = lock_or_db_error!(client, "database.client_mut");
                     client
                         .execute("BEGIN", &[])
                         .map(|_| ())
                         .map_err(|e| format!("Failed to begin transaction: {}", e))
                 }
                 (DatabaseConnection::Mysql(connection), "mysql") => {
-                    let mut connection = connection.lock().unwrap();
+                    let mut connection = lock_or_db_error!(connection, "database.connection_mut");
                     match create_runtime() {
                         Ok(runtime) => runtime
                             .block_on(async {
@@ -671,7 +685,7 @@ pub fn handle(name: &str, arg_values: &[Value]) -> Option<Value> {
 
             match result {
                 Ok(()) => {
-                    let mut in_trans = in_transaction.lock().unwrap();
+                    let mut in_trans = lock_or_db_error!(in_transaction, "database.in_transaction_mut");
                     *in_trans = true;
                     Value::Bool(true)
                 }
@@ -685,7 +699,7 @@ pub fn handle(name: &str, arg_values: &[Value]) -> Option<Value> {
             ),
             Some(Value::Database { connection, db_type, in_transaction, .. }) => {
                 {
-                    let in_trans = in_transaction.lock().unwrap();
+                    let in_trans = lock_or_db_error!(in_transaction, "database.in_transaction");
                     if !*in_trans {
                         return Some(Value::Error(
                             "No transaction in progress. Use db_begin() first.".to_string(),
@@ -695,21 +709,21 @@ pub fn handle(name: &str, arg_values: &[Value]) -> Option<Value> {
 
                 let result = match (connection, db_type.as_str()) {
                     (DatabaseConnection::Sqlite(connection), "sqlite") => {
-                        let connection = connection.lock().unwrap();
+                        let connection = lock_or_db_error!(connection, "database.connection");
                         connection
                             .execute("COMMIT", [])
                             .map(|_| ())
                             .map_err(|e| format!("Failed to commit transaction: {}", e))
                     }
                     (DatabaseConnection::Postgres(client), "postgres") => {
-                        let mut client = client.lock().unwrap();
+                        let mut client = lock_or_db_error!(client, "database.client_mut");
                         client
                             .execute("COMMIT", &[])
                             .map(|_| ())
                             .map_err(|e| format!("Failed to commit transaction: {}", e))
                     }
                     (DatabaseConnection::Mysql(connection), "mysql") => {
-                        let mut connection = connection.lock().unwrap();
+                        let mut connection = lock_or_db_error!(connection, "database.connection_mut");
                         match create_runtime() {
                             Ok(runtime) => runtime
                                 .block_on(async {
@@ -725,7 +739,7 @@ pub fn handle(name: &str, arg_values: &[Value]) -> Option<Value> {
 
                 match result {
                     Ok(()) => {
-                        let mut in_trans = in_transaction.lock().unwrap();
+                        let mut in_trans = lock_or_db_error!(in_transaction, "database.in_transaction_mut");
                         *in_trans = false;
                         Value::Bool(true)
                     }
@@ -743,7 +757,7 @@ pub fn handle(name: &str, arg_values: &[Value]) -> Option<Value> {
             ),
             Some(Value::Database { connection, db_type, in_transaction, .. }) => {
                 {
-                    let in_trans = in_transaction.lock().unwrap();
+                    let in_trans = lock_or_db_error!(in_transaction, "database.in_transaction");
                     if !*in_trans {
                         return Some(Value::Error(
                             "No transaction in progress. Use db_begin() first.".to_string(),
@@ -753,21 +767,21 @@ pub fn handle(name: &str, arg_values: &[Value]) -> Option<Value> {
 
                 let result = match (connection, db_type.as_str()) {
                     (DatabaseConnection::Sqlite(connection), "sqlite") => {
-                        let connection = connection.lock().unwrap();
+                        let connection = lock_or_db_error!(connection, "database.connection");
                         connection
                             .execute("ROLLBACK", [])
                             .map(|_| ())
                             .map_err(|e| format!("Failed to rollback transaction: {}", e))
                     }
                     (DatabaseConnection::Postgres(client), "postgres") => {
-                        let mut client = client.lock().unwrap();
+                        let mut client = lock_or_db_error!(client, "database.client_mut");
                         client
                             .execute("ROLLBACK", &[])
                             .map(|_| ())
                             .map_err(|e| format!("Failed to rollback transaction: {}", e))
                     }
                     (DatabaseConnection::Mysql(connection), "mysql") => {
-                        let mut connection = connection.lock().unwrap();
+                        let mut connection = lock_or_db_error!(connection, "database.connection_mut");
                         match create_runtime() {
                             Ok(runtime) => runtime
                                 .block_on(async {
@@ -785,7 +799,7 @@ pub fn handle(name: &str, arg_values: &[Value]) -> Option<Value> {
 
                 match result {
                     Ok(()) => {
-                        let mut in_trans = in_transaction.lock().unwrap();
+                        let mut in_trans = lock_or_db_error!(in_transaction, "database.in_transaction_mut");
                         *in_trans = false;
                         Value::Bool(true)
                     }
@@ -808,11 +822,11 @@ pub fn handle(name: &str, arg_values: &[Value]) -> Option<Value> {
             if let Some(Value::Database { connection, db_type, .. }) = arg_values.first() {
                 match (connection, db_type.as_str()) {
                     (DatabaseConnection::Sqlite(connection), "sqlite") => {
-                        let connection = connection.lock().unwrap();
+                        let connection = lock_or_db_error!(connection, "database.connection");
                         Value::Float(connection.last_insert_rowid() as f64)
                     }
                     (DatabaseConnection::Postgres(client), "postgres") => {
-                        let mut client = client.lock().unwrap();
+                        let mut client = lock_or_db_error!(client, "database.client_mut");
                         match client.query("SELECT lastval()", &[]) {
                             Ok(rows) => {
                                 if let Some(row) = rows.first() {
@@ -829,7 +843,7 @@ pub fn handle(name: &str, arg_values: &[Value]) -> Option<Value> {
                         }
                     }
                     (DatabaseConnection::Mysql(connection), "mysql") => {
-                        let mut connection = connection.lock().unwrap();
+                        let mut connection = lock_or_db_error!(connection, "database.connection_mut");
                         match create_runtime() {
                             Ok(runtime) => match runtime.block_on(async {
                                 connection.query_first::<u64, _>("SELECT LAST_INSERT_ID()").await

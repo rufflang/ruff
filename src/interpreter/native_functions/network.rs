@@ -5,7 +5,7 @@
 use crate::interpreter::{DictMap, Interpreter, Value};
 use crate::network_policy;
 use std::io::{Read, Write};
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, MutexGuard};
 
 fn timeout_aware_error_message(operation: &str, error: &std::io::Error) -> String {
     match error.kind() {
@@ -18,6 +18,18 @@ fn timeout_aware_error_message(operation: &str, error: &std::io::Error) -> Strin
         ),
         _ => format!("{}: {}", operation, error),
     }
+}
+
+fn lock_or_network_error<'a, T>(
+    mutex: &'a Mutex<T>,
+    context: &str,
+) -> Result<MutexGuard<'a, T>, Value> {
+    mutex.lock().map_err(|_| Value::ErrorObject {
+        message: format!("{}: shared network lock poisoned", context),
+        stack: Vec::new(),
+        line: None,
+        cause: None,
+    })
 }
 
 pub fn handle(_interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Option<Value> {
@@ -60,7 +72,10 @@ pub fn handle(_interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Op
                 Value::Error("tcp_accept requires a TcpListener argument".to_string())
             } else {
                 if let Some(Value::TcpListener { listener, .. }) = arg_values.first() {
-                    let listener_guard = listener.lock().unwrap();
+                    let listener_guard = match lock_or_network_error(listener, "tcp_accept") {
+                        Ok(guard) => guard,
+                        Err(error) => return Some(error),
+                    };
                     match listener_guard.accept() {
                         Ok((stream, peer_address)) => {
                             match network_policy::apply_tcp_stream_timeouts(&stream, "tcp_accept") {
@@ -139,7 +154,10 @@ pub fn handle(_interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Op
             } else {
                 match (arg_values.first(), arg_values.get(1)) {
                     (Some(Value::TcpStream { stream, .. }), Some(Value::Str(data))) => {
-                        let mut stream_guard = stream.lock().unwrap();
+                        let mut stream_guard = match lock_or_network_error(stream, "tcp_send") {
+                            Ok(guard) => guard,
+                            Err(error) => return Some(error),
+                        };
                         match stream_guard.write_all(data.as_ref().as_bytes()) {
                             Ok(_) => match stream_guard.flush() {
                                 Ok(_) => Value::Int(data.len() as i64),
@@ -165,7 +183,10 @@ pub fn handle(_interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Op
                         }
                     }
                     (Some(Value::TcpStream { stream, .. }), Some(Value::Bytes(data))) => {
-                        let mut stream_guard = stream.lock().unwrap();
+                        let mut stream_guard = match lock_or_network_error(stream, "tcp_send") {
+                            Ok(guard) => guard,
+                            Err(error) => return Some(error),
+                        };
                         match stream_guard.write_all(data) {
                             Ok(_) => match stream_guard.flush() {
                                 Ok(_) => Value::Int(data.len() as i64),
@@ -209,7 +230,10 @@ pub fn handle(_interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Op
                             Err(error) => return Some(Value::Error(error)),
                         };
 
-                        let mut stream_guard = stream.lock().unwrap();
+                        let mut stream_guard = match lock_or_network_error(stream, "tcp_receive") {
+                            Ok(guard) => guard,
+                            Err(error) => return Some(error),
+                        };
                         let mut buffer = vec![0u8; size];
                         match stream_guard.read(&mut buffer) {
                             Ok(read_size) => {
@@ -261,7 +285,11 @@ pub fn handle(_interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Op
             } else {
                 match (arg_values.first(), arg_values.get(1)) {
                     (Some(Value::TcpStream { stream, .. }), Some(Value::Bool(nonblocking))) => {
-                        let stream_guard = stream.lock().unwrap();
+                        let stream_guard =
+                            match lock_or_network_error(stream, "tcp_set_nonblocking") {
+                                Ok(guard) => guard,
+                                Err(error) => return Some(error),
+                            };
                         match stream_guard.set_nonblocking(*nonblocking) {
                             Ok(_) => Value::Bool(true),
                             Err(error) => Value::ErrorObject {
@@ -276,7 +304,11 @@ pub fn handle(_interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Op
                         }
                     }
                     (Some(Value::TcpListener { listener, .. }), Some(Value::Bool(nonblocking))) => {
-                        let listener_guard = listener.lock().unwrap();
+                        let listener_guard =
+                            match lock_or_network_error(listener, "tcp_set_nonblocking") {
+                                Ok(guard) => guard,
+                                Err(error) => return Some(error),
+                            };
                         match listener_guard.set_nonblocking(*nonblocking) {
                             Ok(_) => Value::Bool(true),
                             Err(error) => Value::ErrorObject {
@@ -372,7 +404,10 @@ pub fn handle(_interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Op
                         });
                     }
                     let address = format!("{}:{}", host.as_ref(), port);
-                    let socket_guard = socket.lock().unwrap();
+                    let socket_guard = match lock_or_network_error(socket, "udp_send") {
+                        Ok(guard) => guard,
+                        Err(error) => return Some(error),
+                    };
                     match socket_guard.send_to(data.as_ref().as_bytes(), &address) {
                         Ok(sent_size) => Value::Int(sent_size as i64),
                         Err(error) => Value::ErrorObject {
@@ -405,7 +440,10 @@ pub fn handle(_interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Op
                         });
                     }
                     let address = format!("{}:{}", host.as_ref(), port);
-                    let socket_guard = socket.lock().unwrap();
+                    let socket_guard = match lock_or_network_error(socket, "udp_receive") {
+                        Ok(guard) => guard,
+                        Err(error) => return Some(error),
+                    };
                     match socket_guard.send_to(data, &address) {
                         Ok(sent_size) => Value::Int(sent_size as i64),
                         Err(error) => Value::ErrorObject {
@@ -442,7 +480,11 @@ pub fn handle(_interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Op
                             Err(error) => return Some(Value::Error(error)),
                         };
 
-                        let socket_guard = socket.lock().unwrap();
+                        let socket_guard =
+                            match lock_or_network_error(socket, "udp_set_nonblocking") {
+                                Ok(guard) => guard,
+                                Err(error) => return Some(error),
+                            };
                         let mut buffer = vec![0u8; size];
                         match socket_guard.recv_from(&mut buffer) {
                             Ok((read_size, source_address)) => {

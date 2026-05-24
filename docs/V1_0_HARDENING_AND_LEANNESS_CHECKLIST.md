@@ -166,6 +166,8 @@ Purpose: capture additive, non-breaking work that can improve safety, maintainab
     Evidence: `Cargo.toml` still has heavyweight runtime subsystems in always-on `[dependencies]` without an incremental feature matrix scaffold.
   - Blocker (2026-05-23): Revalidated before `V1H-FEAT-003`; dependency feature-gate partitioning remains a broader build-matrix decision outside this scoped type-checker ergonomics loop.
     Evidence: `Cargo.toml` still has heavyweight runtime subsystems in always-on `[dependencies]` without an incremental feature matrix scaffold.
+  - Blocker (2026-05-24): Revalidated after closing `V1H-UNSAFE-003`; full DB/image/archive/JIT opt-out still requires coordinated module-level `cfg(feature=...)` partitioning across `src/interpreter/mod.rs`, `src/interpreter/value.rs`, `src/interpreter/native_functions/*`, `src/vm.rs`, `src/main.rs`, and `src/lib.rs` to keep `--no-default-features` builds compiling.
+    Evidence: current imports/usages remain cross-cutting (`rg -n "use image|use mysql_async|use postgres|use rusqlite|use zip" src/interpreter src/vm.rs src/main.rs`) and JIT is wired directly into VM construction/fields (`rg -n "JitCompiler|mod jit|jit_" src/main.rs src/vm.rs src/lib.rs`).
 
 - [x] **V1H-SIZE-003**: Consolidate duplicated runtime helpers shared by VM and interpreter.
   - Scope: extract shared HTTP path/query parsing and similar duplicated helpers into shared module(s).
@@ -266,7 +268,7 @@ Purpose: capture additive, non-breaking work that can improve safety, maintainab
       - `cargo test --test runtime_security` (9 passed)
       - `cargo test` (blocked by unrelated guardrail: `tests/lsp_latency_guardrails.rs` exceeded diagnostics average latency threshold at ~156-158ms; no failures in touched network/security suites)
 
-- [ ] **V1H-SEC-003**: Replace panic-prone `lock().unwrap()` in production native surfaces.
+- [x] **V1H-SEC-003**: Replace panic-prone `lock().unwrap()` in production native surfaces.
   - Scope: network/database/concurrency native functions return controlled `ErrorObject` on poisoned lock instead of panicking process-wide.
   - Acceptance criteria:
     - no `lock().unwrap()` remaining in production runtime paths.
@@ -282,6 +284,8 @@ Purpose: capture additive, non-breaking work that can improve safety, maintainab
     Evidence: `rg -n "lock\\(\\)\\.unwrap\\(\\)" src/interpreter/native_functions src/builtins.rs src/main.rs` still reports extensive occurrences across production runtime surfaces.
   - Blocker (2026-05-23): Revalidated before `V1H-FEAT-003`; poisoned-lock conversion remains broad and staged runtime-hardening work is still required.
     Evidence: `rg -n "lock\\(\\)\\.unwrap\\(\\)" src/interpreter/native_functions src/builtins.rs src/main.rs` still reports extensive occurrences across production runtime surfaces.
+  - Evidence (2026-05-24): Completed native-surface poison-lock hardening across network/database/concurrency modules with deterministic error propagation.
+    Evidence: `rg -n "lock\(\)\.unwrap\(\)" src/interpreter/native_functions/network.rs src/interpreter/native_functions/database.rs src/interpreter/native_functions/concurrency.rs` returns no matches. Validation passed for focused native-function tests (`test_db_connect_execute_query_close_sqlite`, `test_db_transaction_begin_commit_and_rollback_sqlite`, `test_release_hardening_shared_state_and_task_pool_contracts`, `test_release_hardening_network_module_dispatch_argument_contracts`, `test_release_hardening_network_module_strict_arity_contracts`, `test_release_hardening_network_module_size_limit_contracts`, `test_release_hardening_network_module_round_trip_behaviors`), `cargo test --test runtime_security` (9), `cargo test --test native_api_security_boundaries` (48), and `cargo test --test vm_interpreter_parity_surfaces` (87). Closure note: `notes/2026-05-24_09-10_v1h-sec-003-poison-lock-hardening.md`.
 
 - [x] **V1H-SEC-004**: Add explicit threat-model documentation for script-generated HTML responses.
   - Scope: clarify that `html_response` can propagate unescaped content; provide safe usage guidance and helper recommendations.

@@ -5,12 +5,21 @@
 use crate::interpreter::{Interpreter, Value};
 use std::collections::HashMap;
 use std::sync::OnceLock;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, MutexGuard};
 
 fn shared_value_store() -> &'static Mutex<HashMap<String, Arc<Mutex<Value>>>> {
     static SHARED_VALUE_STORE: OnceLock<Mutex<HashMap<String, Arc<Mutex<Value>>>>> =
         OnceLock::new();
     SHARED_VALUE_STORE.get_or_init(|| Mutex::new(HashMap::new()))
+}
+
+fn lock_or_concurrency_error<'a, T>(
+    mutex: &'a Mutex<T>,
+    context: &str,
+) -> Result<MutexGuard<'a, T>, Value> {
+    mutex
+        .lock()
+        .map_err(|_| Value::Error(format!("{}: shared state lock poisoned", context)))
 }
 
 pub fn handle(_interp: &mut Interpreter, name: &str, _arg_values: &[Value]) -> Option<Value> {
@@ -46,7 +55,10 @@ pub fn handle(_interp: &mut Interpreter, name: &str, _arg_values: &[Value]) -> O
             };
 
             let value = arg_values[1].clone();
-            let mut store = shared_value_store().lock().unwrap();
+            let mut store = match lock_or_concurrency_error(shared_value_store(), "shared_set") {
+                Ok(guard) => guard,
+                Err(error) => return Some(error),
+            };
             store.insert(key, Arc::new(Mutex::new(value)));
             Value::Bool(true)
         }
@@ -62,9 +74,15 @@ pub fn handle(_interp: &mut Interpreter, name: &str, _arg_values: &[Value]) -> O
                 }
             };
 
-            let store = shared_value_store().lock().unwrap();
+            let store = match lock_or_concurrency_error(shared_value_store(), "shared_get") {
+                Ok(guard) => guard,
+                Err(error) => return Some(error),
+            };
             if let Some(cell) = store.get(&key) {
-                let value = cell.lock().unwrap().clone();
+                let value = match lock_or_concurrency_error(cell, "shared_get.value") {
+                    Ok(guard) => guard.clone(),
+                    Err(error) => return Some(error),
+                };
                 value
             } else {
                 Value::Error(format!("shared_get key '{}' not found", key))
@@ -82,7 +100,10 @@ pub fn handle(_interp: &mut Interpreter, name: &str, _arg_values: &[Value]) -> O
                 }
             };
 
-            let store = shared_value_store().lock().unwrap();
+            let store = match lock_or_concurrency_error(shared_value_store(), "shared_has") {
+                Ok(guard) => guard,
+                Err(error) => return Some(error),
+            };
             Value::Bool(store.contains_key(&key))
         }
         "shared_delete" => {
@@ -97,7 +118,10 @@ pub fn handle(_interp: &mut Interpreter, name: &str, _arg_values: &[Value]) -> O
                 }
             };
 
-            let mut store = shared_value_store().lock().unwrap();
+            let mut store = match lock_or_concurrency_error(shared_value_store(), "shared_delete") {
+                Ok(guard) => guard,
+                Err(error) => return Some(error),
+            };
             Value::Bool(store.remove(&key).is_some())
         }
         "shared_add_int" => {
@@ -121,9 +145,15 @@ pub fn handle(_interp: &mut Interpreter, name: &str, _arg_values: &[Value]) -> O
                 }
             };
 
-            let store = shared_value_store().lock().unwrap();
+            let store = match lock_or_concurrency_error(shared_value_store(), "shared_add_int") {
+                Ok(guard) => guard,
+                Err(error) => return Some(error),
+            };
             if let Some(cell) = store.get(&key) {
-                let mut value = cell.lock().unwrap();
+                let mut value = match lock_or_concurrency_error(cell, "shared_add_int.value") {
+                    Ok(guard) => guard,
+                    Err(error) => return Some(error),
+                };
                 match &mut *value {
                     Value::Int(current) => {
                         *current += delta;
