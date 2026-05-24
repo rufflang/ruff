@@ -8,7 +8,24 @@ pub mod async_ops;
 pub mod collections;
 pub mod concurrency;
 pub mod crypto;
+#[cfg(feature = "runtime-db")]
 pub mod database;
+#[cfg(not(feature = "runtime-db"))]
+pub mod database {
+    use super::super::Value;
+
+    pub fn handle(name: &str, _arg_values: &[Value]) -> Option<Value> {
+        match name {
+            "db_connect" | "db_execute" | "db_query" | "db_close" | "db_pool"
+            | "db_pool_acquire" | "db_pool_release" | "db_pool_stats" | "db_pool_close"
+            | "db_begin" | "db_commit" | "db_rollback" | "db_last_insert_id" => Some(Value::Error(
+                "Database native APIs are disabled in this build (enable the 'runtime-db' feature)"
+                    .to_string(),
+            )),
+            _ => None,
+        }
+    }
+}
 pub mod filesystem;
 pub mod http;
 pub mod io;
@@ -3964,6 +3981,14 @@ mod tests {
     fn test_release_hardening_database_module_dispatch_argument_contracts() {
         let mut interpreter = Interpreter::new();
 
+        if !cfg!(feature = "runtime-db") {
+            let disabled = call_native_function(&mut interpreter, "db_connect", &[]);
+            assert!(
+                matches!(disabled, Value::Error(message) if message.contains("disabled in this build"))
+            );
+            return;
+        }
+
         let connect_missing = call_native_function(&mut interpreter, "db_connect", &[]);
         assert!(
             matches!(connect_missing, Value::Error(message) if message.contains("db_connect requires database type"))
@@ -4829,6 +4854,14 @@ mod tests {
     fn test_release_hardening_load_image_dispatch_contracts() {
         let mut interpreter = Interpreter::new();
 
+        if !cfg!(feature = "runtime-image") {
+            let disabled = call_native_function(&mut interpreter, "load_image", &[]);
+            assert!(
+                matches!(disabled, Value::Error(message) if message.contains("disabled in this build"))
+            );
+            return;
+        }
+
         let load_image_missing_args = call_native_function(&mut interpreter, "load_image", &[]);
         assert!(
             matches!(load_image_missing_args, Value::Error(message) if message.contains("load_image requires a string path argument"))
@@ -5366,6 +5399,14 @@ mod tests {
     #[test]
     fn test_release_hardening_zip_module_dispatch_argument_contracts() {
         let mut interpreter = Interpreter::new();
+
+        if !cfg!(feature = "runtime-archive") {
+            let disabled = call_native_function(&mut interpreter, "zip_create", &[]);
+            assert!(
+                matches!(disabled, Value::Error(message) if message.contains("disabled in this build"))
+            );
+            return;
+        }
 
         let zip_create_missing = call_native_function(&mut interpreter, "zip_create", &[]);
         assert!(

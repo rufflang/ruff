@@ -15,6 +15,10 @@ pub mod errors;
 pub mod formatter;
 pub mod http_request_utils;
 pub mod interpreter;
+#[cfg(feature = "runtime-jit")]
+pub mod jit;
+#[cfg(not(feature = "runtime-jit"))]
+#[path = "jit_disabled.rs"]
 pub mod jit;
 pub mod lexer;
 pub mod linter;

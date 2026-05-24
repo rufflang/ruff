@@ -3,13 +3,20 @@
 // Filesystem operation native functions
 
 use crate::interpreter::{AsyncRuntime, Interpreter, Value};
+#[cfg(feature = "runtime-archive")]
+use crate::path_security;
 use crate::runtime_limits;
-use crate::{builtins, interpreter::DictMap, path_security};
-use std::fs::{File, OpenOptions};
+use crate::{builtins, interpreter::DictMap};
+#[cfg(feature = "runtime-archive")]
+use std::fs::File;
+use std::fs::OpenOptions;
 use std::io::Write;
-use std::path::{Path, PathBuf};
+use std::path::Path;
+#[cfg(feature = "runtime-archive")]
+use std::path::PathBuf;
 use std::process::Command;
 use std::sync::{Arc, Mutex};
+#[cfg(feature = "runtime-archive")]
 use zip::{write::FileOptions, ZipArchive, ZipWriter};
 
 const ZIP_UNIX_FILE_TYPE_MASK: u32 = 0o170000;
@@ -96,6 +103,7 @@ fn enforce_overwrite_policy(path: &str, overwrite: bool) -> Result<(), String> {
     Ok(())
 }
 
+#[cfg(feature = "runtime-archive")]
 fn zip_add_dir_recursive(
     zip_writer: &mut ZipWriter<File>,
     directory_path: &Path,
@@ -138,10 +146,12 @@ fn zip_add_dir_recursive(
     Ok(())
 }
 
+#[cfg(feature = "runtime-archive")]
 fn sanitize_archive_entry_path(raw_name: &str) -> Result<PathBuf, String> {
     path_security::sanitize_relative_path(raw_name, "archive entry")
 }
 
+#[cfg(feature = "runtime-archive")]
 fn archive_entry_is_symlink(entry: &zip::read::ZipFile<'_>) -> bool {
     entry
         .unix_mode()
@@ -149,6 +159,7 @@ fn archive_entry_is_symlink(entry: &zip::read::ZipFile<'_>) -> bool {
         .unwrap_or(false)
 }
 
+#[cfg(feature = "runtime-archive")]
 fn resolve_extraction_output_path(
     output_root: &Path,
     relative_entry_path: &Path,
@@ -164,6 +175,7 @@ fn resolve_extraction_output_path(
     )
 }
 
+#[cfg(feature = "runtime-archive")]
 fn ensure_canonical_path_within_root(
     path: &Path,
     canonical_output_root: &Path,
@@ -191,6 +203,7 @@ fn ensure_canonical_path_within_root(
     }
 }
 
+#[cfg(feature = "runtime-archive")]
 fn reject_symlink_target_path(path: &Path, entry_name: &str) -> Result<(), String> {
     path_security::reject_symlink_target_path(path, "archive entry target path").map_err(|_| {
         format!(
@@ -201,6 +214,7 @@ fn reject_symlink_target_path(path: &Path, entry_name: &str) -> Result<(), Strin
     })
 }
 
+#[cfg(feature = "runtime-archive")]
 fn extract_zip_archive_with_limits(
     archive: &mut ZipArchive<File>,
     output_root: &Path,
@@ -573,6 +587,7 @@ pub fn handle(_interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Op
             }
         }
 
+        #[cfg(feature = "runtime-image")]
         "load_image" => {
             if arg_values.len() != 1 {
                 return Some(Value::Error(
@@ -599,6 +614,12 @@ pub fn handle(_interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Op
                 Value::Error("load_image requires a string path argument".to_string())
             }
         }
+
+        #[cfg(not(feature = "runtime-image"))]
+        "load_image" => Value::Error(
+            "Image native APIs are disabled in this build (enable the 'runtime-image' feature)"
+                .to_string(),
+        ),
 
         "gif_to_webp" => {
             if arg_values.len() < 2 || arg_values.len() > 5 {
@@ -712,6 +733,7 @@ pub fn handle(_interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Op
             }
         }
 
+        #[cfg(feature = "runtime-archive")]
         "zip_create" => {
             if arg_values.len() != 1 {
                 return Some(Value::Error(
@@ -744,6 +766,7 @@ pub fn handle(_interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Op
             }
         }
 
+        #[cfg(feature = "runtime-archive")]
         "zip_add_file" => {
             if arg_values.len() != 2 {
                 return Some(Value::Error(
@@ -809,6 +832,7 @@ pub fn handle(_interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Op
             }
         }
 
+        #[cfg(feature = "runtime-archive")]
         "zip_add_dir" => {
             if arg_values.len() != 2 {
                 return Some(Value::Error(
@@ -840,6 +864,7 @@ pub fn handle(_interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Op
             }
         }
 
+        #[cfg(feature = "runtime-archive")]
         "zip_close" => {
             if arg_values.len() != 1 {
                 return Some(Value::Error("zip_close requires a ZipArchive argument".to_string()));
@@ -865,6 +890,7 @@ pub fn handle(_interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Op
             }
         }
 
+        #[cfg(feature = "runtime-archive")]
         "unzip" => {
             if arg_values.len() != 2 {
                 return Some(Value::Error(
@@ -917,6 +943,12 @@ pub fn handle(_interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Op
                 ),
             }
         }
+
+        #[cfg(not(feature = "runtime-archive"))]
+        "zip_create" | "zip_add_file" | "zip_add_dir" | "zip_close" | "unzip" => Value::Error(
+            "Archive native APIs are disabled in this build (enable the 'runtime-archive' feature)"
+                .to_string(),
+        ),
 
         "append_file" => {
             if arg_values.len() != 2 {

@@ -16,6 +16,10 @@ mod errors;
 mod formatter;
 mod http_request_utils;
 mod interpreter;
+#[cfg(feature = "runtime-jit")]
+mod jit;
+#[cfg(not(feature = "runtime-jit"))]
+#[path = "jit_disabled.rs"]
 mod jit;
 mod lexer;
 mod linter;

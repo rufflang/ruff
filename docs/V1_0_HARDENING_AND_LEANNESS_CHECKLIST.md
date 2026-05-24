@@ -143,7 +143,7 @@ Purpose: capture additive, non-breaking work that can improve safety, maintainab
       - release `31006832` bytes
       - release_stripped `26557120` bytes
 
-- [ ] **V1H-SIZE-002**: Add non-breaking feature gates for heavyweight optional subsystems.
+- [x] **V1H-SIZE-002**: Add non-breaking feature gates for heavyweight optional subsystems.
   - Scope: make DB/image/archive/JIT-heavy stacks opt-out for smaller binaries while keeping current full behavior available.
   - Acceptance criteria:
     - Default behavior compatibility explicitly preserved, or migration note provided if default changes.
@@ -168,6 +168,38 @@ Purpose: capture additive, non-breaking work that can improve safety, maintainab
     Evidence: `Cargo.toml` still has heavyweight runtime subsystems in always-on `[dependencies]` without an incremental feature matrix scaffold.
   - Blocker (2026-05-24): Revalidated after closing `V1H-UNSAFE-003`; full DB/image/archive/JIT opt-out still requires coordinated module-level `cfg(feature=...)` partitioning across `src/interpreter/mod.rs`, `src/interpreter/value.rs`, `src/interpreter/native_functions/*`, `src/vm.rs`, `src/main.rs`, and `src/lib.rs` to keep `--no-default-features` builds compiling.
     Evidence: current imports/usages remain cross-cutting (`rg -n "use image|use mysql_async|use postgres|use rusqlite|use zip" src/interpreter src/vm.rs src/main.rs`) and JIT is wired directly into VM construction/fields (`rg -n "JitCompiler|mod jit|jit_" src/main.rs src/vm.rs src/lib.rs`).
+  - Completed (2026-05-24):
+    - Added additive runtime feature matrix in `Cargo.toml` with default-compatible opt-outs:
+      - `runtime-db`
+      - `runtime-image`
+      - `runtime-archive`
+      - `runtime-jit`
+      - `default = ["runtime-db", "runtime-image", "runtime-archive", "runtime-jit"]`
+    - Preserved default behavior while enabling reduced builds:
+      - `src/lib.rs` and `src/main.rs` now route JIT module resolution through `runtime-jit`, using `src/jit_disabled.rs` when JIT is disabled at build time.
+      - `src/interpreter/native_functions/mod.rs` now provides deterministic DB disabled-feature errors when `runtime-db` is off.
+      - `src/interpreter/native_functions/filesystem.rs` now provides deterministic image/archive disabled-feature errors when `runtime-image` or `runtime-archive` are off.
+    - Added regression coverage for feature-disabled dispatch surfaces in native-function contract tests:
+      - `test_release_hardening_database_module_dispatch_argument_contracts`
+      - `test_release_hardening_load_image_dispatch_contracts`
+      - `test_release_hardening_zip_module_dispatch_argument_contracts`
+    - Build-matrix validation:
+      - `cargo check`
+      - `cargo check --no-default-features`
+      - `cargo check --no-default-features --features runtime-jit`
+      - `cargo check --no-default-features --features runtime-db,runtime-image,runtime-archive`
+    - Size evidence (`cargo build --release` variants):
+      - default features: `24099968` bytes (`/tmp/ruff_release_default`)
+      - `--no-default-features`: `19645964` bytes (`/tmp/ruff_release_nodefault`)
+      - `--no-default-features --features runtime-jit`: `21872272` bytes (`/tmp/ruff_release_jit_only`)
+      - `--no-default-features --features runtime-db,runtime-image,runtime-archive`: `21877780` bytes (`/tmp/ruff_release_heavy_native`)
+    - Targeted runtime/contract validation:
+      - `cargo test --test binary_size_baseline_contract` (3 passed)
+      - `cargo test --lib release_hardening_database_module_dispatch_argument_contracts` (1 passed)
+      - `cargo test --lib release_hardening_load_image_dispatch_contracts` (1 passed)
+      - `cargo test --lib release_hardening_zip_module_dispatch_argument_contracts` (1 passed)
+      - `cargo test --test vm_interpreter_parity_surfaces` (87 passed)
+      - `cargo test` blocked by known pre-existing docs snippet contract failure in `tests/docs_examples.rs` (`docs/NATIVE_API_SECURITY_POSTURE.md#1` parse mismatch), unchanged by this loop.
 
 - [x] **V1H-SIZE-003**: Consolidate duplicated runtime helpers shared by VM and interpreter.
   - Scope: extract shared HTTP path/query parsing and similar duplicated helpers into shared module(s).

@@ -8,6 +8,13 @@ license = "MIT"
 readme = "README.md"
 repository = "https://github.com/rufflang/ruff"
 
+[features]
+default = ["runtime-db", "runtime-image", "runtime-archive", "runtime-jit"]
+runtime-db = []
+runtime-image = []
+runtime-archive = []
+runtime-jit = []
+
 [dependencies]
 ahash = "0.8"
 clap = { version = "4", features = ["derive"] }
