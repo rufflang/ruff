@@ -1,12 +1,12 @@
 # Unsafe Inventory
 
-Generated: 2026-05-22
+Generated: 2026-05-24
 Command: rg -n --glob '*.rs' --glob '!tests/unsafe_inventory_contract.rs' '\bunsafe\b' src tests benches fuzz
 
 ## Summary
 
-- Total matches: 56
-- Executable matches: 49
+- Total matches: 63
+- Executable matches: 56
 - Non-executable matches: 7
 - Unknown classifications: 0
 
@@ -66,6 +66,13 @@ Command: rg -n --glob '*.rs' --glob '!tests/unsafe_inventory_contract.rs' '\buns
 | src/jit.rs | 7930 | executable | jit_executable |     unsafe extern ""C"" fn dummy_compiled_fn_with_arg(_ctx: *mut VMContext, arg: i64) -> i64 { |
 | src/jit.rs | 8969 | executable | jit_executable |         unsafe { |
 | src/module.rs | 645 | non_executable | src_comment_or_string |             ""expected unsafe traversal error, got: {}"", |
+| tests/fixtures/unsafe_safety_contracts/malformed_contract.rs | 1 | executable | test_executable | pub unsafe extern ""C"" fn jit_ffi(ptr: *mut i64) -> i64 { |
+| tests/fixtures/unsafe_safety_contracts/malformed_contract.rs | 4 | executable | test_executable |     unsafe { *ptr } |
+| tests/fixtures/unsafe_safety_contracts/missing_contract.rs | 1 | executable | test_executable | pub unsafe extern ""C"" fn jit_ffi(ptr: *mut i64) -> i64 { |
+| tests/fixtures/unsafe_safety_contracts/missing_contract.rs | 2 | executable | test_executable |     unsafe { *ptr } |
+| tests/fixtures/unsafe_safety_contracts/valid_jit_like.rs | 1 | executable | test_executable | pub unsafe extern ""C"" fn jit_ffi(ptr: *mut i64) -> i64 { |
+| tests/fixtures/unsafe_safety_contracts/valid_jit_like.rs | 5 | executable | test_executable |     unsafe { *ptr } |
+| tests/fixtures/unsafe_safety_contracts/valid_jit_like.rs | 12 | executable | test_executable |     unsafe { *raw } |
 | tests/runtime_security.rs | 237 | non_executable | test_comment_or_string |         ""expected unsafe traversal error, got: {}"", |
 | tests/unsafe_safety_gate_contract.rs | 14 | non_executable | test_comment_or_string |         .expect(""failed to run unsafe safety gate help""); |
 | tests/unsafe_safety_gate_contract.rs | 29 | non_executable | test_comment_or_string |         .expect(""failed to run unsafe safety gate dry-run""); |

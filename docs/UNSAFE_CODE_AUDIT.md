@@ -49,3 +49,20 @@ This file supersedes older static snapshots that listed higher counts and VM-loc
 1. `src/jit.rs` pointer dereference and FFI bridge boundaries.
 2. `src/jit.rs` function-pointer conversion (`transmute`) sites.
 3. Wrapper consolidation and invariant documentation for remaining executable unsafe boundaries.
+
+## Canonical JIT `SAFETY:` Contract Schema
+
+All executable unsafe boundaries in `src/jit.rs` should use this deterministic format:
+
+```rust
+// SAFETY:
+// - Preconditions: <pointer validity, ownership, lifetime, ABI/calling-convention assumptions>
+// - Postconditions: <state/result guarantees and aliasing/mutation expectations>
+```
+
+Notes:
+
+- Keep comments concise but specific to the boundary.
+- `Preconditions` should explicitly cover caller obligations.
+- `Postconditions` should state what is guaranteed after the unsafe operation returns.
+- Machine enforcement is provided by `scripts/check_jit_safety_contracts.sh`.
