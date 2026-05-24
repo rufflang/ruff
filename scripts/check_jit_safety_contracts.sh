@@ -76,6 +76,9 @@ awk -v strict="$STRICT" -v target_file="$TARGET_FILE" '
     for (i = 1; i <= NR; i++) {
       line = lines[i]
       is_boundary = (line ~ /unsafe[[:space:]]+extern[[:space:]]+"C"[[:space:]]+fn/)
+      if (line ~ /^[[:space:]]*pub[[:space:]]+type[[:space:]]/ || line ~ /=/) {
+        is_boundary = 0
+      }
       is_boundary = is_boundary || (line ~ /(^|[^[:alnum:]_])unsafe[[:space:]]+fn[[:space:]]/)
       is_boundary = is_boundary || (line ~ /unsafe[[:space:]]*\{/)
       if (is_boundary) {

@@ -75,6 +75,8 @@ Purpose: capture additive, non-breaking work that can improve safety, maintainab
     Evidence: `rg -n "\bunsafe\b" src/jit.rs | wc -l` -> `51`; `rg -n "SAFETY:" src/jit.rs | wc -l` -> `3`.
   - Progress (2026-05-24, loop 1): Added deterministic checker baseline and schema docs before annotation sweep.
     Evidence: `scripts/check_jit_safety_contracts.sh` + `tests/jit_safety_contract_checker.rs` added; baseline run `bash scripts/check_jit_safety_contracts.sh --allow-missing` reported `Checked 49 executable unsafe boundaries in src/jit.rs; missing contracts: 49`.
+  - Progress (2026-05-24, loop 2): Annotated all `unsafe extern "C"` JIT boundaries with canonical `SAFETY` pre/postcondition blocks and tightened checker matching to ignore `unsafe extern` type aliases.
+    Evidence: `bash scripts/check_jit_safety_contracts.sh --allow-missing` now reports `Checked 47 executable unsafe boundaries in src/jit.rs; missing contracts: 14` (remaining gaps are non-extern unsafe blocks/calls for loop 3).
 
 - [ ] **V1H-UNSAFE-003**: Reduce executable unsafe callsites via safe wrappers where behavior is unchanged.
   - Scope: trim ad hoc unsafe deref/transmute callsites without broad rewrites.

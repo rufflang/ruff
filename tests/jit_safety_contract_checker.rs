@@ -129,3 +129,27 @@ fn checker_rejects_unknown_argument() {
     let stderr = String::from_utf8(output.stderr).expect("utf-8 stderr");
     assert!(stderr.contains("unsupported argument: --nope"));
 }
+
+#[test]
+fn checker_ignores_unsafe_extern_type_aliases() {
+    let output = Command::new("bash")
+        .current_dir(repo_root())
+        .args([
+            "scripts/check_jit_safety_contracts.sh",
+            "--file",
+            &fixture("type_alias_only.rs"),
+        ])
+        .output()
+        .expect("failed to run checker");
+
+    assert!(
+        output.status.success(),
+        "type alias should not be treated as executable boundary, status={:?}, stdout={}, stderr={}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let stdout = String::from_utf8(output.stdout).expect("utf-8 stdout");
+    assert!(stdout.contains("Checked 0 executable unsafe boundaries"));
+}

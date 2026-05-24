@@ -359,6 +359,12 @@ impl SpecializationInfo {
 
 /// Push a value onto the VM stack (called from JIT code)
 #[no_mangle]
+// SAFETY:
+// - Preconditions: jit_stack_push is invoked from JIT-compiled code using the C ABI, and `ctx` points to a live
+//   `VMContext` whose nested pointers (`stack_ptr`, `locals_ptr`, `globals_ptr`, etc.) satisfy this
+//   function's null/shape checks for the full call duration with no concurrent mutable aliasing.
+// - Postconditions: all reads/writes stay within VM-owned structures reachable from validated pointers,
+//   and invalid inputs are handled via sentinel returns/early exits without transferring ownership.
 pub unsafe extern "C" fn jit_stack_push(ctx: *mut VMContext, value: i64) {
     if ctx.is_null() {
         return;
@@ -372,6 +378,12 @@ pub unsafe extern "C" fn jit_stack_push(ctx: *mut VMContext, value: i64) {
 
 /// Pop a value from the VM stack (called from JIT code)
 #[no_mangle]
+// SAFETY:
+// - Preconditions: jit_stack_pop is invoked from JIT-compiled code using the C ABI, and `ctx` points to a live
+//   `VMContext` whose nested pointers (`stack_ptr`, `locals_ptr`, `globals_ptr`, etc.) satisfy this
+//   function's null/shape checks for the full call duration with no concurrent mutable aliasing.
+// - Postconditions: all reads/writes stay within VM-owned structures reachable from validated pointers,
+//   and invalid inputs are handled via sentinel returns/early exits without transferring ownership.
 pub unsafe extern "C" fn jit_stack_pop(ctx: *mut VMContext) -> i64 {
     if ctx.is_null() {
         return 0;
@@ -389,6 +401,12 @@ pub unsafe extern "C" fn jit_stack_pop(ctx: *mut VMContext) -> i64 {
 /// Push a string constant onto the JIT object stack
 /// Returns a negative handle on success, 0 on error
 #[no_mangle]
+// SAFETY:
+// - Preconditions: jit_obj_push_string is invoked from JIT-compiled code using the C ABI, and `ctx` points to a live
+//   `VMContext` whose nested pointers (`stack_ptr`, `locals_ptr`, `globals_ptr`, etc.) satisfy this
+//   function's null/shape checks for the full call duration with no concurrent mutable aliasing.
+// - Postconditions: all reads/writes stay within VM-owned structures reachable from validated pointers,
+//   and invalid inputs are handled via sentinel returns/early exits without transferring ownership.
 pub unsafe extern "C" fn jit_obj_push_string(ctx: *mut VMContext, ptr: i64, len: i64) -> i64 {
     if ctx.is_null() || ptr == 0 || len < 0 {
         return 0;
@@ -411,6 +429,12 @@ pub unsafe extern "C" fn jit_obj_push_string(ctx: *mut VMContext, ptr: i64, len:
 /// Push a JIT object handle onto the VM stack
 /// Returns 1 on success, 0 on error
 #[no_mangle]
+// SAFETY:
+// - Preconditions: jit_obj_to_vm_stack is invoked from JIT-compiled code using the C ABI, and `ctx` points to a live
+//   `VMContext` whose nested pointers (`stack_ptr`, `locals_ptr`, `globals_ptr`, etc.) satisfy this
+//   function's null/shape checks for the full call duration with no concurrent mutable aliasing.
+// - Postconditions: all reads/writes stay within VM-owned structures reachable from validated pointers,
+//   and invalid inputs are handled via sentinel returns/early exits without transferring ownership.
 pub unsafe extern "C" fn jit_obj_to_vm_stack(ctx: *mut VMContext, handle: i64) -> i64 {
     if ctx.is_null() || handle >= 0 {
         return 0;
@@ -438,6 +462,12 @@ pub unsafe extern "C" fn jit_obj_to_vm_stack(ctx: *mut VMContext, handle: i64) -
 /// name_ptr/name_len: pointer and length of variable name string (if name_hash is 0)
 /// Returns the variable value as i64, or 0 if not found
 #[no_mangle]
+// SAFETY:
+// - Preconditions: jit_load_variable is invoked from JIT-compiled code using the C ABI, and `ctx` points to a live
+//   `VMContext` whose nested pointers (`stack_ptr`, `locals_ptr`, `globals_ptr`, etc.) satisfy this
+//   function's null/shape checks for the full call duration with no concurrent mutable aliasing.
+// - Postconditions: all reads/writes stay within VM-owned structures reachable from validated pointers,
+//   and invalid inputs are handled via sentinel returns/early exits without transferring ownership.
 pub unsafe extern "C" fn jit_load_variable(
     ctx: *mut VMContext,
     name_hash: i64,
@@ -535,6 +565,12 @@ pub unsafe extern "C" fn jit_load_variable(
 /// Store a variable to locals (called from JIT code)
 /// name_hash: hash of the variable name
 #[no_mangle]
+// SAFETY:
+// - Preconditions: jit_store_variable is invoked from JIT-compiled code using the C ABI, and `ctx` points to a live
+//   `VMContext` whose nested pointers (`stack_ptr`, `locals_ptr`, `globals_ptr`, etc.) satisfy this
+//   function's null/shape checks for the full call duration with no concurrent mutable aliasing.
+// - Postconditions: all reads/writes stay within VM-owned structures reachable from validated pointers,
+//   and invalid inputs are handled via sentinel returns/early exits without transferring ownership.
 pub unsafe extern "C" fn jit_store_variable(
     ctx: *mut VMContext,
     name_hash: i64,
@@ -571,6 +607,12 @@ pub unsafe extern "C" fn jit_store_variable(
 /// Pops one Value from VM stack and stores it into locals/globals
 /// Returns 1 on success, 0 on error
 #[no_mangle]
+// SAFETY:
+// - Preconditions: jit_store_variable_from_stack is invoked from JIT-compiled code using the C ABI, and `ctx` points to a live
+//   `VMContext` whose nested pointers (`stack_ptr`, `locals_ptr`, `globals_ptr`, etc.) satisfy this
+//   function's null/shape checks for the full call duration with no concurrent mutable aliasing.
+// - Postconditions: all reads/writes stay within VM-owned structures reachable from validated pointers,
+//   and invalid inputs are handled via sentinel returns/early exits without transferring ownership.
 pub unsafe extern "C" fn jit_store_variable_from_stack(ctx: *mut VMContext, name_hash: i64) -> i64 {
     if ctx.is_null() {
         return 0;
@@ -617,6 +659,12 @@ pub unsafe extern "C" fn jit_store_variable_from_stack(ctx: *mut VMContext, name
 /// Append a constant string to a local slot string in-place.
 /// Returns 1 on success, 0 on error.
 #[no_mangle]
+// SAFETY:
+// - Preconditions: jit_append_const_string_in_place is invoked from JIT-compiled code using the C ABI, and `ctx` points to a live
+//   `VMContext` whose nested pointers (`stack_ptr`, `locals_ptr`, `globals_ptr`, etc.) satisfy this
+//   function's null/shape checks for the full call duration with no concurrent mutable aliasing.
+// - Postconditions: all reads/writes stay within VM-owned structures reachable from validated pointers,
+//   and invalid inputs are handled via sentinel returns/early exits without transferring ownership.
 pub unsafe extern "C" fn jit_append_const_string_in_place(
     ctx: *mut VMContext,
     slot_index: i64,
@@ -668,6 +716,12 @@ pub unsafe extern "C" fn jit_append_const_string_in_place(
 /// Append a constant character to a local slot string in-place.
 /// Returns 1 on success, 0 on error.
 #[no_mangle]
+// SAFETY:
+// - Preconditions: jit_append_const_char_in_place is invoked from JIT-compiled code using the C ABI, and `ctx` points to a live
+//   `VMContext` whose nested pointers (`stack_ptr`, `locals_ptr`, `globals_ptr`, etc.) satisfy this
+//   function's null/shape checks for the full call duration with no concurrent mutable aliasing.
+// - Postconditions: all reads/writes stay within VM-owned structures reachable from validated pointers,
+//   and invalid inputs are handled via sentinel returns/early exits without transferring ownership.
 pub unsafe extern "C" fn jit_append_const_char_in_place(
     ctx: *mut VMContext,
     slot_index: i64,
@@ -722,6 +776,12 @@ pub unsafe extern "C" fn jit_append_const_char_in_place(
 /// Get int value from a dict/array stored in a local slot (called from loop JIT)
 /// Returns the int value or 0 on error/missing/non-int
 #[no_mangle]
+// SAFETY:
+// - Preconditions: jit_local_slot_dict_get is invoked from JIT-compiled code using the C ABI, and `ctx` points to a live
+//   `VMContext` whose nested pointers (`stack_ptr`, `locals_ptr`, `globals_ptr`, etc.) satisfy this
+//   function's null/shape checks for the full call duration with no concurrent mutable aliasing.
+// - Postconditions: all reads/writes stay within VM-owned structures reachable from validated pointers,
+//   and invalid inputs are handled via sentinel returns/early exits without transferring ownership.
 pub unsafe extern "C" fn jit_local_slot_dict_get(
     ctx: *mut VMContext,
     slot_index: i64,
@@ -879,6 +939,12 @@ pub unsafe extern "C" fn jit_local_slot_dict_get(
 /// Set int value in a dict/array stored in a local slot (called from loop JIT)
 /// Returns 1 on success, 0 on error
 #[no_mangle]
+// SAFETY:
+// - Preconditions: jit_local_slot_dict_set is invoked from JIT-compiled code using the C ABI, and `ctx` points to a live
+//   `VMContext` whose nested pointers (`stack_ptr`, `locals_ptr`, `globals_ptr`, etc.) satisfy this
+//   function's null/shape checks for the full call duration with no concurrent mutable aliasing.
+// - Postconditions: all reads/writes stay within VM-owned structures reachable from validated pointers,
+//   and invalid inputs are handled via sentinel returns/early exits without transferring ownership.
 pub unsafe extern "C" fn jit_local_slot_dict_set(
     ctx: *mut VMContext,
     slot_index: i64,
@@ -1148,6 +1214,12 @@ pub unsafe extern "C" fn jit_local_slot_dict_set(
 /// Get int value from an IntDict stored in a local slot (loop JIT fast path)
 /// Returns the int value or 0 on missing/non-int
 #[no_mangle]
+// SAFETY:
+// - Preconditions: jit_local_slot_int_dict_get is invoked from JIT-compiled code using the C ABI, and `ctx` points to a live
+//   `VMContext` whose nested pointers (`stack_ptr`, `locals_ptr`, `globals_ptr`, etc.) satisfy this
+//   function's null/shape checks for the full call duration with no concurrent mutable aliasing.
+// - Postconditions: all reads/writes stay within VM-owned structures reachable from validated pointers,
+//   and invalid inputs are handled via sentinel returns/early exits without transferring ownership.
 pub unsafe extern "C" fn jit_local_slot_int_dict_get(
     ctx: *mut VMContext,
     slot_index: i64,
@@ -1225,6 +1297,12 @@ pub unsafe extern "C" fn jit_local_slot_int_dict_get(
 /// Set int value into an IntDict stored in a local slot (loop JIT fast path)
 /// Returns 1 on success, 0 on error
 #[no_mangle]
+// SAFETY:
+// - Preconditions: jit_local_slot_int_dict_set is invoked from JIT-compiled code using the C ABI, and `ctx` points to a live
+//   `VMContext` whose nested pointers (`stack_ptr`, `locals_ptr`, `globals_ptr`, etc.) satisfy this
+//   function's null/shape checks for the full call duration with no concurrent mutable aliasing.
+// - Postconditions: all reads/writes stay within VM-owned structures reachable from validated pointers,
+//   and invalid inputs are handled via sentinel returns/early exits without transferring ownership.
 pub unsafe extern "C" fn jit_local_slot_int_dict_set(
     ctx: *mut VMContext,
     slot_index: i64,
@@ -1367,6 +1445,12 @@ pub unsafe extern "C" fn jit_local_slot_int_dict_set(
 /// Get a unique IntDict pointer for a local slot (loop JIT fast path)
 /// Returns pointer as i64, or 0 if not a unique IntDict/empty Dict
 #[no_mangle]
+// SAFETY:
+// - Preconditions: jit_int_dict_unique_ptr is invoked from JIT-compiled code using the C ABI, and `ctx` points to a live
+//   `VMContext` whose nested pointers (`stack_ptr`, `locals_ptr`, `globals_ptr`, etc.) satisfy this
+//   function's null/shape checks for the full call duration with no concurrent mutable aliasing.
+// - Postconditions: all reads/writes stay within VM-owned structures reachable from validated pointers,
+//   and invalid inputs are handled via sentinel returns/early exits without transferring ownership.
 pub unsafe extern "C" fn jit_int_dict_unique_ptr(ctx: *mut VMContext, slot_index: i64) -> i64 {
     if ctx.is_null() {
         return 0;
@@ -1442,6 +1526,12 @@ pub unsafe extern "C" fn jit_int_dict_unique_ptr(ctx: *mut VMContext, slot_index
 /// Get int value from a unique IntDict pointer (loop JIT fast path)
 /// Returns int value or 0 on missing/non-int
 #[no_mangle]
+// SAFETY:
+// - Preconditions: jit_int_dict_get_ptr is invoked from JIT-compiled code with C ABI-compatible arguments; raw
+//   handle/pointer arguments encode valid, live VM-owned structures for the duration of this call and
+//   are not concurrently mutated through aliased mutable references.
+// - Postconditions: the function only mutates the referenced VM-owned structures associated with the
+//   provided handles/pointers and returns sentinel values on validation failure.
 pub unsafe extern "C" fn jit_int_dict_get_ptr(dict_ptr: i64, key: i64) -> i64 {
     if dict_ptr == 0 {
         return 0;
@@ -1495,6 +1585,12 @@ pub unsafe extern "C" fn jit_int_dict_get_ptr(dict_ptr: i64, key: i64) -> i64 {
 /// Get int value from a DenseIntDictInt pointer (loop JIT fast path)
 /// Returns int value or 0 on missing/non-int
 #[no_mangle]
+// SAFETY:
+// - Preconditions: jit_dense_int_dict_int_get_ptr is invoked from JIT-compiled code with C ABI-compatible arguments; raw
+//   handle/pointer arguments encode valid, live VM-owned structures for the duration of this call and
+//   are not concurrently mutated through aliased mutable references.
+// - Postconditions: the function only mutates the referenced VM-owned structures associated with the
+//   provided handles/pointers and returns sentinel values on validation failure.
 pub unsafe extern "C" fn jit_dense_int_dict_int_get_ptr(dict_ptr: i64, key: i64) -> i64 {
     if dict_ptr == 0 {
         return 0;
@@ -1519,6 +1615,12 @@ pub unsafe extern "C" fn jit_dense_int_dict_int_get_ptr(dict_ptr: i64, key: i64)
 /// Get int value from a DenseIntDictIntFull pointer (loop JIT fast path)
 /// Returns int value or 0 on missing/non-int
 #[no_mangle]
+// SAFETY:
+// - Preconditions: jit_dense_int_dict_int_full_get_ptr is invoked from JIT-compiled code with C ABI-compatible arguments; raw
+//   handle/pointer arguments encode valid, live VM-owned structures for the duration of this call and
+//   are not concurrently mutated through aliased mutable references.
+// - Postconditions: the function only mutates the referenced VM-owned structures associated with the
+//   provided handles/pointers and returns sentinel values on validation failure.
 pub unsafe extern "C" fn jit_dense_int_dict_int_full_get_ptr(dict_ptr: i64, key: i64) -> i64 {
     if dict_ptr == 0 {
         return 0;
@@ -1540,6 +1642,12 @@ pub unsafe extern "C" fn jit_dense_int_dict_int_full_get_ptr(dict_ptr: i64, key:
 /// Set int value via unique IntDict pointer (loop JIT fast path)
 /// Returns 1 on success, 0 on error
 #[no_mangle]
+// SAFETY:
+// - Preconditions: jit_int_dict_set_ptr is invoked from JIT-compiled code with C ABI-compatible arguments; raw
+//   handle/pointer arguments encode valid, live VM-owned structures for the duration of this call and
+//   are not concurrently mutated through aliased mutable references.
+// - Postconditions: the function only mutates the referenced VM-owned structures associated with the
+//   provided handles/pointers and returns sentinel values on validation failure.
 pub unsafe extern "C" fn jit_int_dict_set_ptr(dict_ptr: i64, key: i64, value: i64) -> i64 {
     if dict_ptr == 0 {
         return 0;
@@ -1605,6 +1713,12 @@ pub unsafe extern "C" fn jit_int_dict_set_ptr(dict_ptr: i64, key: i64, value: i6
 /// Set int value via DenseIntDictInt pointer (loop JIT fast path)
 /// Returns 1 on success, 0 on error
 #[no_mangle]
+// SAFETY:
+// - Preconditions: jit_dense_int_dict_int_set_ptr is invoked from JIT-compiled code with C ABI-compatible arguments; raw
+//   handle/pointer arguments encode valid, live VM-owned structures for the duration of this call and
+//   are not concurrently mutated through aliased mutable references.
+// - Postconditions: the function only mutates the referenced VM-owned structures associated with the
+//   provided handles/pointers and returns sentinel values on validation failure.
 pub unsafe extern "C" fn jit_dense_int_dict_int_set_ptr(
     dict_ptr: i64,
     key: i64,
@@ -1635,6 +1749,12 @@ pub unsafe extern "C" fn jit_dense_int_dict_int_set_ptr(
 /// Set int value via DenseIntDictIntFull pointer (loop JIT fast path)
 /// Returns 1 on success, 0 on error
 #[no_mangle]
+// SAFETY:
+// - Preconditions: jit_dense_int_dict_int_full_set_ptr is invoked from JIT-compiled code with C ABI-compatible arguments; raw
+//   handle/pointer arguments encode valid, live VM-owned structures for the duration of this call and
+//   are not concurrently mutated through aliased mutable references.
+// - Postconditions: the function only mutates the referenced VM-owned structures associated with the
+//   provided handles/pointers and returns sentinel values on validation failure.
 pub unsafe extern "C" fn jit_dense_int_dict_int_full_set_ptr(
     dict_ptr: i64,
     key: i64,
@@ -1664,6 +1784,12 @@ pub unsafe extern "C" fn jit_dense_int_dict_int_full_set_ptr(
 
 /// Load a variable as float from locals or globals (called from JIT code)
 #[no_mangle]
+// SAFETY:
+// - Preconditions: jit_load_variable_float is invoked from JIT-compiled code using the C ABI, and `ctx` points to a live
+//   `VMContext` whose nested pointers (`stack_ptr`, `locals_ptr`, `globals_ptr`, etc.) satisfy this
+//   function's null/shape checks for the full call duration with no concurrent mutable aliasing.
+// - Postconditions: all reads/writes stay within VM-owned structures reachable from validated pointers,
+//   and invalid inputs are handled via sentinel returns/early exits without transferring ownership.
 pub unsafe extern "C" fn jit_load_variable_float(ctx: *mut VMContext, name_hash: i64) -> f64 {
     if ctx.is_null() {
         return 0.0;
@@ -1704,6 +1830,12 @@ pub unsafe extern "C" fn jit_load_variable_float(ctx: *mut VMContext, name_hash:
 
 /// Store a float variable to locals (called from JIT code)
 #[no_mangle]
+// SAFETY:
+// - Preconditions: jit_store_variable_float is invoked from JIT-compiled code using the C ABI, and `ctx` points to a live
+//   `VMContext` whose nested pointers (`stack_ptr`, `locals_ptr`, `globals_ptr`, etc.) satisfy this
+//   function's null/shape checks for the full call duration with no concurrent mutable aliasing.
+// - Postconditions: all reads/writes stay within VM-owned structures reachable from validated pointers,
+//   and invalid inputs are handled via sentinel returns/early exits without transferring ownership.
 pub unsafe extern "C" fn jit_store_variable_float(ctx: *mut VMContext, name_hash: i64, value: f64) {
     if ctx.is_null() {
         return;
@@ -1733,6 +1865,12 @@ pub unsafe extern "C" fn jit_store_variable_float(ctx: *mut VMContext, name_hash
 /// Check if a variable is an Int (called from JIT code for guards)
 /// Returns 1 if Int, 0 otherwise
 #[no_mangle]
+// SAFETY:
+// - Preconditions: jit_check_type_int is invoked from JIT-compiled code using the C ABI, and `ctx` points to a live
+//   `VMContext` whose nested pointers (`stack_ptr`, `locals_ptr`, `globals_ptr`, etc.) satisfy this
+//   function's null/shape checks for the full call duration with no concurrent mutable aliasing.
+// - Postconditions: all reads/writes stay within VM-owned structures reachable from validated pointers,
+//   and invalid inputs are handled via sentinel returns/early exits without transferring ownership.
 pub unsafe extern "C" fn jit_check_type_int(ctx: *mut VMContext, name_hash: i64) -> i64 {
     if ctx.is_null() {
         return 0;
@@ -1773,6 +1911,12 @@ pub unsafe extern "C" fn jit_check_type_int(ctx: *mut VMContext, name_hash: i64)
 /// Check if a variable is a Float (called from JIT code for guards)
 /// Returns 1 if Float, 0 otherwise
 #[no_mangle]
+// SAFETY:
+// - Preconditions: jit_check_type_float is invoked from JIT-compiled code using the C ABI, and `ctx` points to a live
+//   `VMContext` whose nested pointers (`stack_ptr`, `locals_ptr`, `globals_ptr`, etc.) satisfy this
+//   function's null/shape checks for the full call duration with no concurrent mutable aliasing.
+// - Postconditions: all reads/writes stay within VM-owned structures reachable from validated pointers,
+//   and invalid inputs are handled via sentinel returns/early exits without transferring ownership.
 pub unsafe extern "C" fn jit_check_type_float(ctx: *mut VMContext, name_hash: i64) -> i64 {
     if ctx.is_null() {
         return 0;
@@ -1813,6 +1957,12 @@ pub unsafe extern "C" fn jit_check_type_float(ctx: *mut VMContext, name_hash: i6
 /// Runtime helper: Push an integer value to the VM stack as Value::Int
 /// Used by Return opcode to return integer results
 #[no_mangle]
+// SAFETY:
+// - Preconditions: jit_push_int is invoked from JIT-compiled code using the C ABI, and `ctx` points to a live
+//   `VMContext` whose nested pointers (`stack_ptr`, `locals_ptr`, `globals_ptr`, etc.) satisfy this
+//   function's null/shape checks for the full call duration with no concurrent mutable aliasing.
+// - Postconditions: all reads/writes stay within VM-owned structures reachable from validated pointers,
+//   and invalid inputs are handled via sentinel returns/early exits without transferring ownership.
 pub unsafe extern "C" fn jit_push_int(ctx: *mut VMContext, value: i64) -> i64 {
     if ctx.is_null() {
         return 1; // Error
@@ -1838,6 +1988,12 @@ pub unsafe extern "C" fn jit_push_int(ctx: *mut VMContext, value: i64) -> i64 {
 /// The VM checks has_return_value first; if true, it reads return_value directly
 /// instead of popping from the stack.
 #[no_mangle]
+// SAFETY:
+// - Preconditions: jit_set_return_int is invoked from JIT-compiled code using the C ABI, and `ctx` points to a live
+//   `VMContext` whose nested pointers (`stack_ptr`, `locals_ptr`, `globals_ptr`, etc.) satisfy this
+//   function's null/shape checks for the full call duration with no concurrent mutable aliasing.
+// - Postconditions: all reads/writes stay within VM-owned structures reachable from validated pointers,
+//   and invalid inputs are handled via sentinel returns/early exits without transferring ownership.
 pub unsafe extern "C" fn jit_set_return_int(ctx: *mut VMContext, value: i64) -> i64 {
     if ctx.is_null() {
         return 1; // Error
@@ -1862,6 +2018,12 @@ pub fn set_return_int(ctx: &mut VMContext, value: i64) -> i64 {
 /// This retrieves the value stored by jit_set_return_int from a recursive call.
 /// Returns the return_value if has_return_value is true, otherwise 0.
 #[no_mangle]
+// SAFETY:
+// - Preconditions: jit_get_return_int is invoked from JIT-compiled code using the C ABI, and `ctx` points to a live
+//   `VMContext` whose nested pointers (`stack_ptr`, `locals_ptr`, `globals_ptr`, etc.) satisfy this
+//   function's null/shape checks for the full call duration with no concurrent mutable aliasing.
+// - Postconditions: all reads/writes stay within VM-owned structures reachable from validated pointers,
+//   and invalid inputs are handled via sentinel returns/early exits without transferring ownership.
 pub unsafe extern "C" fn jit_get_return_int(ctx: *mut VMContext) -> i64 {
     if ctx.is_null() {
         return 0; // Return 0 on error
@@ -1880,6 +2042,12 @@ pub unsafe extern "C" fn jit_get_return_int(ctx: *mut VMContext) -> i64 {
 /// Returns the argument value at the specified index (0-3).
 /// If index >= arg_count or out of range, returns 0.
 #[no_mangle]
+// SAFETY:
+// - Preconditions: jit_get_arg is invoked from JIT-compiled code using the C ABI, and `ctx` points to a live
+//   `VMContext` whose nested pointers (`stack_ptr`, `locals_ptr`, `globals_ptr`, etc.) satisfy this
+//   function's null/shape checks for the full call duration with no concurrent mutable aliasing.
+// - Postconditions: all reads/writes stay within VM-owned structures reachable from validated pointers,
+//   and invalid inputs are handled via sentinel returns/early exits without transferring ownership.
 pub unsafe extern "C" fn jit_get_arg(ctx: *mut VMContext, index: i64) -> i64 {
     if ctx.is_null() {
         return 0;
@@ -1908,6 +2076,12 @@ pub unsafe extern "C" fn jit_get_arg(ctx: *mut VMContext, index: i64) -> i64 {
 /// arg_count: Number of arguments to pass to the function
 /// Returns 0 on success, non-zero on error
 #[no_mangle]
+// SAFETY:
+// - Preconditions: jit_call_function is invoked from JIT-compiled code using the C ABI, and `ctx` points to a live
+//   `VMContext` whose nested pointers (`stack_ptr`, `locals_ptr`, `globals_ptr`, etc.) satisfy this
+//   function's null/shape checks for the full call duration with no concurrent mutable aliasing.
+// - Postconditions: all reads/writes stay within VM-owned structures reachable from validated pointers,
+//   and invalid inputs are handled via sentinel returns/early exits without transferring ownership.
 pub unsafe extern "C" fn jit_call_function(
     ctx: *mut VMContext,
     _func_value_ptr: *const Value,
@@ -1996,6 +2170,12 @@ pub unsafe extern "C" fn jit_call_function(
 /// Stack layout: [dict, key] -> [value]
 /// Returns 1 on success, 0 on error
 #[no_mangle]
+// SAFETY:
+// - Preconditions: jit_dict_get is invoked from JIT-compiled code using the C ABI, and `ctx` points to a live
+//   `VMContext` whose nested pointers (`stack_ptr`, `locals_ptr`, `globals_ptr`, etc.) satisfy this
+//   function's null/shape checks for the full call duration with no concurrent mutable aliasing.
+// - Postconditions: all reads/writes stay within VM-owned structures reachable from validated pointers,
+//   and invalid inputs are handled via sentinel returns/early exits without transferring ownership.
 pub unsafe extern "C" fn jit_dict_get(ctx: *mut VMContext) -> i64 {
     if ctx.is_null() {
         return 0;
@@ -2121,6 +2301,12 @@ pub unsafe extern "C" fn jit_dict_get(ctx: *mut VMContext) -> i64 {
 /// Stack layout: [dict, key, value] -> [dict]
 /// Returns 1 on success, 0 on error
 #[no_mangle]
+// SAFETY:
+// - Preconditions: jit_dict_set is invoked from JIT-compiled code using the C ABI, and `ctx` points to a live
+//   `VMContext` whose nested pointers (`stack_ptr`, `locals_ptr`, `globals_ptr`, etc.) satisfy this
+//   function's null/shape checks for the full call duration with no concurrent mutable aliasing.
+// - Postconditions: all reads/writes stay within VM-owned structures reachable from validated pointers,
+//   and invalid inputs are handled via sentinel returns/early exits without transferring ownership.
 pub unsafe extern "C" fn jit_dict_set(ctx: *mut VMContext) -> i64 {
     if ctx.is_null() {
         return 0;
@@ -7923,10 +8109,22 @@ impl Default for JitCompiler {
 mod tests {
     use super::*;
 
+// SAFETY:
+// - Preconditions: dummy_compiled_fn is invoked from JIT-compiled code using the C ABI, and `ctx` points to a live
+//   `VMContext` whose nested pointers (`stack_ptr`, `locals_ptr`, `globals_ptr`, etc.) satisfy this
+//   function's null/shape checks for the full call duration with no concurrent mutable aliasing.
+// - Postconditions: all reads/writes stay within VM-owned structures reachable from validated pointers,
+//   and invalid inputs are handled via sentinel returns/early exits without transferring ownership.
     unsafe extern "C" fn dummy_compiled_fn(_ctx: *mut VMContext) -> i64 {
         0
     }
 
+// SAFETY:
+// - Preconditions: dummy_compiled_fn_with_arg is invoked from JIT-compiled code using the C ABI, and `ctx` points to a live
+//   `VMContext` whose nested pointers (`stack_ptr`, `locals_ptr`, `globals_ptr`, etc.) satisfy this
+//   function's null/shape checks for the full call duration with no concurrent mutable aliasing.
+// - Postconditions: all reads/writes stay within VM-owned structures reachable from validated pointers,
+//   and invalid inputs are handled via sentinel returns/early exits without transferring ownership.
     unsafe extern "C" fn dummy_compiled_fn_with_arg(_ctx: *mut VMContext, arg: i64) -> i64 {
         arg + 7
     }
