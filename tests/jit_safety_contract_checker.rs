@@ -117,6 +117,24 @@ fn checker_fails_on_malformed_contract() {
 }
 
 #[test]
+fn checker_fails_on_wrong_heading_spelling() {
+    let output = Command::new("bash")
+        .current_dir(repo_root())
+        .args([
+            "scripts/check_jit_safety_contracts.sh",
+            "--file",
+            &fixture("wrong_headings.rs"),
+        ])
+        .output()
+        .expect("failed to run checker");
+
+    assert!(!output.status.success(), "wrong headings should fail");
+    assert_eq!(output.status.code(), Some(2));
+    let stderr = String::from_utf8(output.stderr).expect("utf-8 stderr");
+    assert!(stderr.contains("missing SAFETY contract"));
+}
+
+#[test]
 fn checker_rejects_unknown_argument() {
     let output = Command::new("bash")
         .current_dir(repo_root())

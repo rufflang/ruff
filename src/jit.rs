@@ -136,6 +136,9 @@ impl VMContext {
 
     fn jit_int_key_string(ctx: &mut VMContext, key: i64) -> Arc<str> {
         if !ctx.vm_ptr.is_null() {
+            // SAFETY:
+            // - Preconditions: `ctx.vm_ptr` is checked non-null and points to the live owning VM for this context.
+            // - Postconditions: returns a borrowed mutable VM reference used only within this scope for key conversion.
             let vm = unsafe { &mut *(ctx.vm_ptr as *mut crate::vm::VM) };
             return vm.int_key_string(key);
         }
@@ -189,8 +192,9 @@ pub type CompiledFnWithArg = unsafe extern "C" fn(*mut VMContext, i64) -> i64;
 /// - The called function must not outlive or stash pointers derived from `ctx`.
 #[inline]
 pub fn invoke_compiled_fn(compiled_fn: CompiledFn, ctx: &mut VMContext) -> i64 {
-    // SAFETY: All callsites construct `VMContext` immediately before invocation
-    // from live VM-owned storage and only pass function pointers produced by this JIT.
+    // SAFETY:
+    // - Preconditions: `compiled_fn` was produced by this JIT and `ctx` is a live VM-owned context for this call.
+    // - Postconditions: control returns with JIT status code and no pointer from `ctx` escapes this wrapper.
     unsafe { compiled_fn(ctx as *mut VMContext) }
 }
 
@@ -207,7 +211,9 @@ pub fn invoke_compiled_fn_with_arg(
     ctx: &mut VMContext,
     arg: i64,
 ) -> i64 {
-    // SAFETY: Same invariants as `invoke_compiled_fn`, with a plain integer argument.
+    // SAFETY:
+    // - Preconditions: identical to `invoke_compiled_fn`; `arg` is plain value data and ABI-compatible.
+    // - Postconditions: returns the direct-arg JIT result without transferring ownership of context internals.
     unsafe { compiled_fn(ctx as *mut VMContext, arg) }
 }
 
@@ -2010,7 +2016,9 @@ pub unsafe extern "C" fn jit_set_return_int(ctx: *mut VMContext, value: i64) -> 
 #[inline]
 #[allow(dead_code)]
 pub fn set_return_int(ctx: &mut VMContext, value: i64) -> i64 {
-    // SAFETY: `ctx` is a valid mutable reference that outlives this call.
+    // SAFETY:
+    // - Preconditions: `ctx` is a unique, live mutable reference and can be converted to `*mut VMContext`.
+    // - Postconditions: return fields are updated in-place through the same context, with no leaked raw pointer.
     unsafe { jit_set_return_int(ctx as *mut VMContext, value) }
 }
 
@@ -2721,7 +2729,13 @@ pub unsafe extern "C" fn jit_dict_set(ctx: *mut VMContext) -> i64 {
 /// 1 on success (dict pushed to stack), 0 on error
 #[no_mangle]
 pub extern "C" fn jit_make_dict(ctx: *mut VMContext, num_pairs: i64) -> i64 {
+    // SAFETY:
+    // - Preconditions: JIT caller passes a valid, mutable `VMContext*` with a live `stack_ptr`.
+    // - Postconditions: returns mutable references scoped to this function and only mutates that stack.
     let vm_ctx = unsafe { &mut *ctx };
+    // SAFETY:
+    // - Preconditions: `vm_ctx.stack_ptr` comes from the same validated context and points to initialized stack data.
+    // - Postconditions: stack reference is used only locally while constructing/pushing the dictionary value.
     let stack = unsafe { &mut *vm_ctx.stack_ptr };
     let debug_jit = std::env::var("DEBUG_JIT").is_ok();
 
@@ -2804,7 +2818,13 @@ pub extern "C" fn jit_make_dict_with_keys(
         return 0;
     }
 
+    // SAFETY:
+    // - Preconditions: `ctx` is validated non-null and points to a live VM context with a valid stack pointer.
+    // - Postconditions: mutable context reference remains local to this helper and is not stored beyond the call.
     let vm_ctx = unsafe { &mut *ctx };
+    // SAFETY:
+    // - Preconditions: `vm_ctx.stack_ptr` references initialized stack storage owned by the active VM context.
+    // - Postconditions: mutable stack reference is only used for bounded pops/pushes in this helper.
     let stack = unsafe { &mut *vm_ctx.stack_ptr };
     if num_keys == 0 {
         stack.push(Value::Dict(Arc::new(DictMap::default())));
@@ -2815,6 +2835,9 @@ pub extern "C" fn jit_make_dict_with_keys(
         return 0;
     }
 
+    // SAFETY:
+    // - Preconditions: `keys_ptr` is non-zero and points to a live `Arc<Vec<Arc<str>>>` allocated by VM/JIT code.
+    // - Postconditions: keys are read immutably for this call only; ownership stays with the originating Arc.
     let keys = unsafe { &*(keys_ptr as *const Arc<Vec<Arc<str>>>) };
     if num_keys as usize != keys.len() {
         return 0;
@@ -6526,6 +6549,9 @@ impl JitCompiler {
 
         // Get the compiled function pointer
         let code_ptr = self.module.get_finalized_function(func_id);
+        // SAFETY:
+        // - Preconditions: `code_ptr` is produced by Cranelift for this signature and matches `CompiledFn` ABI/layout.
+        // - Postconditions: resulting function pointer is callable under existing JIT contract and cached as typed fn.
         let compiled_fn: CompiledFn = unsafe { std::mem::transmute(code_ptr) };
 
         // Cache it
@@ -7163,6 +7189,9 @@ impl JitCompiler {
         let code_ptr = self.module.get_finalized_function(func_id);
 
         // 9. Cast to our function type
+        // SAFETY:
+        // - Preconditions: finalized machine code for `func_id` matches `CompiledFn` (extern "C", VMContext* -> i64).
+        // - Postconditions: cast yields typed entrypoint used immediately/immutably by caller.
         let compiled_fn: CompiledFn = unsafe { std::mem::transmute(code_ptr) };
 
         Ok(compiled_fn)
@@ -7372,6 +7401,9 @@ impl JitCompiler {
         let code_ptr = self.module.get_finalized_function(func_id);
 
         // 9. Cast to our direct-arg function type
+        // SAFETY:
+        // - Preconditions: finalized code for direct-arg variant matches `CompiledFnWithArg` ABI/signature.
+        // - Postconditions: returned pointer is used as typed callable entrypoint without aliasing raw code bytes.
         let compiled_fn: CompiledFnWithArg = unsafe { std::mem::transmute(code_ptr) };
 
         Ok(compiled_fn)
@@ -7954,6 +7986,9 @@ impl JitCompiler {
         let code_ptr = self.module.get_finalized_function(func_id);
 
         // Cast to our function type
+        // SAFETY:
+        // - Preconditions: finalized script entrypoint adheres to `CompiledFn` ABI and lifetime of module code memory.
+        // - Postconditions: typed function pointer is returned to caller without mutating code memory.
         let compiled_fn: CompiledFn = unsafe { std::mem::transmute(code_ptr) };
 
         if std::env::var("DEBUG_JIT").is_ok() {
@@ -9164,6 +9199,9 @@ mod tests {
         assert_eq!(vm_context.return_value, large_value, "return_value should be i64::MAX");
 
         // Test 5: Verify null context returns error
+        // SAFETY:
+        // - Preconditions: this test intentionally passes null to assert defensive error handling path.
+        // - Postconditions: call must return sentinel error code and avoid dereferencing null.
         unsafe {
             let result = jit_set_return_int(std::ptr::null_mut(), 42);
             assert_eq!(result, 1, "jit_set_return_int should return error for null context");

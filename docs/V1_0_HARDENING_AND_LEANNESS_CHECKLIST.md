@@ -77,6 +77,8 @@ Purpose: capture additive, non-breaking work that can improve safety, maintainab
     Evidence: `scripts/check_jit_safety_contracts.sh` + `tests/jit_safety_contract_checker.rs` added; baseline run `bash scripts/check_jit_safety_contracts.sh --allow-missing` reported `Checked 49 executable unsafe boundaries in src/jit.rs; missing contracts: 49`.
   - Progress (2026-05-24, loop 2): Annotated all `unsafe extern "C"` JIT boundaries with canonical `SAFETY` pre/postcondition blocks and tightened checker matching to ignore `unsafe extern` type aliases.
     Evidence: `bash scripts/check_jit_safety_contracts.sh --allow-missing` now reports `Checked 47 executable unsafe boundaries in src/jit.rs; missing contracts: 14` (remaining gaps are non-extern unsafe blocks/calls for loop 3).
+  - Progress (2026-05-24, loop 3): Annotated all remaining executable unsafe blocks/calls in `src/jit.rs` and added malformed-heading checker coverage.
+    Evidence: strict run `bash scripts/check_jit_safety_contracts.sh` now reports `Checked 47 executable unsafe boundaries in src/jit.rs; missing contracts: 0`.
 
 - [ ] **V1H-UNSAFE-003**: Reduce executable unsafe callsites via safe wrappers where behavior is unchanged.
   - Scope: trim ad hoc unsafe deref/transmute callsites without broad rewrites.
