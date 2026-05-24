@@ -26,21 +26,16 @@ Non-release unchecked total: **1** primary blocker item (`V1VM-PAR-004`) plus su
 
 - [ ] **RNR-PAR-001**: Close `V1VM-PAR-004` by reducing non-intentional VM parity mismatches to intentional-divergence-only.
   - Why open: `docs/generated/VM_RUNTIME_MISMATCH_INVENTORY.md` still reports `runtime-parity-bug` fixtures.
-  - Current mismatch set (14 fixtures):
+  - Current mismatch set (9 fixtures):
     - `tests/env_and_args.ruff`
     - `tests/image_processing_test.ruff`
-    - `tests/integer_types.ruff`
     - `tests/result_option.ruff`
     - `tests/simple_image_test.ruff`
     - `tests/stdlib_os_path_test.ruff`
     - `tests/stdlib_test.ruff`
     - `tests/test_assertions.ruff`
     - `tests/test_connection_pooling.ruff`
-    - `tests/test_enhanced_collections.ruff`
-    - `tests/test_func_loop_correct.ruff`
-    - `tests/test_function_drop_fix.ruff`
     - `tests/test_generators.ruff`
-    - `tests/test_loop_correct.ruff`
   - Exit criteria:
     - `runtime-parity-bug` bucket reaches zero **or** residual divergences are explicitly reclassified as intentional with rationale.
     - `V1VM-PAR-004` can be marked complete with dated evidence.
@@ -63,10 +58,13 @@ Non-release unchecked total: **1** primary blocker item (`V1VM-PAR-004`) plus su
     - Updated snippet syntax in `docs/NATIVE_API_SECURITY_POSTURE.md` from legacy `fn`/`=` style to current Ruff `func`/`:=` style.
     - Validation: `cargo test --test docs_examples` (`5 passed, 0 failed`).
 
-- [ ] **RNR-EVID-001**: Re-sync blocker evidence text in `V1VM-PAR-004` notes to current inventory values.
+- [x] **RNR-EVID-001**: Re-sync blocker evidence text in `V1VM-PAR-004` notes to current inventory values.
   - Why open: blocker note history still contains earlier larger counts; latest inventory is materially lower.
   - Exit criteria:
     - Add fresh dated blocker evidence line aligned to latest generated artifact.
+  - Completed (2026-05-24):
+    - Added fresh blocker note under `V1VM-PAR-004` in `docs/VM_NO_INTERPRETER_UNIVERSALIZATION_CHECKLIST.md` with regenerated artifact totals (`runtime-parity-bug: 9`, `stale-snapshot-expectation: 1`, `harness-debt: 0`, `vm_matches_snapshot: 153/163`).
+    - Captured remaining parity-bug fixture list and supporting command evidence from parity + inventory contract suites.
 
 ## C) Structured Parity Burn-Down Plan (Recommended Workload Slices)
 
@@ -87,6 +85,10 @@ Use these as execution loops to close `RNR-PAR-001` predictably:
 - [ ] **RNR-PAR-G2**: Loop/function/generator control-flow cluster
   - Targets: `test_loop_correct`, `test_func_loop_correct`, `test_function_drop_fix`, `test_generators`, `integer_types`.
   - Focus: frame/stack lifecycle, loop progression semantics, generator-next behavior consistency.
+  - Progress (2026-05-24):
+    - Closed loop/function sub-bucket by normalizing VM for-loop iterables in compiler (`__vm_for_iterable`) without changing generic index error semantics.
+    - `test_loop_correct`, `test_func_loop_correct`, and `test_function_drop_fix` no longer classify as `runtime-parity-bug`.
+    - Remaining targets in this cluster: `test_generators` (runtime-path mismatch) and any residual numeric/runtime semantics from `integer_types`.
 
 - [ ] **RNR-PAR-G3**: Stdlib/env/IO behavior cluster
   - Targets: `env_and_args`, `stdlib_test`, `stdlib_os_path_test`, `test_connection_pooling`, `image_processing_test`, `simple_image_test`.
@@ -95,6 +97,9 @@ Use these as execution loops to close `RNR-PAR-001` predictably:
 - [ ] **RNR-PAR-G4**: Collections/assertion/result semantics cluster
   - Targets: `result_option`, `test_enhanced_collections`, `test_assertions`, `dict_methods_test` (if residual overlap).
   - Focus: container mutation/view parity, Result/Option behavior, assertion output consistency.
+  - Progress (2026-05-24):
+    - Closed `test_enhanced_collections` parity mismatch by adding `FixedDict` support for `invert`/`update`/`get_default` and correcting `invert` parity behavior to mirror interpreter output.
+    - Remaining targets in this cluster: `result_option` and `test_assertions`.
 
 ## D) Verification Matrix For Remaining Work
 

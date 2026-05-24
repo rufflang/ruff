@@ -1108,6 +1108,10 @@ pub fn handle(interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Opt
         "invert" => {
             if let Some(Value::Dict(dict)) = arg_values.first() {
                 Value::Dict(Arc::new(builtins::dict_invert(&**dict)))
+            } else if let Some(Value::FixedDict { keys, values }) = arg_values.first() {
+                let dict = fixed_dict_to_dict(keys.as_ref(), values.as_ref());
+                let inverted = builtins::dict_invert(&dict);
+                Value::Dict(Arc::new(inverted))
             } else if let Some(Value::IntDict(dict)) = arg_values.first() {
                 let mut inverted = DictMap::default();
                 for (k, v) in dict.iter() {
@@ -1147,6 +1151,36 @@ pub fn handle(interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Opt
                 let mut result = (**dict1).clone();
                 for (k, v) in dict2.iter() {
                     result.insert(k.clone(), v.clone());
+                }
+                Value::Dict(Arc::new(result))
+            } else if let (
+                Some(Value::FixedDict { keys: keys1, values: values1 }),
+                Some(Value::FixedDict { keys: keys2, values: values2 }),
+            ) = (arg_values.first(), arg_values.get(1))
+            {
+                let mut result = fixed_dict_to_dict(keys1.as_ref(), values1.as_ref());
+                for (k, v) in fixed_dict_to_dict(keys2.as_ref(), values2.as_ref()) {
+                    result.insert(k, v);
+                }
+                Value::Dict(Arc::new(result))
+            } else if let (
+                Some(Value::FixedDict { keys, values }),
+                Some(Value::Dict(dict2)),
+            ) = (arg_values.first(), arg_values.get(1))
+            {
+                let mut result = fixed_dict_to_dict(keys.as_ref(), values.as_ref());
+                for (k, v) in dict2.iter() {
+                    result.insert(k.clone(), v.clone());
+                }
+                Value::Dict(Arc::new(result))
+            } else if let (
+                Some(Value::Dict(dict1)),
+                Some(Value::FixedDict { keys, values }),
+            ) = (arg_values.first(), arg_values.get(1))
+            {
+                let mut result = (**dict1).clone();
+                for (k, v) in fixed_dict_to_dict(keys.as_ref(), values.as_ref()) {
+                    result.insert(k, v);
                 }
                 Value::Dict(Arc::new(result))
             } else if let (Some(Value::IntDict(dict1)), Some(Value::IntDict(dict2))) =
@@ -1205,6 +1239,17 @@ pub fn handle(interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Opt
             {
                 if let Some(value) = dict.get(key.as_str()) {
                     value.clone()
+                } else {
+                    default_val.clone()
+                }
+            } else if let (
+                Some(Value::FixedDict { keys, values }),
+                Some(Value::Str(key)),
+                Some(default_val),
+            ) = (arg_values.first(), arg_values.get(1), arg_values.get(2))
+            {
+                if let Some(index) = keys.iter().position(|k| k.as_ref() == key.as_str()) {
+                    values.get(index).cloned().unwrap_or_else(|| default_val.clone())
                 } else {
                     default_val.clone()
                 }
@@ -1765,4 +1810,58 @@ mod tests {
                 && matches!(&values[1], Value::Int(2)))
         );
     }
+
+    #[test]
+    fn test_fixed_dict_invert_update_get_default_contracts() {
+        let mut interpreter = Interpreter::new();
+
+        let left = Value::FixedDict {
+            keys: Arc::new(vec![Arc::from("a"), Arc::from("b")]),
+            values: vec![Value::Int(1), Value::Int(2)],
+        };
+        let right = Value::FixedDict {
+            keys: Arc::new(vec![Arc::from("b"), Arc::from("c")]),
+            values: vec![Value::Int(99), Value::Int(3)],
+        };
+
+        let inverted = handle(&mut interpreter, "invert", std::slice::from_ref(&left))
+            .expect("invert handler should match");
+        assert!(
+            matches!(inverted, Value::Dict(dict) if matches!(dict.get("1"), Some(Value::Str(value)) if value.as_ref() == "a")
+                && matches!(dict.get("2"), Some(Value::Str(value)) if value.as_ref() == "b"))
+        );
+
+        let updated = handle(&mut interpreter, "update", &[left.clone(), right.clone()])
+            .expect("update handler should match");
+        assert!(
+            matches!(updated, Value::Dict(dict) if matches!(dict.get("a"), Some(Value::Int(1)))
+                && matches!(dict.get("b"), Some(Value::Int(99)))
+                && matches!(dict.get("c"), Some(Value::Int(3))))
+        );
+
+        let get_existing = handle(
+            &mut interpreter,
+            "get_default",
+            &[
+                left.clone(),
+                Value::Str(Arc::new("a".to_string())),
+                Value::Int(0),
+            ],
+        )
+        .expect("get_default existing should match");
+        assert!(matches!(get_existing, Value::Int(1)));
+
+        let get_missing = handle(
+            &mut interpreter,
+            "get_default",
+            &[
+                right,
+                Value::Str(Arc::new("missing".to_string())),
+                Value::Int(123),
+            ],
+        )
+        .expect("get_default missing should match");
+        assert!(matches!(get_missing, Value::Int(123)));
+    }
+
 }

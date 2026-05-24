@@ -42,6 +42,49 @@ use super::{Interpreter, Value};
 pub fn call_native_function(interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Value {
     // Legacy aliases and compatibility helpers.
     match name {
+        "__vm_for_iterable" => {
+            if arg_values.len() != 1 {
+                return Value::Error(format!(
+                    "__vm_for_iterable expects 1 argument, got {}",
+                    arg_values.len()
+                ));
+            }
+            return match &arg_values[0] {
+                Value::Int(n) => {
+                    let upper = (*n).max(0);
+                    let values: Vec<Value> = (0..upper).map(Value::Int).collect();
+                    Value::Array(std::sync::Arc::new(values))
+                }
+                Value::Float(n) => {
+                    let upper = (*n as i64).max(0);
+                    let values: Vec<Value> = (0..upper).map(Value::Int).collect();
+                    Value::Array(std::sync::Arc::new(values))
+                }
+                Value::Array(arr) => Value::Array(arr.clone()),
+                Value::Dict(dict) => {
+                    let keys: Vec<Value> = dict
+                        .keys()
+                        .map(|key| Value::Str(std::sync::Arc::new(key.to_string())))
+                        .collect();
+                    Value::Array(std::sync::Arc::new(keys))
+                }
+                Value::FixedDict { keys, .. } => {
+                    let key_values: Vec<Value> = keys
+                        .iter()
+                        .map(|key| Value::Str(std::sync::Arc::new(key.to_string())))
+                        .collect();
+                    Value::Array(std::sync::Arc::new(key_values))
+                }
+                Value::Str(text) => {
+                    let chars: Vec<Value> = text
+                        .chars()
+                        .map(|ch| Value::Str(std::sync::Arc::new(ch.to_string())))
+                        .collect();
+                    Value::Array(std::sync::Arc::new(chars))
+                }
+                other => other.clone(),
+            };
+        }
         "dict" => {
             if let Some(arity) = Interpreter::native_callable_arity("dict") {
                 if let Err(message) = arity.validate(arg_values.len()) {
@@ -5896,5 +5939,38 @@ mod tests {
         assert!(
             matches!(set_too_many, Value::Error(message) if message.contains("Set constructor takes at most 1 argument"))
         );
+    }
+
+    #[test]
+    fn test_vm_for_iterable_normalization_contracts() {
+        let mut interpreter = Interpreter::new();
+
+        let int_iterable = call_native_function(&mut interpreter, "__vm_for_iterable", &[Value::Int(3)]);
+        assert!(matches!(int_iterable, Value::Array(values) if values.len() == 3
+            && matches!(&values[0], Value::Int(0))
+            && matches!(&values[1], Value::Int(1))
+            && matches!(&values[2], Value::Int(2))));
+
+        let float_iterable =
+            call_native_function(&mut interpreter, "__vm_for_iterable", &[Value::Float(2.9)]);
+        assert!(matches!(float_iterable, Value::Array(values) if values.len() == 2
+            && matches!(&values[0], Value::Int(0))
+            && matches!(&values[1], Value::Int(1))));
+
+        let mut dict = std::collections::HashMap::default();
+        dict.insert(std::sync::Arc::<str>::from("a"), Value::Int(1));
+        let dict_iterable =
+            call_native_function(&mut interpreter, "__vm_for_iterable", &[Value::Dict(Arc::new(dict))]);
+        assert!(matches!(dict_iterable, Value::Array(values) if values.len() == 1
+            && matches!(&values[0], Value::Str(value) if value.as_ref() == "a")));
+
+        let str_iterable = call_native_function(
+            &mut interpreter,
+            "__vm_for_iterable",
+            &[Value::Str(Arc::new("ab".to_string()))],
+        );
+        assert!(matches!(str_iterable, Value::Array(values) if values.len() == 2
+            && matches!(&values[0], Value::Str(ch) if ch.as_ref() == "a")
+            && matches!(&values[1], Value::Str(ch) if ch.as_ref() == "b")));
     }
 }

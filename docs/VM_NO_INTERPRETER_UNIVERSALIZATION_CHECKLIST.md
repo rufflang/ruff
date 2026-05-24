@@ -257,6 +257,11 @@ Each loop report must include exactly:
     - Inventory totals after regeneration: `P0 runtime-parity-bug (runtime-owner): 18`, `P1 stale-snapshot-expectation: 0`, `P2 harness-debt: 0`.
     - Runtime sweep evidence: `cargo run -- test --runtime vm` improved to `Passed 118/150`; `cargo run -- test --runtime dual` remained `Passed 128/150` with reduced fallback (`vm_primary=118`, `interpreter_fallback=10`).
     - Supporting regression coverage: `cargo test --test vm_interpreter_parity_surfaces` (`92 passed`) including `vm_and_interpreter_match_struct_op_add_overload_surface`.
+  - Blocker note (2026-05-24, collections + loop parity retry): still blocked, with additional monotonic reduction.
+    - Evidence: fixed VM/interpreter parity for numeric `for` loops via compiler iterable normalization (`__vm_for_iterable`) and closed `test_enhanced_collections` parity drift by correcting `invert()` behavior for VM `FixedDict` paths.
+    - Inventory totals after regeneration: `P0 runtime-parity-bug (runtime-owner): 9`, `P1 stale-snapshot-expectation: 1`, `P2 harness-debt: 0` (`vm_matches_snapshot: 153/163`, `93.9%`).
+    - Remaining `runtime-parity-bug` fixtures: `env_and_args`, `image_processing_test`, `result_option`, `simple_image_test`, `stdlib_os_path_test`, `stdlib_test`, `test_assertions`, `test_connection_pooling`, `test_generators`.
+    - Supporting regression coverage: `cargo test --test vm_interpreter_parity_surfaces` (`95 passed`), `cargo test --test vm_runtime_mismatch_inventory_contract` (`2 passed`), and `cargo test --test vm_runtime_mismatch_baseline_contract` (`4 passed`).
 
 ### 3) Harness And CLI Runtime Strategy Hardening
 

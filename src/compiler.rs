@@ -407,6 +407,10 @@ impl Compiler {
 
                 // Evaluate the iterable
                 self.compile_expr(iterable)?;
+                // Normalize VM for-loop inputs so numeric/string/dict iterations align with
+                // interpreter semantics without changing generic index operation rules.
+                self.chunk.emit(OpCode::LoadGlobal("__vm_for_iterable".to_string()));
+                self.chunk.emit(OpCode::Call(1));
 
                 // Store in a temporary variable for iteration
                 if let Some(slot) = iter_slot {

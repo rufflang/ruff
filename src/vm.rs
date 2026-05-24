@@ -7669,6 +7669,35 @@ mod tests {
     }
 
     #[test]
+    fn test_vm_for_numeric_iteration_matches_interpreter_range_contract() {
+        let int_result = run_vm_code_with_natives(
+            r#"
+            total := 0
+            for i in 3 {
+                total := total + i
+            }
+            return total
+            "#,
+            &["len", "__vm_for_iterable"],
+        )
+        .expect("VM should execute integer for-range");
+        assert!(matches!(int_result, Value::Int(3)));
+
+        let float_result = run_vm_code_with_natives(
+            r#"
+            total := 0
+            for i in 3.9 {
+                total := total + i
+            }
+            return total
+            "#,
+            &["len", "__vm_for_iterable"],
+        )
+        .expect("VM should execute float for-range");
+        assert!(matches!(float_result, Value::Int(3)));
+    }
+
+    #[test]
     fn test_validate_jit_supported_surfaces_reports_unsupported_opcode() {
         let chunk = compile_chunk(
             r#"

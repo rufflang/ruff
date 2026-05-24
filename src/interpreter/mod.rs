@@ -480,6 +480,7 @@ impl Interpreter {
             "exp",
             // String functions
             "len",
+            "__vm_for_iterable",
             "substring",
             "to_upper",
             "upper",
@@ -853,6 +854,10 @@ impl Interpreter {
 
         // String functions
         self.env.define("len".to_string(), Value::NativeFunction("len".to_string()));
+        self.env.define(
+            "__vm_for_iterable".to_string(),
+            Value::NativeFunction("__vm_for_iterable".to_string()),
+        );
         self.env.define("substring".to_string(), Value::NativeFunction("substring".to_string()));
         self.env.define("to_upper".to_string(), Value::NativeFunction("to_upper".to_string()));
         self.env.define("upper".to_string(), Value::NativeFunction("upper".to_string())); // Alias
@@ -2432,6 +2437,9 @@ impl Interpreter {
 
     pub(crate) fn native_callable_arity(name: &str) -> Option<CallableArity> {
         let metadata = match name {
+            "__vm_for_iterable" => {
+                CallableArity::exact("__vm_for_iterable", vec!["value".to_string()])
+            }
             "dict" => CallableArity::exact("dict", vec![]),
             "error" => CallableArity::exact("error", vec!["message".to_string()]),
             "collect" => CallableArity::exact("collect", vec!["iterable".to_string()]),
