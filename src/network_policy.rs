@@ -11,6 +11,7 @@ pub const DEFAULT_HTTP_TIMEOUT_MS: u64 = 30_000;
 pub const MAX_NETWORK_BODY_BYTES: usize = runtime_limits::MAX_NETWORK_BODY_BYTES;
 pub const OUTBOUND_DESTINATION_POLICY_ENV: &str = "RUFF_NET_DESTINATION_POLICY";
 pub const ALLOW_PRIVATE_DESTINATIONS_ENV: &str = "RUFF_ALLOW_PRIVATE_NETWORK_DESTINATIONS";
+const ALLOWED_HTTP_URL_SCHEMES: [&str; 2] = ["http", "https"];
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum OutboundDestinationPolicy {
@@ -124,6 +125,17 @@ Set {}=1 to allow trusted local/private destinations.",
 pub fn enforce_http_url_destination_policy(url: &str, surface: &str) -> Result<(), String> {
     let parsed = reqwest::Url::parse(url)
         .map_err(|error| format!("{} failed: invalid URL '{}': {}", surface, url, error))?;
+
+    let scheme = parsed.scheme().to_ascii_lowercase();
+    if !ALLOWED_HTTP_URL_SCHEMES
+        .iter()
+        .any(|allowed| *allowed == scheme)
+    {
+        return Err(format!(
+            "{} failed: unsupported URL scheme '{}'; expected http or https",
+            surface, scheme
+        ));
+    }
 
     let host = parsed.host_str().ok_or_else(|| {
         format!(
@@ -365,6 +377,16 @@ mod tests {
                     .expect_err("strict policy should reject loopback URLs");
             assert!(error.contains("blocked by outbound destination policy"));
             assert!(error.contains("127.0.0.1"));
+        });
+    }
+
+    #[test]
+    fn outbound_policy_http_url_evaluation_rejects_unsupported_scheme() {
+        with_policy_env(None, None, || {
+            let error = enforce_http_url_destination_policy("ftp://127.0.0.1", "HTTP GET")
+                .expect_err("unsupported URL schemes should be rejected deterministically");
+            assert!(error.contains("unsupported URL scheme 'ftp'"));
+            assert!(error.contains("expected http or https"));
         });
     }
 }

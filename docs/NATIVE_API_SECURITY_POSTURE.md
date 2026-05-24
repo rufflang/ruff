@@ -102,6 +102,9 @@ Built-in guardrails:
 - TCP/UDP read-write timeout: `30000 ms`
 - HTTP client timeout: `30000 ms`
 - Max network response/receive body: `8 MiB`
+- HTTP native URL validation:
+  - only `http` and `https` schemes are accepted.
+  - malformed URLs and missing hosts fail early with deterministic diagnostics before request execution.
 - Outbound destination policy mode (env-controlled):
   - `RUFF_NET_DESTINATION_POLICY=allow_all` (default): preserves backward-compatible permissive destination behavior.
   - `RUFF_NET_DESTINATION_POLICY=deny_private`: blocks outbound HTTP/TCP/UDP client destinations that resolve to loopback/private/link-local/multicast/unspecified IP ranges.

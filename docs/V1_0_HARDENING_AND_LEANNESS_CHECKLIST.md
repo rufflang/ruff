@@ -63,6 +63,8 @@ Purpose: capture additive, non-breaking work that can improve safety, maintainab
     Evidence: `rg -n "\bunsafe\b" src/jit.rs | wc -l` -> `51`; `rg -n "SAFETY:" src/jit.rs | wc -l` -> `3`.
   - Blocker (2026-05-23): Revalidated before `V1H-SEC-001`; unsafe/SAFETY annotation ratio remains unchanged and still requires a dedicated invariant-enforcement pass.
     Evidence: `rg -n "\bunsafe\b" src/jit.rs | wc -l` -> `51`; `rg -n "SAFETY:" src/jit.rs | wc -l` -> `3`.
+  - Blocker (2026-05-23): Revalidated before `V1H-SEC-002`; invariant annotation gap is unchanged and still requires a dedicated unsafe-boundary documentation loop.
+    Evidence: `rg -n "\bunsafe\b" src/jit.rs | wc -l` -> `51`; `rg -n "SAFETY:" src/jit.rs | wc -l` -> `3`.
 
 - [ ] **V1H-UNSAFE-003**: Reduce executable unsafe callsites via safe wrappers where behavior is unchanged.
   - Scope: trim ad hoc unsafe deref/transmute callsites without broad rewrites.
@@ -81,6 +83,8 @@ Purpose: capture additive, non-breaking work that can improve safety, maintainab
   - Blocker (2026-05-23): Revalidated before `V1H-SIZE-005`; wrapper-reduction remains coupled to unresolved `V1H-UNSAFE-002` invariant documentation and is deferred to avoid unaudited unsafe-motion churn.
     Evidence: `docs/generated/UNSAFE_INVENTORY.md` still reports concentrated executable unsafe rows in `src/jit.rs`.
   - Blocker (2026-05-23): Revalidated before `V1H-SEC-001`; executable unsafe reduction remains blocked on unresolved unsafe-boundary invariant documentation sequencing.
+    Evidence: `docs/generated/UNSAFE_INVENTORY.md` still reports concentrated executable unsafe rows in `src/jit.rs`.
+  - Blocker (2026-05-23): Revalidated before `V1H-SEC-002`; executable unsafe reduction remains sequenced after `V1H-UNSAFE-002` invariant standardization.
     Evidence: `docs/generated/UNSAFE_INVENTORY.md` still reports concentrated executable unsafe rows in `src/jit.rs`.
 
 - [x] **V1H-UNSAFE-004**: Add optional sanitizer/Miri-oriented safety gate for CI/nightly verification.
@@ -125,6 +129,8 @@ Purpose: capture additive, non-breaking work that can improve safety, maintainab
   - Blocker (2026-05-23): Revalidated before `V1H-SIZE-005`; feature-gate partitioning remains a multi-surface design change and is still deferred to avoid broad default behavior/build-matrix churn in a single loop.
     Evidence: `Cargo.toml` still has heavyweight runtime subsystems in always-on `[dependencies]` with no existing incremental feature partition.
   - Blocker (2026-05-23): Revalidated before `V1H-SEC-001`; feature-partitioning remains a broader build-surface decision and is still deferred outside this single security-hardening loop.
+    Evidence: `Cargo.toml` still has heavyweight runtime subsystems in always-on `[dependencies]` without an incremental feature matrix scaffold.
+  - Blocker (2026-05-23): Revalidated before `V1H-SEC-002`; dependency feature-partitioning remains a multi-surface build-matrix change and is deferred outside this scoped URL-hardening loop.
     Evidence: `Cargo.toml` still has heavyweight runtime subsystems in always-on `[dependencies]` without an incremental feature matrix scaffold.
 
 - [x] **V1H-SIZE-003**: Consolidate duplicated runtime helpers shared by VM and interpreter.
@@ -204,13 +210,27 @@ Purpose: capture additive, non-breaking work that can improve safety, maintainab
       - `cargo test --test runtime_security` (9 passed)
       - `cargo test` (full suite passed; no failures)
 
-- [ ] **V1H-SEC-002**: Enforce URL scheme/host validation for HTTP native calls.
+- [x] **V1H-SEC-002**: Enforce URL scheme/host validation for HTTP native calls.
   - Scope: reject unsupported schemes and malformed targets before request execution.
   - Acceptance criteria:
     - stable actionable error messages for invalid scheme/host.
     - no regressions for current valid `http`/`https` flows.
   - Validation:
     - focused HTTP native tests + parity checks
+  - Completed (2026-05-23):
+    - Added deterministic HTTP URL pre-validation in `src/network_policy.rs`:
+      - allowlist: `http`, `https`
+      - unsupported scheme rejection before request execution
+      - malformed URL rejection with stable error prefix
+    - Reused the shared pre-validation path across builtin and interpreter-native HTTP call surfaces via existing `enforce_http_url_destination_policy`.
+    - Added/updated tests:
+      - unit: unsupported scheme rejection (`network_policy` module tests)
+      - integration: unsupported scheme + malformed URL rejection contracts in `tests/native_api_security_boundaries.rs`
+    - Validation:
+      - `cargo test network_policy::tests::outbound_policy_http_url_evaluation_rejects_unsupported_scheme` (passed)
+      - `cargo test --test native_api_security_boundaries` (48 passed)
+      - `cargo test --test runtime_security` (9 passed)
+      - `cargo test` (blocked by unrelated guardrail: `tests/lsp_latency_guardrails.rs` exceeded diagnostics average latency threshold at ~156-158ms; no failures in touched network/security suites)
 
 - [ ] **V1H-SEC-003**: Replace panic-prone `lock().unwrap()` in production native surfaces.
   - Scope: network/database/concurrency native functions return controlled `ErrorObject` on poisoned lock instead of panicking process-wide.

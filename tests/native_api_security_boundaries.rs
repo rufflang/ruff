@@ -566,6 +566,78 @@ fn network_http_request_timeout_is_reported_deterministically() {
 }
 
 #[test]
+fn network_http_client_rejects_unsupported_url_scheme_before_request_execution() {
+    let project_root = unique_temp_dir("network_http_client_rejects_unsupported_scheme");
+    let script_path = project_root.join("unsupported_url_scheme.ruff");
+    fs::write(&script_path, "http_get(\"ftp://127.0.0.1\")\n")
+        .expect("failed to write unsupported scheme test script");
+
+    let output = run_ruff_with_env(
+        &[
+            "run",
+            "--interpreter",
+            "--untrusted",
+            "--allow-net-client",
+            script_path.to_str().expect("script path should be utf-8"),
+        ],
+        &project_root,
+        &[],
+    );
+
+    assert_eq!(
+        output.status.code(),
+        Some(4),
+        "expected unsupported URL scheme to fail with runtime error, got status={:?}, stdout={}, stderr={}",
+        output.status.code(),
+        stdout_text(&output),
+        stderr_text(&output)
+    );
+    let combined_output = format!("{}\n{}", stdout_text(&output), stderr_text(&output));
+    assert!(
+        combined_output.contains("unsupported URL scheme 'ftp'"),
+        "expected unsupported URL scheme diagnostic, got stdout={} stderr={}",
+        stdout_text(&output),
+        stderr_text(&output)
+    );
+}
+
+#[test]
+fn network_http_client_rejects_malformed_url_before_request_execution() {
+    let project_root = unique_temp_dir("network_http_client_rejects_malformed_url");
+    let script_path = project_root.join("malformed_url.ruff");
+    fs::write(&script_path, "http_get(\"http://\")\n")
+        .expect("failed to write malformed URL test script");
+
+    let output = run_ruff_with_env(
+        &[
+            "run",
+            "--interpreter",
+            "--untrusted",
+            "--allow-net-client",
+            script_path.to_str().expect("script path should be utf-8"),
+        ],
+        &project_root,
+        &[],
+    );
+
+    assert_eq!(
+        output.status.code(),
+        Some(4),
+        "expected malformed URL to fail with runtime error, got status={:?}, stdout={}, stderr={}",
+        output.status.code(),
+        stdout_text(&output),
+        stderr_text(&output)
+    );
+    let combined_output = format!("{}\n{}", stdout_text(&output), stderr_text(&output));
+    assert!(
+        combined_output.contains("invalid URL"),
+        "expected malformed URL diagnostic, got stdout={} stderr={}",
+        stdout_text(&output),
+        stderr_text(&output)
+    );
+}
+
+#[test]
 fn network_destination_policy_deny_private_blocks_loopback_http_client() {
     let project_root = unique_temp_dir("network_destination_policy_blocks_loopback_http");
     let script_path = project_root.join("destination_policy_http_block.ruff");
