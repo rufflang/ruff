@@ -157,8 +157,8 @@ tests/test_void_method.ruff,4,0,no,no,both_mismatch_different_output,harness-deb
 tests/testing_framework.ruff,3,3,yes,yes,both_match_snapshot,none,n/a,P4,snapshot matches in both runtimes
 tests/vm_closure_adder.ruff,0,0,yes,yes,both_match_snapshot,none,n/a,P4,snapshot matches in both runtimes
 tests/vm_closure_debug.ruff,0,0,yes,yes,both_match_snapshot,none,n/a,P4,snapshot matches in both runtimes
-tests/vm_closure_detailed.ruff,0,4,yes,no,interpreter_only_mismatch,runtime-parity-bug,runtime-owner,P0,runtime-path mismatch against snapshot indicates parity defect or runtime-specific contract drift
-tests/vm_closure_multiple.ruff,0,4,yes,no,interpreter_only_mismatch,runtime-parity-bug,runtime-owner,P0,runtime-path mismatch against snapshot indicates parity defect or runtime-specific contract drift
-tests/vm_closure_order.ruff,0,4,yes,no,interpreter_only_mismatch,runtime-parity-bug,runtime-owner,P0,runtime-path mismatch against snapshot indicates parity defect or runtime-specific contract drift
-tests/vm_closure_simple.ruff,0,4,yes,no,interpreter_only_mismatch,runtime-parity-bug,runtime-owner,P0,runtime-path mismatch against snapshot indicates parity defect or runtime-specific contract drift
+tests/vm_closure_detailed.ruff,4,4,yes,yes,both_match_snapshot,none,n/a,P4,snapshot matches in both runtimes
+tests/vm_closure_multiple.ruff,4,4,yes,yes,both_match_snapshot,none,n/a,P4,snapshot matches in both runtimes
+tests/vm_closure_order.ruff,4,4,yes,yes,both_match_snapshot,none,n/a,P4,snapshot matches in both runtimes
+tests/vm_closure_simple.ruff,4,4,yes,yes,both_match_snapshot,none,n/a,P4,snapshot matches in both runtimes
 tests/vm_native_functions_test.ruff,4,4,yes,yes,both_match_snapshot,none,n/a,P4,snapshot matches in both runtimes

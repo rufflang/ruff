@@ -557,6 +557,8 @@ pub enum Value {
         chunk: crate::bytecode::BytecodeChunk,
         /// Captured variables with shared mutable state
         captured: HashMap<String, Arc<Mutex<Value>>>,
+        /// Captured binding mutability metadata keyed by variable name.
+        captured_binding_kinds: HashMap<String, crate::bytecode::BytecodeBindingKind>,
     },
     /// Bytecode generator instance with execution state (VM-based generators)
     #[allow(dead_code)]
@@ -777,7 +779,7 @@ impl std::fmt::Debug for Value {
                 write!(f, "AsyncFunction({:?}, {} stmts{})", params, body.get().len(), env_info)
             }
             Value::NativeFunction(name) => write!(f, "NativeFunction({})", name),
-            Value::BytecodeFunction { chunk, captured } => {
+            Value::BytecodeFunction { chunk, captured, captured_binding_kinds: _ } => {
                 let name = chunk.name.as_deref().unwrap_or("<lambda>");
                 write!(
                     f,
@@ -1046,11 +1048,20 @@ impl Value {
                     && Self::optional_env_ptr_eq(left_env, right_env)
             }
             (
-                Value::BytecodeFunction { chunk: left_chunk, captured: left_captured },
-                Value::BytecodeFunction { chunk: right_chunk, captured: right_captured },
+                Value::BytecodeFunction {
+                    chunk: left_chunk,
+                    captured: left_captured,
+                    captured_binding_kinds: left_captured_binding_kinds,
+                },
+                Value::BytecodeFunction {
+                    chunk: right_chunk,
+                    captured: right_captured,
+                    captured_binding_kinds: right_captured_binding_kinds,
+                },
             ) => {
                 left_chunk == right_chunk
                     && Self::captured_value_map_ptr_eq(left_captured, right_captured)
+                    && left_captured_binding_kinds == right_captured_binding_kinds
             }
             (
                 Value::GeneratorDef(left_params, left_body),

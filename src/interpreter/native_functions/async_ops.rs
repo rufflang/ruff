@@ -2477,7 +2477,11 @@ mod tests {
         chunk.emit(OpCode::Add);
         chunk.emit(OpCode::Return);
 
-        Value::BytecodeFunction { chunk, captured: HashMap::<String, Arc<Mutex<Value>>>::new() }
+        Value::BytecodeFunction {
+            chunk,
+            captured: HashMap::<String, Arc<Mutex<Value>>>::new(),
+            captured_binding_kinds: HashMap::new(),
+        }
     }
 
     #[test]

@@ -364,6 +364,9 @@ pub struct GeneratorState {
     /// Captured variables at yield point
     pub captured: HashMap<String, Arc<Mutex<Value>>>,
 
+    /// Binding mutability metadata for captured variables.
+    pub captured_binding_kinds: HashMap<String, BytecodeBindingKind>,
+
     /// Whether the generator has finished
     pub is_exhausted: bool,
 }
@@ -379,6 +382,7 @@ pub struct CallFrameData {
     pub local_slot_binding_kinds: Vec<BytecodeBindingKind>,
     pub local_slot_initialized: Vec<bool>,
     pub captured: HashMap<String, Arc<Mutex<Value>>>,
+    pub captured_binding_kinds: HashMap<String, BytecodeBindingKind>,
 }
 
 /// Call frame for function calls
@@ -408,6 +412,9 @@ pub(crate) struct CallFrame {
 
     /// Captured variables (upvalues) with shared mutable state
     captured: HashMap<String, Arc<Mutex<Value>>>,
+
+    /// Binding mutability metadata for captured variables.
+    captured_binding_kinds: HashMap<String, BytecodeBindingKind>,
 
     /// Previous chunk (for returning)
     prev_chunk: Option<BytecodeChunk>,
@@ -1668,6 +1675,11 @@ impl VM {
                     if let Some(frame) = self.call_frames.last_mut() {
                         // Check if this is a captured variable first
                         if let Some(captured_ref) = frame.captured.get(&name) {
+                            if let Some(kind) = frame.captured_binding_kinds.get(&name).copied() {
+                                if !matches!(kind, BytecodeBindingKind::Mutable) {
+                                    return Err(Self::local_reassignment_error(kind, &name));
+                                }
+                            }
                             if std::env::var("DEBUG_VM").is_ok() {
                                 eprintln!("StoreVar('{}'): updating captured variable", name);
                             }
@@ -2470,7 +2482,11 @@ impl VM {
 
                     // Check if this is a bytecode function or native function
                     match &function {
-                        Value::BytecodeFunction { chunk, captured: _ } => {
+                        Value::BytecodeFunction {
+                            chunk,
+                            captured: _,
+                            captured_binding_kinds: _,
+                        } => {
                             let args = self.prepare_bytecode_call_args(chunk, args.clone())?;
 
                             // Track function calls for JIT compilation
@@ -3059,6 +3075,7 @@ impl VM {
                     if let Constant::Function(chunk) = constant {
                         // Capture upvalues listed in the function's chunk
                         let mut captured = HashMap::new();
+                        let mut captured_binding_kinds = HashMap::new();
 
                         if std::env::var("DEBUG_VM").is_ok() {
                             eprintln!(
@@ -3083,26 +3100,47 @@ impl VM {
                         for upvalue_name in &chunk.upvalues {
                             // Find the variable in current scope (locals only - NOT globals)
                             // Prefer local slots (authoritative for locals) and fall back to locals map
-                            let value = if let Some(frame) = self.call_frames.last() {
-                                if let Some(slot) = self
-                                    .chunk
-                                    .local_names
-                                    .iter()
-                                    .position(|name| name == upvalue_name)
+                            let capture_entry = if let Some(frame) = self.call_frames.last() {
+                                if let Some(existing) = frame.captured.get(upvalue_name) {
+                                    let value = existing.lock().unwrap().clone();
+                                    let kind = frame
+                                        .captured_binding_kinds
+                                        .get(upvalue_name)
+                                        .copied()
+                                        .unwrap_or(BytecodeBindingKind::Mutable);
+                                    Some((value, kind))
+                                } else if let Some(slot) =
+                                    self.chunk.local_names.iter().position(|name| name == upvalue_name)
                                 {
-                                    frame
+                                    let value = frame
                                         .local_slots
                                         .get(slot)
                                         .cloned()
-                                        .or_else(|| frame.locals.get(upvalue_name).cloned())
+                                        .or_else(|| frame.locals.get(upvalue_name).cloned());
+                                    let kind = frame
+                                        .local_slot_binding_kinds
+                                        .get(slot)
+                                        .copied()
+                                        .or_else(|| {
+                                            frame.locals_binding_kinds.get(upvalue_name).copied()
+                                        })
+                                        .unwrap_or(BytecodeBindingKind::Mutable);
+                                    value.map(|value| (value, kind))
                                 } else {
-                                    frame.locals.get(upvalue_name).cloned()
+                                    frame.locals.get(upvalue_name).cloned().map(|value| {
+                                        let kind = frame
+                                            .locals_binding_kinds
+                                            .get(upvalue_name)
+                                            .copied()
+                                            .unwrap_or(BytecodeBindingKind::Mutable);
+                                        (value, kind)
+                                    })
                                 }
                             } else {
                                 None
                             };
 
-                            if let Some(val) = value {
+                            if let Some((val, binding_kind)) = capture_entry {
                                 if std::env::var("DEBUG_VM").is_ok() {
                                     eprintln!(
                                         "  Captured '{}' from locals = {:?}",
@@ -3111,6 +3149,8 @@ impl VM {
                                 }
                                 // Wrap in Arc<Mutex<>> for shared mutable state
                                 captured.insert(upvalue_name.clone(), Arc::new(Mutex::new(val)));
+                                captured_binding_kinds
+                                    .insert(upvalue_name.clone(), binding_kind);
                             } else {
                                 if std::env::var("DEBUG_VM").is_ok() {
                                     eprintln!(
@@ -3124,7 +3164,11 @@ impl VM {
                         }
 
                         // Create a closure value with captured variables
-                        let value = Value::BytecodeFunction { chunk: (**chunk).clone(), captured };
+                        let value = Value::BytecodeFunction {
+                            chunk: (**chunk).clone(),
+                            captured,
+                            captured_binding_kinds,
+                        };
                         self.stack.push(value);
                     } else {
                         return Err("Expected function constant".to_string());
@@ -4481,7 +4525,12 @@ impl VM {
                     // Pop the function from stack and convert it to a generator
                     let function = self.stack.pop().ok_or("Stack underflow in MakeGenerator")?;
 
-                    if let Value::BytecodeFunction { chunk, captured } = function {
+                    if let Value::BytecodeFunction {
+                        chunk,
+                        captured,
+                        captured_binding_kinds,
+                    } = function
+                    {
                         // Create initial generator state (not yet started)
                         let state = GeneratorState {
                             ip: 0,
@@ -4490,6 +4539,7 @@ impl VM {
                             chunk: chunk.clone(),
                             locals: HashMap::new(),
                             captured: captured.clone(),
+                            captured_binding_kinds: captured_binding_kinds.clone(),
                             is_exhausted: false,
                         };
 
@@ -5020,7 +5070,11 @@ impl VM {
             Constant::Bool(b) => Ok(Value::Bool(*b)),
             Constant::None => Ok(Value::Null),
             Constant::Function(chunk) => {
-                Ok(Value::BytecodeFunction { chunk: (**chunk).clone(), captured: HashMap::new() })
+                Ok(Value::BytecodeFunction {
+                    chunk: (**chunk).clone(),
+                    captured: HashMap::new(),
+                    captured_binding_kinds: HashMap::new(),
+                })
             }
             Constant::Pattern(_) => Err("Cannot convert pattern to value".to_string()),
             Constant::Type(_) => Err("Cannot convert type annotation to value".to_string()),
@@ -5087,7 +5141,7 @@ impl VM {
     /// Call a function
     /// Set up a call frame for a bytecode function (doesn't return - Return opcode will handle that)
     fn call_bytecode_function(&mut self, function: Value, args: Vec<Value>) -> Result<(), String> {
-        if let Value::BytecodeFunction { chunk, captured } = function {
+        if let Value::BytecodeFunction { chunk, captured, captured_binding_kinds } = function {
             let max_depth = runtime_limits::DEFAULT_MAX_VM_CALL_DEPTH;
             if self.call_frames.len() >= max_depth || self.recursion_depth >= max_depth {
                 let callable = chunk.name.as_deref().unwrap_or("<anonymous>");
@@ -5133,6 +5187,7 @@ impl VM {
             for (name, value_ref) in &captured {
                 captured_map.insert(name.clone(), value_ref.clone());
             }
+            let captured_binding_kinds_map = captured_binding_kinds.clone();
 
             if std::env::var("DEBUG_VM").is_ok() {
                 eprintln!(
@@ -5151,6 +5206,7 @@ impl VM {
                 local_slot_binding_kinds,
                 local_slot_initialized,
                 captured: captured_map,
+                captured_binding_kinds: captured_binding_kinds_map,
                 prev_chunk: Some(self.chunk.clone()),
                 is_async: chunk.is_async,
             };
@@ -5999,7 +6055,9 @@ impl VM {
     /// Returns (operator, swap_operands) when it matches.
     fn match_simple_binary_reduce(&self, func: &Value) -> Option<(&'static str, bool)> {
         let (chunk, captured) = match func {
-            Value::BytecodeFunction { chunk, captured } => (chunk, captured),
+            Value::BytecodeFunction { chunk, captured, captured_binding_kinds: _ } => {
+                (chunk, captured)
+            }
             _ => return None,
         };
 
@@ -6047,7 +6105,11 @@ impl VM {
         args: Vec<Value>,
     ) -> Result<Value, String> {
         match &function {
-            Value::BytecodeFunction { chunk, captured: _ } => {
+            Value::BytecodeFunction {
+                chunk,
+                captured: _,
+                captured_binding_kinds: _,
+            } => {
                 // OPTIMIZATION: Check if target function is JIT-compiled
                 // If so, make direct JIT → JIT call for maximum performance
                 if self.jit_enabled {
@@ -7069,6 +7131,7 @@ impl VM {
                     local_slot_binding_kinds: frame_data.local_slot_binding_kinds.clone(),
                     local_slot_initialized: frame_data.local_slot_initialized.clone(),
                     captured: frame_data.captured.clone(),
+                    captured_binding_kinds: frame_data.captured_binding_kinds.clone(),
                     prev_chunk: None,
                     is_async: false, // Generators are not async
                 });
@@ -7109,6 +7172,7 @@ impl VM {
                             local_slot_binding_kinds: frame.local_slot_binding_kinds.clone(),
                             local_slot_initialized: frame.local_slot_initialized.clone(),
                             captured: frame.captured.clone(),
+                            captured_binding_kinds: frame.captured_binding_kinds.clone(),
                         });
                     }
 
@@ -7168,12 +7232,27 @@ impl VM {
                         let value = self.stack.last().ok_or("Stack underflow")?.clone();
                         if let Some(frame) = self.call_frames.last_mut() {
                             if let Some(captured_ref) = frame.captured.get(&name) {
+                                if let Some(kind) = frame.captured_binding_kinds.get(&name).copied()
+                                {
+                                    if !matches!(kind, BytecodeBindingKind::Mutable) {
+                                        return Err(Self::local_reassignment_error(kind, &name));
+                                    }
+                                }
                                 *captured_ref.lock().unwrap() = value;
                             } else {
+                                if let Some(kind) = frame.locals_binding_kinds.get(&name).copied() {
+                                    if !matches!(kind, BytecodeBindingKind::Mutable) {
+                                        return Err(Self::local_reassignment_error(kind, &name));
+                                    }
+                                }
+                                frame
+                                    .locals_binding_kinds
+                                    .entry(name.clone())
+                                    .or_insert(BytecodeBindingKind::Mutable);
                                 frame.locals.insert(name, value);
                             }
                         } else {
-                            self.globals.lock().unwrap().define(name, value);
+                            self.globals.lock().unwrap().assign_checked(name, value)?;
                         }
                     }
                     OpCode::Pop => {
@@ -7418,6 +7497,7 @@ mod tests {
             .jit_compile_bytecode_function(&Value::BytecodeFunction {
                 chunk: function_chunk,
                 captured: HashMap::new(),
+                captured_binding_kinds: HashMap::new(),
             })
             .expect("jit compilation attempt should not hard-fail");
         assert!(compiled, "expected JIT to compile supported function chunk");
@@ -7489,6 +7569,7 @@ mod tests {
             ],
             local_slot_initialized: vec![true, true],
             captured: HashMap::new(),
+            captured_binding_kinds: HashMap::new(),
             prev_chunk: Some(frame_chunk),
             is_async: false,
         });

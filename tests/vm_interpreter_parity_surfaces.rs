@@ -1345,6 +1345,27 @@ fn vm_and_interpreter_reject_local_reassignment_of_immutable_let_binding() {
 }
 
 #[test]
+fn vm_and_interpreter_reject_reassignment_of_captured_immutable_let_binding() {
+    let script = r#"
+        func make_counter() {
+            let count := 0
+            return func() {
+                count := count + 1
+                return count
+            }
+        }
+
+        counter := make_counter()
+        counter()
+    "#;
+
+    assert_interpreter_and_vm_error_contains(
+        script,
+        "Cannot reassign immutable let binding: count",
+    );
+}
+
+#[test]
 fn vm_and_interpreter_allow_inner_scope_shadowing_without_leaking() {
     let script = r#"
         func check_shadowing() {

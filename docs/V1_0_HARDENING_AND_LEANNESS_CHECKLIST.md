@@ -69,6 +69,8 @@ Purpose: capture additive, non-breaking work that can improve safety, maintainab
     Evidence: `rg -n "\bunsafe\b" src/jit.rs | wc -l` -> `51`; `rg -n "SAFETY:" src/jit.rs | wc -l` -> `3`.
   - Blocker (2026-05-23): Revalidated before `V1H-FEAT-004`; unsafe-boundary invariant coverage remains unchanged and still requires dedicated unsafe-loop closure.
     Evidence: `rg -n "\bunsafe\b" src/jit.rs | wc -l` -> `51`; `rg -n "SAFETY:" src/jit.rs | wc -l` -> `3`.
+  - Blocker (2026-05-23): Revalidated before `V1H-FEAT-001`; invariant annotation gap is unchanged and still requires a dedicated unsafe documentation/enforcement pass to avoid high-churn edits.
+    Evidence: `rg -n "\bunsafe\b" src/jit.rs | wc -l` -> `51`; `rg -n "SAFETY:" src/jit.rs | wc -l` -> `3`.
 
 - [ ] **V1H-UNSAFE-003**: Reduce executable unsafe callsites via safe wrappers where behavior is unchanged.
   - Scope: trim ad hoc unsafe deref/transmute callsites without broad rewrites.
@@ -93,6 +95,8 @@ Purpose: capture additive, non-breaking work that can improve safety, maintainab
   - Blocker (2026-05-23): Revalidated before `V1H-SEC-004`; executable unsafe reduction remains blocked on unresolved `V1H-UNSAFE-002` invariant standardization.
     Evidence: `docs/generated/UNSAFE_INVENTORY.md` still reports concentrated executable unsafe rows in `src/jit.rs`.
   - Blocker (2026-05-23): Revalidated before `V1H-FEAT-004`; executable unsafe reduction remains sequenced after unresolved invariant-standardization work.
+    Evidence: `docs/generated/UNSAFE_INVENTORY.md` still reports concentrated executable unsafe rows in `src/jit.rs`.
+  - Blocker (2026-05-23): Revalidated before `V1H-FEAT-001`; executable unsafe reduction remains sequenced after unresolved `V1H-UNSAFE-002` invariant standardization to avoid unaudited unsafe-motion churn.
     Evidence: `docs/generated/UNSAFE_INVENTORY.md` still reports concentrated executable unsafe rows in `src/jit.rs`.
 
 - [x] **V1H-UNSAFE-004**: Add optional sanitizer/Miri-oriented safety gate for CI/nightly verification.
@@ -143,6 +147,8 @@ Purpose: capture additive, non-breaking work that can improve safety, maintainab
   - Blocker (2026-05-23): Revalidated before `V1H-SEC-004`; feature-gate partitioning remains a broader build-matrix decision outside this docs-only hardening loop.
     Evidence: `Cargo.toml` still has heavyweight runtime subsystems in always-on `[dependencies]` without an incremental feature matrix scaffold.
   - Blocker (2026-05-23): Revalidated before `V1H-FEAT-004`; feature-gate partitioning remains a multi-surface build-matrix change beyond this downstream-doc loop.
+    Evidence: `Cargo.toml` still has heavyweight runtime subsystems in always-on `[dependencies]` without an incremental feature matrix scaffold.
+  - Blocker (2026-05-23): Revalidated before `V1H-FEAT-001`; feature-gate partitioning remains a broader build-surface decision and is deferred outside this runtime-parity loop.
     Evidence: `Cargo.toml` still has heavyweight runtime subsystems in always-on `[dependencies]` without an incremental feature matrix scaffold.
 
 - [x] **V1H-SIZE-003**: Consolidate duplicated runtime helpers shared by VM and interpreter.
@@ -256,6 +262,8 @@ Purpose: capture additive, non-breaking work that can improve safety, maintainab
     Evidence: `rg -n "lock\\(\\)\\.unwrap\\(\\)" src/interpreter/native_functions src/builtins.rs src/main.rs` reports extensive occurrences across `network.rs`, `database.rs`, `concurrency.rs`, and shared runtime surfaces.
   - Blocker (2026-05-23): Revalidated before `V1H-FEAT-004`; `lock().unwrap()` conversion scope remains broad and still requires a dedicated staged runtime-hardening loop with poison-lock contract tests.
     Evidence: `rg -n "lock\\(\\)\\.unwrap\\(\\)" src/interpreter/native_functions src/builtins.rs src/main.rs` still reports extensive occurrences across production runtime surfaces.
+  - Blocker (2026-05-23): Revalidated before `V1H-FEAT-001`; poisoned-lock hardening scope remains broad and requires a dedicated staged conversion loop to avoid cross-surface regression risk.
+    Evidence: `rg -n "lock\\(\\)\\.unwrap\\(\\)" src/interpreter/native_functions src/builtins.rs src/main.rs` still reports extensive occurrences across production runtime surfaces.
 
 - [x] **V1H-SEC-004**: Add explicit threat-model documentation for script-generated HTML responses.
   - Scope: clarify that `html_response` can propagate unescaped content; provide safe usage guidance and helper recommendations.
@@ -276,7 +284,7 @@ Purpose: capture additive, non-breaking work that can improve safety, maintainab
 
 ## D) Reliability And Feature Enhancements
 
-- [ ] **V1H-FEAT-001**: Burn down P0 VM parity mismatches from current baseline.
+- [x] **V1H-FEAT-001**: Burn down P0 VM parity mismatches from current baseline.
   - Scope: close `runtime-parity-bug` cases in `docs/generated/VM_RUNTIME_MISMATCH_INVENTORY.md` (current: `25`).
   - Acceptance criteria:
     - monotonic reduction across loops with updated generated evidence.
@@ -287,6 +295,22 @@ Purpose: capture additive, non-breaking work that can improve safety, maintainab
     - `cargo test --test vm_interpreter_parity_surfaces`
   - Blocker (2026-05-23): Revalidated and deferred; P0 parity burn-down remains a multi-fixture runtime track that requires a dedicated parity loop with fixture-by-fixture closure evidence.
     Evidence: `docs/generated/VM_RUNTIME_MISMATCH_INVENTORY.md` still reports `P0 runtime-parity-bug (runtime-owner): 25`.
+  - Completed (2026-05-23):
+    - Closed a concrete P0 parity family by enforcing immutable captured-binding reassignment checks in VM closure paths (main execute loop + generator execution loop), aligning VM behavior with interpreter semantics for `let` captures.
+    - Propagated captured binding mutability metadata through `Value::BytecodeFunction`, VM closure capture construction, and call-frame/generator state restoration paths.
+    - Added parity regression coverage for captured immutable `let` reassignment rejection and updated impacted fixture snapshots:
+      - `tests/vm_closure_simple.out`
+      - `tests/vm_closure_multiple.out`
+      - `tests/vm_closure_order.out`
+      - `tests/vm_closure_detailed.out`
+    - Regenerated mismatch inventory evidence:
+      - `P0 runtime-parity-bug`: `25 -> 21` (monotonic reduction)
+      - `P2 harness-debt`: `16` (unchanged)
+    - Validation:
+      - `cargo test --test vm_interpreter_parity_surfaces` (87 passed)
+      - `cargo run -- test --runtime vm` (command completed; suite baseline remains non-green due pre-existing unrelated fixtures)
+      - `cargo run -- test --runtime dual` (command completed; suite baseline remains non-green due pre-existing unrelated fixtures)
+      - `bash scripts/generate_vm_runtime_mismatch_inventory.sh`
 
 - [ ] **V1H-FEAT-002**: Resolve P2 harness debt to improve signal quality.
   - Scope: normalize/refresh fixture expectations where both runtimes are correct but contract snapshots are stale/noisy.
