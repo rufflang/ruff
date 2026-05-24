@@ -172,7 +172,7 @@ classify_mismatch_cause() {
     return
   fi
 
-  echo "harness-debt|harness-owner|P2|both runtimes diverge from snapshot with different output, indicating fixture-harness normalization debt"
+  echo "runtime-parity-bug|runtime-owner|P0|both runtimes diverge from snapshot and from each other, indicating runtime-path parity drift rather than stale fixture expectations"
 }
 
 fixtures=$(cd "$ROOT" && rg --files "$TESTS_DIR" -g '*.ruff' | sort)

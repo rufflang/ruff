@@ -116,3 +116,29 @@ fn vm_runtime_mismatch_generator_strict_mode_succeeds_for_repo_scan() {
         String::from_utf8_lossy(&output.stderr)
     );
 }
+
+#[test]
+fn vm_runtime_mismatch_baseline_does_not_bucket_runtime_divergence_as_harness_debt() {
+    let root = repo_root();
+    let csv_path = root
+        .join("docs")
+        .join("generated")
+        .join("VM_RUNTIME_MISMATCH_INVENTORY.csv");
+    let csv = fs::read_to_string(csv_path).expect("generated csv artifact should exist");
+
+    for line in csv.lines().skip(1) {
+        if line.trim().is_empty() {
+            continue;
+        }
+        let parts: Vec<&str> = line.split(',').collect();
+        assert!(parts.len() >= 10, "csv row should contain 10 columns: {line}");
+        let delta_type = parts[5];
+        let bucket = parts[6];
+        if delta_type == "both_mismatch_different_output" {
+            assert_ne!(
+                bucket, "harness-debt",
+                "runtime divergence rows should not be classified as harness debt: {line}"
+            );
+        }
+    }
+}
