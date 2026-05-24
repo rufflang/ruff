@@ -70,3 +70,8 @@ path = "examples/jit_simple_test.rs"
 [[bench]]
 name = "v1_perf_benchmarks"
 harness = false
+
+[profile.release]
+lto = "thin"
+codegen-units = 1
+strip = "symbols"

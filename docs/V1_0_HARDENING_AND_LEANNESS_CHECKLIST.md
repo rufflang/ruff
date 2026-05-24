@@ -59,6 +59,8 @@ Purpose: capture additive, non-breaking work that can improve safety, maintainab
     Evidence: repeated `rg` counts during loop setup remained `51` unsafe markers and `3` `SAFETY:` comments.
   - Blocker (2026-05-22): Revalidated in loop 4; annotation scope is still broad (`src/jit.rs` executable boundaries span FFI functions plus inline unsafe blocks) and remains deferred behind a dedicated enforcement pass.
     Evidence: `rg -n "\bunsafe\b" src/jit.rs` still reports 51 markers concentrated in one file.
+  - Blocker (2026-05-23): Revalidated before `V1H-SIZE-005`; unsafe boundary annotation gap remains materially unchanged and still too broad for a single scoped hardening loop.
+    Evidence: `rg -n "\bunsafe\b" src/jit.rs | wc -l` -> `51`; `rg -n "SAFETY:" src/jit.rs | wc -l` -> `3`.
 
 - [ ] **V1H-UNSAFE-003**: Reduce executable unsafe callsites via safe wrappers where behavior is unchanged.
   - Scope: trim ad hoc unsafe deref/transmute callsites without broad rewrites.
@@ -74,6 +76,8 @@ Purpose: capture additive, non-breaking work that can improve safety, maintainab
     Evidence: `docs/generated/UNSAFE_INVENTORY.md` still reports `49` executable matches concentrated in `src/jit.rs`.
   - Blocker (2026-05-22): Revalidated in loop 4; callsite-reduction work remains coupled to unresolved unsafe-boundary invariant documentation.
     Evidence: generated inventory still reports `49` executable unsafe matches in JIT pathways.
+  - Blocker (2026-05-23): Revalidated before `V1H-SIZE-005`; wrapper-reduction remains coupled to unresolved `V1H-UNSAFE-002` invariant documentation and is deferred to avoid unaudited unsafe-motion churn.
+    Evidence: `docs/generated/UNSAFE_INVENTORY.md` still reports concentrated executable unsafe rows in `src/jit.rs`.
 
 - [x] **V1H-UNSAFE-004**: Add optional sanitizer/Miri-oriented safety gate for CI/nightly verification.
   - Scope: machine-verifiable unsafe regression signal beyond unit tests.
@@ -114,6 +118,8 @@ Purpose: capture additive, non-breaking work that can improve safety, maintainab
     - feature-matrix `cargo check` / targeted tests
   - Blocker (2026-05-22): This requires a crate-feature matrix design decision (default-vs-optional subsystem partitioning for DB/image/archive/JIT stacks) that risks broad behavior/build-surface churn beyond a single scoped loop.
     Evidence: `Cargo.toml` currently declares heavyweight runtime dependencies directly in always-on `[dependencies]`, with no existing feature partition to extend incrementally.
+  - Blocker (2026-05-23): Revalidated before `V1H-SIZE-005`; feature-gate partitioning remains a multi-surface design change and is still deferred to avoid broad default behavior/build-matrix churn in a single loop.
+    Evidence: `Cargo.toml` still has heavyweight runtime subsystems in always-on `[dependencies]` with no existing incremental feature partition.
 
 - [x] **V1H-SIZE-003**: Consolidate duplicated runtime helpers shared by VM and interpreter.
   - Scope: extract shared HTTP path/query parsing and similar duplicated helpers into shared module(s).
@@ -146,11 +152,28 @@ Purpose: capture additive, non-breaking work that can improve safety, maintainab
       - `cargo test path_security`
       - `cargo test --test vm_interpreter_parity_surfaces`
 
-- [ ] **V1H-SIZE-005**: Add release profile tuning for smaller binaries.
+- [x] **V1H-SIZE-005**: Add release profile tuning for smaller binaries.
   - Scope: evaluate `lto`, `codegen-units`, `panic=abort`, and strip strategy.
   - Acceptance criteria:
     - before/after size + runtime sanity evidence.
     - no functional regression in release smoke tests.
+  - Evidence (2026-05-23):
+    - Added additive release-profile tuning in `Cargo.toml`:
+      - `[profile.release] lto = "thin"`
+      - `[profile.release] codegen-units = 1`
+      - `[profile.release] strip = "symbols"`
+    - Before baseline (prior measured matrix from `notes/2026-05-22_11-55_v1h-size-001-binary-size-baseline.md`):
+      - debug `91597784`
+      - release `31006832`
+      - release_stripped `26557120`
+    - Post-change measurement:
+      - `cargo build --release`
+      - `wc -c target/debug/ruff target/release/ruff`
+      - `cp target/release/ruff target/release/ruff.stripped && strip target/release/ruff.stripped && wc -c target/release/ruff.stripped`
+      - debug `91593328`
+      - release `24067240`
+      - release_stripped-copy `24067320`
+    - Runtime sanity/regression verification: `cargo test` (full suite passed; no failures).
 
 ---
 
