@@ -102,6 +102,10 @@ Built-in guardrails:
 - TCP/UDP read-write timeout: `30000 ms`
 - HTTP client timeout: `30000 ms`
 - Max network response/receive body: `8 MiB`
+- Outbound destination policy mode (env-controlled):
+  - `RUFF_NET_DESTINATION_POLICY=allow_all` (default): preserves backward-compatible permissive destination behavior.
+  - `RUFF_NET_DESTINATION_POLICY=deny_private`: blocks outbound HTTP/TCP/UDP client destinations that resolve to loopback/private/link-local/multicast/unspecified IP ranges.
+  - `RUFF_ALLOW_PRIVATE_NETWORK_DESTINATIONS=1`: explicit trusted-local override when strict policy mode is enabled.
 
 Operational guidance:
 

@@ -257,6 +257,8 @@ Useful environment variables:
 | `DISABLE_JIT=1` | Forces JIT off even when `ruff run --jit` is requested. |
 | `DEBUG_AST=1` | Prints the parsed AST before VM execution. |
 | `RUFF_SCHEDULER_TIMEOUT_MS=<ms>` | Overrides the VM cooperative scheduler completion timeout when `ruff run --scheduler-timeout-ms` is not provided. The default is `120000`. |
+| `RUFF_NET_DESTINATION_POLICY=allow_all|deny_private` | Controls outbound destination policy for HTTP/TCP/UDP client calls. Default is `allow_all` for backward-compatible permissive behavior. |
+| `RUFF_ALLOW_PRIVATE_NETWORK_DESTINATIONS=1` | Explicitly allows private/loopback/link-local/multicast destinations when `RUFF_NET_DESTINATION_POLICY=deny_private` is enabled for trusted local workflows. |
 
 Scheduler timeout precedence for `ruff run` is:
 

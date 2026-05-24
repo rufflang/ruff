@@ -61,6 +61,8 @@ Purpose: capture additive, non-breaking work that can improve safety, maintainab
     Evidence: `rg -n "\bunsafe\b" src/jit.rs` still reports 51 markers concentrated in one file.
   - Blocker (2026-05-23): Revalidated before `V1H-SIZE-005`; unsafe boundary annotation gap remains materially unchanged and still too broad for a single scoped hardening loop.
     Evidence: `rg -n "\bunsafe\b" src/jit.rs | wc -l` -> `51`; `rg -n "SAFETY:" src/jit.rs | wc -l` -> `3`.
+  - Blocker (2026-05-23): Revalidated before `V1H-SEC-001`; unsafe/SAFETY annotation ratio remains unchanged and still requires a dedicated invariant-enforcement pass.
+    Evidence: `rg -n "\bunsafe\b" src/jit.rs | wc -l` -> `51`; `rg -n "SAFETY:" src/jit.rs | wc -l` -> `3`.
 
 - [ ] **V1H-UNSAFE-003**: Reduce executable unsafe callsites via safe wrappers where behavior is unchanged.
   - Scope: trim ad hoc unsafe deref/transmute callsites without broad rewrites.
@@ -77,6 +79,8 @@ Purpose: capture additive, non-breaking work that can improve safety, maintainab
   - Blocker (2026-05-22): Revalidated in loop 4; callsite-reduction work remains coupled to unresolved unsafe-boundary invariant documentation.
     Evidence: generated inventory still reports `49` executable unsafe matches in JIT pathways.
   - Blocker (2026-05-23): Revalidated before `V1H-SIZE-005`; wrapper-reduction remains coupled to unresolved `V1H-UNSAFE-002` invariant documentation and is deferred to avoid unaudited unsafe-motion churn.
+    Evidence: `docs/generated/UNSAFE_INVENTORY.md` still reports concentrated executable unsafe rows in `src/jit.rs`.
+  - Blocker (2026-05-23): Revalidated before `V1H-SEC-001`; executable unsafe reduction remains blocked on unresolved unsafe-boundary invariant documentation sequencing.
     Evidence: `docs/generated/UNSAFE_INVENTORY.md` still reports concentrated executable unsafe rows in `src/jit.rs`.
 
 - [x] **V1H-UNSAFE-004**: Add optional sanitizer/Miri-oriented safety gate for CI/nightly verification.
@@ -120,6 +124,8 @@ Purpose: capture additive, non-breaking work that can improve safety, maintainab
     Evidence: `Cargo.toml` currently declares heavyweight runtime dependencies directly in always-on `[dependencies]`, with no existing feature partition to extend incrementally.
   - Blocker (2026-05-23): Revalidated before `V1H-SIZE-005`; feature-gate partitioning remains a multi-surface design change and is still deferred to avoid broad default behavior/build-matrix churn in a single loop.
     Evidence: `Cargo.toml` still has heavyweight runtime subsystems in always-on `[dependencies]` with no existing incremental feature partition.
+  - Blocker (2026-05-23): Revalidated before `V1H-SEC-001`; feature-partitioning remains a broader build-surface decision and is still deferred outside this single security-hardening loop.
+    Evidence: `Cargo.toml` still has heavyweight runtime subsystems in always-on `[dependencies]` without an incremental feature matrix scaffold.
 
 - [x] **V1H-SIZE-003**: Consolidate duplicated runtime helpers shared by VM and interpreter.
   - Scope: extract shared HTTP path/query parsing and similar duplicated helpers into shared module(s).
@@ -179,7 +185,7 @@ Purpose: capture additive, non-breaking work that can improve safety, maintainab
 
 ## C) Security Hardening (SSRF/XSS/Runtime Safety)
 
-- [ ] **V1H-SEC-001**: Implement outbound destination policy layer for network client APIs.
+- [x] **V1H-SEC-001**: Implement outbound destination policy layer for network client APIs.
   - Scope: classify and gate target addresses for HTTP/TCP client calls (loopback/private/link-local/multicast handling).
   - Acceptance criteria:
     - deterministic allow/deny rules documented.
@@ -187,6 +193,16 @@ Purpose: capture additive, non-breaking work that can improve safety, maintainab
   - Validation:
     - new security tests for allowed public targets + denied local/private targets
     - `cargo test --test native_api_security_boundaries`
+  - Completed (2026-05-23):
+    - Added deterministic destination-policy enforcement in `src/network_policy.rs` with:
+      - `RUFF_NET_DESTINATION_POLICY=allow_all|deny_private`
+      - `RUFF_ALLOW_PRIVATE_NETWORK_DESTINATIONS=true` trusted override
+    - Wired policy enforcement into outbound HTTP/TCP/UDP client surfaces across builtin and interpreter-native paths.
+    - Added/updated tests for strict deny, public allow, and override behavior.
+    - Validation:
+      - `cargo test --test native_api_security_boundaries` (46 passed)
+      - `cargo test --test runtime_security` (9 passed)
+      - `cargo test` (full suite passed; no failures)
 
 - [ ] **V1H-SEC-002**: Enforce URL scheme/host validation for HTTP native calls.
   - Scope: reject unsupported schemes and malformed targets before request execution.

@@ -258,6 +258,7 @@ fn run_ai_request(
     config: &AiRequestConfig,
     payload: Value,
 ) -> Result<(i64, DictMap, String, Value), String> {
+    network_policy::enforce_http_url_destination_policy(&config.endpoint, surface)?;
     let payload_json = builtins::to_json(&payload).map_err(|error| {
         format!("{} failed: request body serialization error: {}", surface, error)
     })?;
@@ -451,6 +452,7 @@ pub fn handle(name: &str, arg_values: &[Value]) -> Option<Value> {
                 let mut handles = Vec::new();
                 for url in url_strings {
                     let handle = std::thread::spawn(move || -> Result<(u16, String), String> {
+                        network_policy::enforce_http_url_destination_policy(&url, "HTTP GET")?;
                         let client = network_policy::build_http_client(
                             network_policy::default_http_timeout(),
                         )?;
@@ -614,6 +616,7 @@ pub fn handle(name: &str, arg_values: &[Value]) -> Option<Value> {
 
             let request_result =
                 network_policy::run_blocking_http_task("HTTP request", move || {
+                    network_policy::enforce_http_url_destination_policy(&url, "HTTP request")?;
                     let method = Method::from_bytes(method_name.as_bytes()).map_err(|error| {
                         format!("Invalid HTTP method '{}': {}", method_name, error)
                     })?;

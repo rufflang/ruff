@@ -566,6 +566,119 @@ fn network_http_request_timeout_is_reported_deterministically() {
 }
 
 #[test]
+fn network_destination_policy_deny_private_blocks_loopback_http_client() {
+    let project_root = unique_temp_dir("network_destination_policy_blocks_loopback_http");
+    let script_path = project_root.join("destination_policy_http_block.ruff");
+    fs::write(&script_path, "http_get(\"http://127.0.0.1:1\")\n")
+        .expect("failed to write destination policy script");
+
+    let output = run_ruff_with_env(
+        &[
+            "run",
+            "--interpreter",
+            "--untrusted",
+            "--allow-net-client",
+            script_path.to_str().expect("script path should be utf-8"),
+        ],
+        &project_root,
+        &[("RUFF_NET_DESTINATION_POLICY", "deny_private")],
+    );
+
+    assert_eq!(
+        output.status.code(),
+        Some(4),
+        "expected strict destination policy to block loopback HTTP destination, got status={:?}, stdout={}, stderr={}",
+        output.status.code(),
+        stdout_text(&output),
+        stderr_text(&output)
+    );
+    let combined_output = format!("{}\n{}", stdout_text(&output), stderr_text(&output));
+    assert!(
+        combined_output.contains("blocked by outbound destination policy"),
+        "expected outbound destination policy rejection text, got stdout={} stderr={}",
+        stdout_text(&output),
+        stderr_text(&output)
+    );
+}
+
+#[test]
+fn network_destination_policy_deny_private_blocks_loopback_tcp_client() {
+    let project_root = unique_temp_dir("network_destination_policy_blocks_loopback_tcp");
+    let script_path = project_root.join("destination_policy_tcp_block.ruff");
+    fs::write(&script_path, "tcp_connect(\"127.0.0.1\", 1)\n")
+        .expect("failed to write destination policy script");
+
+    let output = run_ruff_with_env(
+        &[
+            "run",
+            "--interpreter",
+            "--untrusted",
+            "--allow-net-client",
+            script_path.to_str().expect("script path should be utf-8"),
+        ],
+        &project_root,
+        &[("RUFF_NET_DESTINATION_POLICY", "deny_private")],
+    );
+
+    assert_eq!(
+        output.status.code(),
+        Some(4),
+        "expected strict destination policy to block loopback TCP destination, got status={:?}, stdout={}, stderr={}",
+        output.status.code(),
+        stdout_text(&output),
+        stderr_text(&output)
+    );
+    let combined_output = format!("{}\n{}", stdout_text(&output), stderr_text(&output));
+    assert!(
+        combined_output.contains("blocked by outbound destination policy"),
+        "expected outbound destination policy rejection text, got stdout={} stderr={}",
+        stdout_text(&output),
+        stderr_text(&output)
+    );
+}
+
+#[test]
+fn network_destination_policy_override_allows_trusted_loopback_http_client() {
+    let body = b"ok".to_vec();
+    let Some((port, _server_handle)) = spawn_one_shot_http_server(body, Duration::from_millis(0))
+    else {
+        eprintln!(
+            "Skipping destination policy override test: sandbox denied local TCP bind permissions"
+        );
+        return;
+    };
+
+    let project_root = unique_temp_dir("network_destination_policy_override_allows_loopback_http");
+    let script_path = project_root.join("destination_policy_http_override.ruff");
+    let script_source = format!("http_get(\"http://127.0.0.1:{}/ok\")\n", port);
+    fs::write(&script_path, script_source).expect("failed to write destination policy script");
+
+    let output = run_ruff_with_env(
+        &[
+            "run",
+            "--interpreter",
+            "--untrusted",
+            "--allow-net-client",
+            script_path.to_str().expect("script path should be utf-8"),
+        ],
+        &project_root,
+        &[
+            ("RUFF_NET_DESTINATION_POLICY", "deny_private"),
+            ("RUFF_ALLOW_PRIVATE_NETWORK_DESTINATIONS", "1"),
+        ],
+    );
+
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "expected explicit override to allow trusted loopback destination, got status={:?}, stdout={}, stderr={}",
+        output.status.code(),
+        stdout_text(&output),
+        stderr_text(&output)
+    );
+}
+
+#[test]
 fn native_capability_untrusted_denies_database() {
     assert_runtime_boundary_failure_with_args(
         "db_connect(\"sqlite\", \"tmp.db\")\n",

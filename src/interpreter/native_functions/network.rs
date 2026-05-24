@@ -98,6 +98,18 @@ pub fn handle(_interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Op
             } else {
                 match (arg_values.first(), arg_values.get(1)) {
                     (Some(Value::Str(host)), Some(Value::Int(port))) => {
+                        if let Err(error) = network_policy::enforce_host_port_destination_policy(
+                            host.as_ref(),
+                            *port,
+                            "tcp_connect",
+                        ) {
+                            return Some(Value::ErrorObject {
+                                message: error,
+                                stack: Vec::new(),
+                                line: None,
+                                cause: None,
+                            });
+                        }
                         let address = format!("{}:{}", host.as_ref(), port);
                         match network_policy::connect_tcp_stream(&address, "tcp_connect") {
                             Ok(stream) => Value::TcpStream {
@@ -347,6 +359,18 @@ pub fn handle(_interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Op
                     Some(Value::Str(host)),
                     Some(Value::Int(port)),
                 ) => {
+                    if let Err(error) = network_policy::enforce_host_port_destination_policy(
+                        host.as_ref(),
+                        *port,
+                        "udp_send_to",
+                    ) {
+                        return Some(Value::ErrorObject {
+                            message: error,
+                            stack: Vec::new(),
+                            line: None,
+                            cause: None,
+                        });
+                    }
                     let address = format!("{}:{}", host.as_ref(), port);
                     let socket_guard = socket.lock().unwrap();
                     match socket_guard.send_to(data.as_ref().as_bytes(), &address) {
@@ -368,6 +392,18 @@ pub fn handle(_interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Op
                     Some(Value::Str(host)),
                     Some(Value::Int(port)),
                 ) => {
+                    if let Err(error) = network_policy::enforce_host_port_destination_policy(
+                        host.as_ref(),
+                        *port,
+                        "udp_send_to",
+                    ) {
+                        return Some(Value::ErrorObject {
+                            message: error,
+                            stack: Vec::new(),
+                            line: None,
+                            cause: None,
+                        });
+                    }
                     let address = format!("{}:{}", host.as_ref(), port);
                     let socket_guard = socket.lock().unwrap();
                     match socket_guard.send_to(data, &address) {

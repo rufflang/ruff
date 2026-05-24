@@ -1534,6 +1534,7 @@ pub fn dict_invert(dict: &DictMap) -> DictMap {
 /// Infrastructure for http.get() builtin
 #[allow(dead_code)]
 pub fn http_get(url: &str) -> Result<DictMap, String> {
+    network_policy::enforce_http_url_destination_policy(url, "HTTP GET")?;
     let url = url.to_string();
     network_policy::run_blocking_http_task("HTTP GET", move || {
         let client = network_policy::build_http_client(network_policy::default_http_timeout())?;
@@ -1562,6 +1563,7 @@ fn http_response_to_dict(
 /// Infrastructure for http.post() builtin
 #[allow(dead_code)]
 pub fn http_post(url: &str, body_json: &str) -> Result<DictMap, String> {
+    network_policy::enforce_http_url_destination_policy(url, "HTTP POST")?;
     let url = url.to_string();
     let body_json = body_json.to_string();
     network_policy::run_blocking_http_task("HTTP POST", move || {
@@ -1580,6 +1582,7 @@ pub fn http_post(url: &str, body_json: &str) -> Result<DictMap, String> {
 /// Infrastructure for http.put() builtin
 #[allow(dead_code)]
 pub fn http_put(url: &str, body_json: &str) -> Result<DictMap, String> {
+    network_policy::enforce_http_url_destination_policy(url, "HTTP PUT")?;
     let url = url.to_string();
     let body_json = body_json.to_string();
     network_policy::run_blocking_http_task("HTTP PUT", move || {
@@ -1598,6 +1601,7 @@ pub fn http_put(url: &str, body_json: &str) -> Result<DictMap, String> {
 /// Infrastructure for http.delete() builtin
 #[allow(dead_code)]
 pub fn http_delete(url: &str) -> Result<DictMap, String> {
+    network_policy::enforce_http_url_destination_policy(url, "HTTP DELETE")?;
     let url = url.to_string();
     network_policy::run_blocking_http_task("HTTP DELETE", move || {
         let client = network_policy::build_http_client(network_policy::default_http_timeout())?;
@@ -1611,6 +1615,7 @@ pub fn http_delete(url: &str) -> Result<DictMap, String> {
 /// Infrastructure for http.getBinary() builtin
 #[allow(dead_code)]
 pub fn http_get_binary(url: &str) -> Result<Vec<u8>, String> {
+    network_policy::enforce_http_url_destination_policy(url, "HTTP GET request")?;
     let url = url.to_string();
     network_policy::run_blocking_http_task("HTTP GET request", move || {
         let client = network_policy::build_http_client(network_policy::default_http_timeout())?;
@@ -1713,6 +1718,7 @@ pub fn oauth2_get_token(
     token_url: &str,
     redirect_uri: &str,
 ) -> Result<DictMap, String> {
+    network_policy::enforce_http_url_destination_policy(token_url, "OAuth2 token request")?;
     let code = code.to_string();
     let client_id = client_id.to_string();
     let client_secret = client_secret.to_string();
@@ -1776,6 +1782,7 @@ pub struct HttpStream {
 pub fn http_get_stream(url: &str) -> Result<Vec<u8>, String> {
     // For now, we'll fetch the entire response but allow chunked reading
     // In a real implementation, this would use async streaming
+    network_policy::enforce_http_url_destination_policy(url, "HTTP GET stream")?;
     let url = url.to_string();
     network_policy::run_blocking_http_task("HTTP GET stream", move || {
         let client = network_policy::build_http_client(network_policy::default_http_timeout())?;
