@@ -2487,6 +2487,7 @@ impl VM {
                             captured: _,
                             captured_binding_kinds: _,
                         } => {
+                            let raw_args = args.clone();
                             let args = self.prepare_bytecode_call_args(chunk, args.clone())?;
 
                             // Track function calls for JIT compilation
@@ -2979,7 +2980,7 @@ impl VM {
                                 }
                             }
 
-                            self.call_bytecode_function(function.clone(), args)?;
+                            self.call_bytecode_function(function.clone(), raw_args, args)?;
                         }
                         Value::NativeFunction(_) => {
                             let result = self.call_native_function_vm(function.clone(), args)?;
@@ -5196,7 +5197,12 @@ impl VM {
 
     /// Call a function
     /// Set up a call frame for a bytecode function (doesn't return - Return opcode will handle that)
-    fn call_bytecode_function(&mut self, function: Value, args: Vec<Value>) -> Result<(), String> {
+    fn call_bytecode_function(
+        &mut self,
+        function: Value,
+        raw_args: Vec<Value>,
+        call_args: Vec<Value>,
+    ) -> Result<(), String> {
         if let Value::BytecodeFunction { chunk, captured, captured_binding_kinds } = function {
             let max_depth = runtime_limits::DEFAULT_MAX_VM_CALL_DEPTH;
             if self.call_frames.len() >= max_depth || self.recursion_depth >= max_depth {
@@ -5211,7 +5217,35 @@ impl VM {
             let mut locals = HashMap::new();
             let mut locals_binding_kinds = HashMap::new();
 
-            let call_args = self.prepare_bytecode_call_args(&chunk, args)?;
+            // Backward-compat method support:
+            // For methods compiled without explicit `self`, interpreter mode exposes
+            // receiver fields as lexical names inside the method body. Mirror that
+            // behavior in VM mode so legacy method code like `return x * 2` remains
+            // additive and parity-safe.
+            let is_legacy_method = chunk
+                .name
+                .as_deref()
+                .map(|name| name.contains('.'))
+                .unwrap_or(false)
+                && chunk.params.first().map(|p| p == "self").unwrap_or(false) == false;
+
+            let compat_receiver_fields =
+                if is_legacy_method && raw_args.len() == chunk.params.len() + 1
+            {
+                match raw_args.first() {
+                    Some(Value::Struct { fields, .. }) => Some(fields.clone()),
+                    _ => None,
+                }
+            } else if is_legacy_method && raw_args.is_empty() {
+                // Some call lowerings can leave the receiver on the VM value stack
+                // instead of in explicit call arguments for field-access calls.
+                match self.stack.last() {
+                    Some(Value::Struct { fields, .. }) => Some(fields.clone()),
+                    _ => None,
+                }
+            } else {
+                None
+            };
             let param_names = &chunk.params;
 
             let mut local_slots = vec![Value::Null; chunk.local_count];
@@ -5224,6 +5258,21 @@ impl VM {
                     chunk.local_binding_kinds.clone()
                 };
             let mut local_slot_initialized = vec![false; chunk.local_count];
+
+            if let Some(fields) = compat_receiver_fields {
+                for (field_name, field_value) in fields {
+                    locals.insert(field_name.clone(), field_value.clone());
+                    locals_binding_kinds.insert(field_name.clone(), BytecodeBindingKind::Mutable);
+                    if let Some(slot) = chunk.local_names.iter().position(|name| name == &field_name)
+                    {
+                        if slot < local_slots.len() {
+                            local_slots[slot] = field_value.clone();
+                            local_slot_binding_kinds[slot] = BytecodeBindingKind::Mutable;
+                            local_slot_initialized[slot] = true;
+                        }
+                    }
+                }
+            }
 
             // Bind each argument to its corresponding parameter name
             for (param_name, arg_value) in param_names.iter().zip(call_args.iter()) {
@@ -6426,7 +6475,7 @@ impl VM {
                 let call_frame_depth = self.call_frames.len();
 
                 // Set up the call (creates call frame, switches chunk, resets IP)
-                self.call_bytecode_function(function, args)?;
+                self.call_bytecode_function(function, args.clone(), args)?;
 
                 // Execute until this function returns
                 // (call_frames will pop back to call_frame_depth)

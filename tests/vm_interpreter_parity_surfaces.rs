@@ -134,6 +134,25 @@ fn vm_and_interpreter_match_struct_method_behavior_contract() {
 }
 
 #[test]
+fn vm_and_interpreter_match_legacy_method_without_self_field_lookup() {
+    let script = r#"
+        struct Test {
+            x: float,
+
+            func normal_method() {
+                return x * 2.0
+            }
+        }
+
+        t := Test { x: 5.0 }
+        method_value := t.normal_method()
+        method_ok := method_value == 10.0
+    "#;
+
+    assert_interpreter_and_vm_bool(script, "method_ok");
+}
+
+#[test]
 fn vm_and_interpreter_match_spread_destructuring_surface() {
     let script = r#"
         values := [1, 2, 3, 4]

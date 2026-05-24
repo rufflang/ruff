@@ -243,6 +243,10 @@ Each loop report must include exactly:
     - Evidence: compiler now bypasses optimizer passes for exception-flow chunks (`try/except`, `try(...)`, `throw(...)`) to avoid stack-shape unsafe rewrites; `tests/test_exceptions_comprehensive.ruff` now classifies as `both_match_snapshot` in `docs/generated/VM_RUNTIME_MISMATCH_INVENTORY.md`.
     - Inventory totals after regeneration: `P0 runtime-parity-bug (runtime-owner): 35`, `P1 stale-snapshot-expectation: 0`, `P2 harness-debt: 0`.
     - Runtime sweep evidence: `cargo run -- test --runtime vm` improved to `Passed 109/150`; `cargo run -- test --runtime dual` remains `Passed 122/150` with reduced fallback (`vm_primary=109`, `interpreter_fallback=13`).
+  - Blocker note (2026-05-24, method/self-dispatch parity retry): still blocked, with significant additional burn-down.
+    - Evidence: VM/compiler method-call compatibility updates reduced non-intentional mismatch volume; regenerated inventory now reports `P0 runtime-parity-bug (runtime-owner): 24`, `P1 stale-snapshot-expectation: 0`, `P2 harness-debt: 0`.
+    - Runtime sweep evidence: `cargo run -- test --runtime vm` improved to `Passed 115/150`; `cargo run -- test --runtime dual` improved to `Passed 128/150` (`vm_primary=115`, `interpreter_fallback=13`).
+    - Supporting regression coverage: `cargo test --test vm_interpreter_parity_surfaces` (`90 passed`) including `vm_and_interpreter_match_legacy_method_without_self_field_lookup`.
 
 ### 3) Harness And CLI Runtime Strategy Hardening
 

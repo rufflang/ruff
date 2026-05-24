@@ -48,6 +48,10 @@ pub struct Compiler {
     /// optimizer passes are not yet control-flow/stack-shape aware for.
     has_exception_flow: bool,
 
+    /// Tracks whether the chunk uses method-call lowering patterns that current
+    /// optimizer passes are not yet stack-shape aware for.
+    has_method_call_flow: bool,
+
     /// Whether this compiler instance can use local slots (function/method/lambda bodies).
     /// The root script compiler keeps declarations in the runtime environment instead.
     uses_local_slots: bool,
@@ -77,6 +81,7 @@ impl Compiler {
             parent: None,
             has_logical_short_circuit: false,
             has_exception_flow: false,
+            has_method_call_flow: false,
             uses_local_slots: false,
         }
     }
@@ -114,6 +119,7 @@ impl Compiler {
             && !has_match_case_flow
             && !self.has_logical_short_circuit
             && !self.has_exception_flow
+            && !self.has_method_call_flow
         {
             let mut optimizer = Optimizer::new();
             optimizer.optimize(&mut chunk);
@@ -1036,6 +1042,25 @@ impl Compiler {
             }
 
             Expr::Call { function, args } => {
+                // Method-call sugar: obj.method(a, b) should lower to a receiver-aware
+                // call path rather than a plain function call of FieldGet.
+                if let Expr::FieldAccess { object, field } = function.as_ref() {
+                    self.has_method_call_flow = true;
+                    // Receiver becomes first argument.
+                    self.compile_expr(object)?;
+                    for arg in args {
+                        self.compile_expr(arg)?;
+                    }
+
+                    // Re-load receiver for FieldGet so method lookup can resolve the member.
+                    self.compile_expr(object)?;
+                    self.chunk.emit(OpCode::FieldGet(field.clone()));
+
+                    // +1 accounts for receiver argument.
+                    self.chunk.emit(OpCode::Call(args.len() + 1));
+                    return Ok(());
+                }
+
                 // Compile arguments (bottom to top on stack)
                 for arg in args {
                     self.compile_expr(arg)?;
@@ -1380,6 +1405,7 @@ impl Compiler {
             }
 
             Expr::MethodCall { object, method, args } => {
+                self.has_method_call_flow = true;
                 // Method calls are sugar for calling a method on an object
                 // Translate: obj.method(a, b) -> method(obj, a, b)
 
