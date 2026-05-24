@@ -233,6 +233,9 @@ Each loop report must include exactly:
     - Evidence: `docs/generated/VM_RUNTIME_MISMATCH_INVENTORY.md` still contains unexplained non-intentional mismatch categories (`runtime-parity-bug: 25`, `harness-debt: 16`).
   - Blocker note (2026-05-22, final readiness recheck): still blocked.
     - Evidence: final verification loop confirms unresolved non-intentional mismatch categories remain in `docs/generated/VM_RUNTIME_MISMATCH_INVENTORY.md` (`runtime-parity-bug: 25`, `harness-debt: 16`), preventing intentional-divergence-only closure.
+  - Blocker note (2026-05-24): revalidated after harness-debt classifier hardening and size-gate loop; still blocked pending runtime parity bug burn-down.
+    - Evidence: `docs/generated/VM_RUNTIME_MISMATCH_INVENTORY.md` now reports `P0 runtime-parity-bug (runtime-owner): 40` and `P2 harness-debt (harness-owner): 0`, so non-intentional divergences still remain and intentional-only documentation would be inaccurate.
+    - Runtime sweep evidence: `cargo run -- test --runtime vm` (`Passed 107/150`) and `cargo run -- test --runtime dual` (`Passed 121/150`, `vm_primary=107`, `interpreter_fallback=14`) continue to show unresolved non-intentional divergence families.
 
 ### 3) Harness And CLI Runtime Strategy Hardening
 
