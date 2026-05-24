@@ -44,6 +44,10 @@ pub struct Compiler {
     /// current optimizer passes are not yet stack-shape aware for.
     has_logical_short_circuit: bool,
 
+    /// Tracks whether the chunk uses exception-flow lowering patterns that current
+    /// optimizer passes are not yet control-flow/stack-shape aware for.
+    has_exception_flow: bool,
+
     /// Whether this compiler instance can use local slots (function/method/lambda bodies).
     /// The root script compiler keeps declarations in the runtime environment instead.
     uses_local_slots: bool,
@@ -72,6 +76,7 @@ impl Compiler {
             used_locals: HashSet::new(),
             parent: None,
             has_logical_short_circuit: false,
+            has_exception_flow: false,
             uses_local_slots: false,
         }
     }
@@ -105,7 +110,11 @@ impl Compiler {
             matches!(instr, OpCode::MatchCasePattern(_) | OpCode::BeginCase | OpCode::EndCase)
         });
 
-        if optimize && !has_match_case_flow && !self.has_logical_short_circuit {
+        if optimize
+            && !has_match_case_flow
+            && !self.has_logical_short_circuit
+            && !self.has_exception_flow
+        {
             let mut optimizer = Optimizer::new();
             optimizer.optimize(&mut chunk);
 
@@ -753,6 +762,7 @@ impl Compiler {
             }
 
             Stmt::TryExcept { try_block, except_var, except_block } => {
+                self.has_exception_flow = true;
                 // Set up exception handler
                 let try_start = self.chunk.instructions.len();
 
@@ -1225,6 +1235,7 @@ impl Compiler {
             }
 
             Expr::Try(expr) => {
+                self.has_exception_flow = true;
                 self.compile_expr(expr)?;
                 self.chunk.emit(OpCode::TryUnwrap);
                 Ok(())
@@ -1245,6 +1256,7 @@ impl Compiler {
             Expr::Tag(tag, values) => {
                 // Special handling for throw - it's a control flow primitive
                 if tag == "throw" {
+                    self.has_exception_flow = true;
                     // Compile error value
                     if values.len() != 1 {
                         return Err("throw() requires exactly one argument".to_string());

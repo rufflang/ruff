@@ -1659,3 +1659,24 @@ fn vm_and_interpreter_match_throw_call_stack_surface() {
 
     assert_interpreter_and_vm_bool(script, "parity_ok");
 }
+
+#[test]
+fn vm_and_interpreter_execute_exception_fixture_without_runtime_arity_drift() {
+    let script = fs::read_to_string("tests/test_exceptions_comprehensive.ruff")
+        .expect("expected exception fixture to be readable");
+
+    let interp = run_interpreter(&script);
+    assert!(
+        interp.return_value.is_none(),
+        "interpreter should complete exception fixture without runtime error: {:?}",
+        interp.return_value
+    );
+
+    let vm_env = vm_env_with_builtins();
+    let vm_result = run_vm(&script, vm_env);
+    assert!(
+        vm_result.is_ok(),
+        "vm should complete exception fixture without arity drift/runtime failure: {:?}",
+        vm_result
+    );
+}

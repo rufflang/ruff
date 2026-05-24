@@ -239,6 +239,10 @@ Each loop report must include exactly:
   - Blocker note (2026-05-24, parity burn-down retry): still blocked, but with measurable reduction in non-intentional mismatch volume.
     - Evidence: throw/catch stack-parity fix in `src/vm.rs` moved `tests/test_try_except.ruff` from `runtime-parity-bug` to `stale-snapshot-expectation`; after snapshot refresh, `docs/generated/VM_RUNTIME_MISMATCH_INVENTORY.md` reports `P0 runtime-parity-bug (runtime-owner): 36`, `P1 stale-snapshot-expectation: 0`, `P2 harness-debt: 0`.
     - Runtime sweep evidence: `cargo run -- test --runtime vm` improved to `Passed 108/150`; `cargo run -- test --runtime dual` improved to `Passed 122/150` (`vm_primary=108`, `interpreter_fallback=14`).
+  - Blocker note (2026-05-24, exception-flow optimizer guard retry): still blocked, with additional monotonic reduction.
+    - Evidence: compiler now bypasses optimizer passes for exception-flow chunks (`try/except`, `try(...)`, `throw(...)`) to avoid stack-shape unsafe rewrites; `tests/test_exceptions_comprehensive.ruff` now classifies as `both_match_snapshot` in `docs/generated/VM_RUNTIME_MISMATCH_INVENTORY.md`.
+    - Inventory totals after regeneration: `P0 runtime-parity-bug (runtime-owner): 35`, `P1 stale-snapshot-expectation: 0`, `P2 harness-debt: 0`.
+    - Runtime sweep evidence: `cargo run -- test --runtime vm` improved to `Passed 109/150`; `cargo run -- test --runtime dual` remains `Passed 122/150` with reduced fallback (`vm_primary=109`, `interpreter_fallback=13`).
 
 ### 3) Harness And CLI Runtime Strategy Hardening
 

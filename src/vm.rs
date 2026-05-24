@@ -4840,6 +4840,12 @@ impl VM {
                         // We need to restore the chunk from the target frame (or top-level)
                         while self.call_frames.len() > handler.frame_offset {
                             if let Some(frame) = self.call_frames.pop() {
+                                // Mirror Return-path cleanup during exceptional unwind.
+                                self.function_call_stack.pop();
+                                if self.recursion_depth > 0 {
+                                    self.recursion_depth -= 1;
+                                }
+
                                 if std::env::var("DEBUG_VM").is_ok() {
                                     eprintln!("  Unwinding frame: return_ip={}", frame.return_ip);
                                 }

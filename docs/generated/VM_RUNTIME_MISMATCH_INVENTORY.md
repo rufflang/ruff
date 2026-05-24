@@ -78,7 +78,7 @@ Fixture root: `tests`
 | `tests/test_enum_nested.ruff` | 0 | 0 | yes | yes | `both_match_snapshot` | `none` | n/a | `P4` | snapshot matches in both runtimes |
 | `tests/test_enum_none.ruff` | 0 | 0 | yes | yes | `both_match_snapshot` | `none` | n/a | `P4` | snapshot matches in both runtimes |
 | `tests/test_enum_ok.ruff` | 0 | 0 | yes | yes | `both_match_snapshot` | `none` | n/a | `P4` | snapshot matches in both runtimes |
-| `tests/test_exceptions_comprehensive.ruff` | 4 | 0 | no | yes | `vm_only_mismatch` | `runtime-parity-bug` | runtime-owner | `P0` | runtime-path mismatch against snapshot indicates parity defect or runtime-specific contract drift |
+| `tests/test_exceptions_comprehensive.ruff` | 0 | 0 | yes | yes | `both_match_snapshot` | `none` | n/a | `P4` | snapshot matches in both runtimes |
 | `tests/test_for_range.ruff` | 0 | 0 | yes | yes | `both_match_snapshot` | `none` | n/a | `P4` | snapshot matches in both runtimes |
 | `tests/test_for_simple.ruff` | 0 | 0 | yes | yes | `both_match_snapshot` | `none` | n/a | `P4` | snapshot matches in both runtimes |
 | `tests/test_func_loop_correct.ruff` | 4 | 0 | no | yes | `vm_only_mismatch` | `runtime-parity-bug` | runtime-owner | `P0` | runtime-path mismatch against snapshot indicates parity defect or runtime-specific contract drift |
@@ -171,13 +171,13 @@ Fixture root: `tests`
 | `tests/vm_native_functions_test.ruff` | 4 | 4 | yes | yes | `both_match_snapshot` | `none` | n/a | `P4` | snapshot matches in both runtimes |
 
 Summary: `163` fixtures scanned
-- both match snapshot: `127`
-- VM-only mismatch: `14`
+- both match snapshot: `128`
+- VM-only mismatch: `13`
 - interpreter-only mismatch: `7`
 - both mismatch: `15`
 
 Mismatch classification totals (priority order):
-- P0 runtime-parity-bug (`runtime-owner`): `36`
+- P0 runtime-parity-bug (`runtime-owner`): `35`
 - P1 stale-snapshot-expectation (`docs-owner`): `0`
 - P1 parser-invalid-fixture (`language-owner`): `0`
 - P2 harness-debt (`harness-owner`): `0`
@@ -185,6 +185,6 @@ Mismatch classification totals (priority order):
 
 VM coverage gate:
 - metric: `vm_matches_snapshot / fixtures_scanned`
-- vm_matches_snapshot: `134/163` (`82.2%`)
+- vm_matches_snapshot: `135/163` (`82.8%`)
 - target threshold: `70.0%`
 - gate status: `PASS`
