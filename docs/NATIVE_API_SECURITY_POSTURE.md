@@ -134,12 +134,12 @@ Safer usage patterns:
 Example defensive escaping helper (Ruff script-level):
 
 ```ruff
-fn escape_html(input) {
-  let out = replace(input, "&", "&amp;")
-  out = replace(out, "<", "&lt;")
-  out = replace(out, ">", "&gt;")
-  out = replace(out, "\"", "&quot;")
-  out = replace(out, "'", "&#39;")
+func escape_html(input) {
+  let out := replace(input, "&", "&amp;")
+  out := replace(out, "<", "&lt;")
+  out := replace(out, ">", "&gt;")
+  out := replace(out, "\"", "&quot;")
+  out := replace(out, "'", "&#39;")
   return out
 }
 ```
