@@ -176,6 +176,26 @@ fn vm_and_interpreter_match_struct_method_named_chain_collision_surface() {
 }
 
 #[test]
+fn vm_and_interpreter_match_struct_op_add_overload_surface() {
+    let script = r#"
+        struct Number {
+            value: float,
+
+            func op_add(other) {
+                return value + other.value
+            }
+        }
+
+        n1 := Number { value: 10.0 }
+        n2 := Number { value: 20.0 }
+        sum := n1 + n2
+        op_add_ok := sum == 30.0
+    "#;
+
+    assert_interpreter_and_vm_bool(script, "op_add_ok");
+}
+
+#[test]
 fn vm_and_interpreter_match_spread_destructuring_surface() {
     let script = r#"
         values := [1, 2, 3, 4]

@@ -108,9 +108,9 @@ Fixture root: `tests`
 | `tests/test_multiline_comments.ruff` | 0 | 0 | yes | yes | `both_match_snapshot` | `none` | n/a | `P4` | snapshot matches in both runtimes |
 | `tests/test_negative.ruff` | 0 | 0 | yes | yes | `both_match_snapshot` | `none` | n/a | `P4` | snapshot matches in both runtimes |
 | `tests/test_no_semi.ruff` | 0 | 0 | yes | yes | `both_match_snapshot` | `none` | n/a | `P4` | snapshot matches in both runtimes |
-| `tests/test_op_add.ruff` | 4 | 0 | no | yes | `vm_only_mismatch` | `runtime-parity-bug` | runtime-owner | `P0` | runtime-path mismatch against snapshot indicates parity defect or runtime-specific contract drift |
-| `tests/test_op_add_debug.ruff` | 4 | 0 | no | yes | `vm_only_mismatch` | `runtime-parity-bug` | runtime-owner | `P0` | runtime-path mismatch against snapshot indicates parity defect or runtime-specific contract drift |
-| `tests/test_operator_add_working.ruff` | 4 | 0 | yes | no | `interpreter_only_mismatch` | `runtime-parity-bug` | runtime-owner | `P0` | runtime-path mismatch against snapshot indicates parity defect or runtime-specific contract drift |
+| `tests/test_op_add.ruff` | 0 | 0 | yes | yes | `both_match_snapshot` | `none` | n/a | `P4` | snapshot matches in both runtimes |
+| `tests/test_op_add_debug.ruff` | 0 | 0 | yes | yes | `both_match_snapshot` | `none` | n/a | `P4` | snapshot matches in both runtimes |
+| `tests/test_operator_add_working.ruff` | 0 | 0 | yes | yes | `both_match_snapshot` | `none` | n/a | `P4` | snapshot matches in both runtimes |
 | `tests/test_operator_overloading.ruff` | 4 | 4 | yes | yes | `both_match_snapshot` | `none` | n/a | `P4` | snapshot matches in both runtimes |
 | `tests/test_operator_simple.ruff` | 4 | 4 | yes | yes | `both_match_snapshot` | `none` | n/a | `P4` | snapshot matches in both runtimes |
 | `tests/test_range_args.ruff` | 0 | 0 | yes | yes | `both_match_snapshot` | `none` | n/a | `P4` | snapshot matches in both runtimes |
@@ -157,7 +157,7 @@ Fixture root: `tests`
 | `tests/test_unary_ops.ruff` | 0 | 0 | yes | yes | `both_match_snapshot` | `none` | n/a | `P4` | snapshot matches in both runtimes |
 | `tests/test_unary_overload.ruff` | 4 | 0 | no | no | `both_mismatch_different_output` | `runtime-parity-bug` | runtime-owner | `P0` | both runtimes diverge from snapshot and from each other, indicating runtime-path parity drift rather than stale fixture expectations |
 | `tests/test_undefined_var.ruff` | 4 | 4 | yes | yes | `both_match_snapshot` | `none` | n/a | `P4` | snapshot matches in both runtimes |
-| `tests/test_vec_add.ruff` | 4 | 0 | no | yes | `vm_only_mismatch` | `runtime-parity-bug` | runtime-owner | `P0` | runtime-path mismatch against snapshot indicates parity defect or runtime-specific contract drift |
+| `tests/test_vec_add.ruff` | 0 | 0 | yes | yes | `both_match_snapshot` | `none` | n/a | `P4` | snapshot matches in both runtimes |
 | `tests/test_verifier.ruff` | 4 | 4 | yes | yes | `both_match_snapshot` | `none` | n/a | `P4` | snapshot matches in both runtimes |
 | `tests/test_vm_optimizations.ruff` | 0 | 0 | yes | yes | `both_match_snapshot` | `none` | n/a | `P4` | snapshot matches in both runtimes |
 | `tests/test_void_method.ruff` | 0 | 0 | yes | yes | `both_match_snapshot` | `none` | n/a | `P4` | snapshot matches in both runtimes |
@@ -171,13 +171,13 @@ Fixture root: `tests`
 | `tests/vm_native_functions_test.ruff` | 4 | 4 | yes | yes | `both_match_snapshot` | `none` | n/a | `P4` | snapshot matches in both runtimes |
 
 Summary: `163` fixtures scanned
-- both match snapshot: `141`
-- VM-only mismatch: `13`
-- interpreter-only mismatch: `1`
+- both match snapshot: `145`
+- VM-only mismatch: `10`
+- interpreter-only mismatch: `0`
 - both mismatch: `8`
 
 Mismatch classification totals (priority order):
-- P0 runtime-parity-bug (`runtime-owner`): `22`
+- P0 runtime-parity-bug (`runtime-owner`): `18`
 - P1 stale-snapshot-expectation (`docs-owner`): `0`
 - P1 parser-invalid-fixture (`language-owner`): `0`
 - P2 harness-debt (`harness-owner`): `0`
@@ -185,6 +185,6 @@ Mismatch classification totals (priority order):
 
 VM coverage gate:
 - metric: `vm_matches_snapshot / fixtures_scanned`
-- vm_matches_snapshot: `142/163` (`87.1%`)
+- vm_matches_snapshot: `145/163` (`89.0%`)
 - target threshold: `70.0%`
 - gate status: `PASS`

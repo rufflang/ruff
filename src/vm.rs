@@ -6475,7 +6475,8 @@ impl VM {
                 let call_frame_depth = self.call_frames.len();
 
                 // Set up the call (creates call frame, switches chunk, resets IP)
-                self.call_bytecode_function(function, args.clone(), args)?;
+                let prepared_args = self.prepare_bytecode_call_args(chunk, args.clone())?;
+                self.call_bytecode_function(function, args, prepared_args)?;
 
                 // Execute until this function returns
                 // (call_frames will pop back to call_frame_depth)
@@ -6775,6 +6776,83 @@ impl VM {
                             self.stack.push(result);
                         }
 
+                        OpCode::CallNative(name, arg_count) => {
+                            let mut args = Vec::new();
+                            for _ in 0..arg_count {
+                                args.push(self.stack.pop().ok_or("Stack underflow")?);
+                            }
+                            args.reverse();
+
+                            let result = match name.as_str() {
+                                "__vm_import_all" => self.vm_import_all(&args),
+                                "__vm_import_symbol" => self.vm_import_symbol(&args),
+                                _ => {
+                                    let native_result =
+                                        self.interpreter.call_native_function_impl(&name, &args);
+                                    match native_result {
+                                        Value::Error(msg) => Err(msg),
+                                        Value::ErrorObject { .. } => {
+                                            Err(format!("Error in native function {}", name))
+                                        }
+                                        other => Ok(other),
+                                    }
+                                }
+                            }?;
+
+                            self.stack.push(result);
+                        }
+
+                        OpCode::FieldGet(field) => {
+                            let object = self.stack.pop().ok_or("Stack underflow")?;
+                            let result = match &object {
+                                Value::Struct { name, fields } => {
+                                    if let Some(value) = fields.get(&field) {
+                                        value.clone()
+                                    } else {
+                                        let method_name = format!("{}.{}", name, field);
+                                        self.globals
+                                            .lock()
+                                            .unwrap()
+                                            .get(&method_name)
+                                            .ok_or_else(|| format!("Field not found: {}", field))?
+                                    }
+                                }
+                                Value::Dict(dict) => {
+                                    dict.get(field.as_str()).cloned().unwrap_or(Value::Null)
+                                }
+                                Value::FixedDict { keys, values } => {
+                                    let idx = keys.iter().position(|k| k.as_ref() == field.as_str());
+                                    idx.and_then(|i| values.get(i).cloned()).unwrap_or(Value::Null)
+                                }
+                                Value::IntDict(dict) => match field.parse::<i64>() {
+                                    Ok(int_key) => dict.get(&int_key).cloned().unwrap_or(Value::Null),
+                                    Err(_) => Value::Null,
+                                },
+                                Value::DenseIntDict(values) => match field.parse::<i64>() {
+                                    Ok(int_key) if int_key >= 0 => {
+                                        values.get(int_key as usize).cloned().unwrap_or(Value::Null)
+                                    }
+                                    _ => Value::Null,
+                                },
+                                _ => {
+                                    return Err(format!(
+                                        "Cannot access field or method '{}' on non-struct value",
+                                        field
+                                    ))
+                                }
+                            };
+                            self.stack.push(result);
+                        }
+
+                        OpCode::MakeStruct(name, field_names) => {
+                            let mut fields = HashMap::new();
+                            for field_name in field_names.iter().rev() {
+                                let value = self.stack.pop().ok_or("Stack underflow")?;
+                                fields.insert(field_name.clone(), value);
+                            }
+                            self.stack.push(Value::Struct { name, fields });
+                        }
+
                         OpCode::Jump(target) => {
                             self.ip = target;
                         }
@@ -6942,8 +7020,30 @@ impl VM {
         )
     }
 
+    fn try_call_vm_binary_operator_method(
+        &mut self,
+        left: &Value,
+        op: &str,
+        right: &Value,
+    ) -> Option<Result<Value, String>> {
+        let method_name = crate::ast::operator_methods::binary_op_method(op)?;
+        let struct_name = match left {
+            Value::Struct { name, .. } => name,
+            _ => return None,
+        };
+
+        let method_global_name = format!("{}.{}", struct_name, method_name);
+        let method_value = self.globals.lock().unwrap().get(&method_global_name)?;
+
+        Some(self.call_function_from_jit(method_value, vec![left.clone(), right.clone()]))
+    }
+
     /// Binary operation
-    fn binary_op(&self, left: &Value, op: &str, right: &Value) -> Result<Value, String> {
+    fn binary_op(&mut self, left: &Value, op: &str, right: &Value) -> Result<Value, String> {
+        if let Some(result) = self.try_call_vm_binary_operator_method(left, op, right) {
+            return result;
+        }
+
         match (left, right) {
             (Value::Int(a), Value::Int(b)) => match op {
                 "+" | "-" | "*" | "/" | "%" => {

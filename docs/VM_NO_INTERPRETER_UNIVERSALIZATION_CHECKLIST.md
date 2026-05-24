@@ -252,6 +252,11 @@ Each loop report must include exactly:
     - Inventory totals after regeneration: `P0 runtime-parity-bug (runtime-owner): 22`, `P1 stale-snapshot-expectation: 0`, `P2 harness-debt: 0`.
     - Runtime sweep evidence: `cargo run -- test --runtime vm` improved to `Passed 116/150`; `cargo run -- test --runtime dual` improved to `Passed 129/150` (`vm_primary=116`, `interpreter_fallback=13`).
     - Supporting regression coverage: `cargo test --test vm_interpreter_parity_surfaces` (`91 passed`) including `vm_and_interpreter_match_struct_method_named_chain_collision_surface`.
+  - Blocker note (2026-05-24, operator-overload VM parity retry): still blocked, with additional material reduction.
+    - Evidence: VM now dispatches struct operator methods in `binary_op` and JIT slow-path nested calls now support required method opcodes (`FieldGet`, `CallNative`, `MakeStruct`) with method-argument preparation.
+    - Inventory totals after regeneration: `P0 runtime-parity-bug (runtime-owner): 18`, `P1 stale-snapshot-expectation: 0`, `P2 harness-debt: 0`.
+    - Runtime sweep evidence: `cargo run -- test --runtime vm` improved to `Passed 118/150`; `cargo run -- test --runtime dual` remained `Passed 128/150` with reduced fallback (`vm_primary=118`, `interpreter_fallback=10`).
+    - Supporting regression coverage: `cargo test --test vm_interpreter_parity_surfaces` (`92 passed`) including `vm_and_interpreter_match_struct_op_add_overload_surface`.
 
 ### 3) Harness And CLI Runtime Strategy Hardening
 
