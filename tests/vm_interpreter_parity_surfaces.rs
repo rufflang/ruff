@@ -238,6 +238,35 @@ fn vm_and_interpreter_match_spread_destructuring_surface() {
 }
 
 #[test]
+fn vm_and_interpreter_match_dict_override_and_dict_method_surface() {
+    let script = r#"
+        base := {"x": 1, "y": 2}
+        override := {"y": 99, "z": 100}
+        merged_spread := {...base, ...override}
+        spread_override_ok := merged_spread["x"] == 1 && merged_spread["y"] == 99 && merged_spread["z"] == 100
+
+        defaults := {"timeout": 30, "retry": 3, "debug": false}
+        config := {...defaults, "timeout": 60, "debug": true}
+        literal_override_ok := config["timeout"] == 60 && config["debug"] == true && config["retry"] == 3
+
+        dict1 := {"a": 1, "b": 2, "c": 3}
+        dict2 := {"b": 7, "d": 4}
+        merged_method := merge(dict1, dict2)
+        merge_ok := merged_method["a"] == 1 && merged_method["b"] == 7 && merged_method["d"] == 4
+
+        cleared := clear(dict1)
+        clear_ok := len(cleared) == 0
+
+        removed := remove(dict1, "b")
+        remove_ok := removed[1] == 2 && len(removed[0]) == 2 && has_key(removed[0], "a") == 1 && has_key(removed[0], "b") == 0
+
+        parity_ok := spread_override_ok && literal_override_ok && merge_ok && clear_ok && remove_ok
+    "#;
+
+    assert_interpreter_and_vm_bool(script, "parity_ok");
+}
+
+#[test]
 fn vm_and_interpreter_match_enum_match_binding_surface() {
     let script = r#"
         result_value := Result::Ok(42)

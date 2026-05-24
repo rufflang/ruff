@@ -26,14 +26,12 @@ Non-release unchecked total: **1** primary blocker item (`V1VM-PAR-004`) plus su
 
 - [ ] **RNR-PAR-001**: Close `V1VM-PAR-004` by reducing non-intentional VM parity mismatches to intentional-divergence-only.
   - Why open: `docs/generated/VM_RUNTIME_MISMATCH_INVENTORY.md` still reports `runtime-parity-bug` fixtures.
-  - Current mismatch set (18 fixtures):
-    - `tests/dict_methods_test.ruff`
+  - Current mismatch set (16 fixtures):
     - `tests/env_and_args.ruff`
     - `tests/image_processing_test.ruff`
     - `tests/integer_types.ruff`
     - `tests/result_option.ruff`
     - `tests/simple_image_test.ruff`
-    - `tests/spread_operator.ruff`
     - `tests/stdlib_os_path_test.ruff`
     - `tests/stdlib_test.ruff`
     - `tests/test_assertions.ruff`
@@ -79,6 +77,10 @@ Use these as execution loops to close `RNR-PAR-001` predictably:
 - [ ] **RNR-PAR-G1**: Method/operator semantics cluster
   - Targets: `dict_methods_test`, `spread_operator`, `test_method_chaining`, `test_unary_overload`.
   - Focus: method dispatch consistency, operator overload parity, chained-call evaluation order.
+  - Progress (2026-05-24):
+    - Closed VM parity for `dict_methods_test` by adding `FixedDict` support in collection natives (`merge`, `clear`, `remove`).
+    - Closed VM parity for `spread_operator` by preserving source-order dict insertion in VM `MakeDict`/`MakeDictFromMarker` (later keys now override deterministically).
+    - Remaining in this cluster: `test_method_chaining` (VM compile lacks `??`/`?.`/`|>` support), `test_unary_overload` (VM unary struct overload parity gap).
 
 - [ ] **RNR-PAR-G2**: Loop/function/generator control-flow cluster
   - Targets: `test_loop_correct`, `test_func_loop_correct`, `test_function_drop_fix`, `test_generators`, `integer_types`.

@@ -17,6 +17,14 @@ fn strict_arity_error(function_name: &str, expected: usize, got: usize) -> Value
     ))
 }
 
+fn fixed_dict_to_dict(keys: &[Arc<str>], values: &[Value]) -> DictMap {
+    let mut dict = DictMap::default();
+    for (key, value) in keys.iter().cloned().zip(values.iter().cloned()) {
+        dict.insert(key, value);
+    }
+    dict
+}
+
 pub fn handle(interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Option<Value> {
     let result = match name {
         // Polymorphic len function - handles arrays, dicts, sets, queues, stacks, bytes
@@ -151,6 +159,11 @@ pub fn handle(interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Opt
                         let dict_mut = Arc::make_mut(&mut dict_clone);
                         let removed = dict_mut.remove(key.as_str()).unwrap_or(Value::Int(0));
                         Value::Array(Arc::new(vec![Value::Dict(dict_clone), removed]))
+                    }
+                    (Some(Value::FixedDict { keys, values }), Some(Value::Str(key))) => {
+                        let mut dict = fixed_dict_to_dict(keys.as_ref(), values.as_ref());
+                        let removed = dict.remove(key.as_str()).unwrap_or(Value::Int(0));
+                        Value::Array(Arc::new(vec![Value::Dict(Arc::new(dict)), removed]))
                     }
                     (Some(Value::IntDict(dict)), Some(key_val)) => {
                         let int_key = match key_val {
@@ -300,6 +313,7 @@ pub fn handle(interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Opt
                 match arg_values.first() {
                     Some(Value::Array(_)) => Value::Array(Arc::new(builtins::array_clear())),
                     Some(Value::Dict(_)) => Value::Dict(Arc::new(DictMap::default())),
+                    Some(Value::FixedDict { .. }) => Value::Dict(Arc::new(DictMap::default())),
                     _ => Value::Error("clear() requires an array or dict argument".to_string()),
                 }
             }
@@ -1011,6 +1025,36 @@ pub fn handle(interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Opt
                     result.insert(k.clone(), v.clone());
                 }
                 Value::Dict(Arc::new(result))
+            } else if let (
+                Some(Value::FixedDict { keys: keys1, values: values1 }),
+                Some(Value::Dict(dict2)),
+            ) = (arg_values.first(), arg_values.get(1))
+            {
+                let mut result = fixed_dict_to_dict(keys1.as_ref(), values1.as_ref());
+                for (k, v) in dict2.iter() {
+                    result.insert(k.clone(), v.clone());
+                }
+                Value::Dict(Arc::new(result))
+            } else if let (
+                Some(Value::Dict(dict1)),
+                Some(Value::FixedDict { keys: keys2, values: values2 }),
+            ) = (arg_values.first(), arg_values.get(1))
+            {
+                let mut result = (**dict1).clone();
+                for (k, v) in fixed_dict_to_dict(keys2.as_ref(), values2.as_ref()) {
+                    result.insert(k, v);
+                }
+                Value::Dict(Arc::new(result))
+            } else if let (
+                Some(Value::FixedDict { keys: keys1, values: values1 }),
+                Some(Value::FixedDict { keys: keys2, values: values2 }),
+            ) = (arg_values.first(), arg_values.get(1))
+            {
+                let mut result = fixed_dict_to_dict(keys1.as_ref(), values1.as_ref());
+                for (k, v) in fixed_dict_to_dict(keys2.as_ref(), values2.as_ref()) {
+                    result.insert(k, v);
+                }
+                Value::Dict(Arc::new(result))
             } else if let (Some(Value::IntDict(dict1)), Some(Value::IntDict(dict2))) =
                 (arg_values.first(), arg_values.get(1))
             {
@@ -1677,6 +1721,48 @@ mod tests {
         let clear_wrong_type = handle(&mut interpreter, "clear", &[Value::Null]).expect("handler");
         assert!(
             matches!(clear_wrong_type, Value::Error(message) if message.contains("clear() requires an array or dict"))
+        );
+    }
+
+    #[test]
+    fn test_fixed_dict_merge_clear_remove_contracts() {
+        let mut interpreter = Interpreter::new();
+
+        let fixed_left = Value::FixedDict {
+            keys: Arc::new(vec![Arc::from("a"), Arc::from("b")]),
+            values: vec![Value::Int(1), Value::Int(2)],
+        };
+        let fixed_right = Value::FixedDict {
+            keys: Arc::new(vec![Arc::from("b"), Arc::from("c")]),
+            values: vec![Value::Int(99), Value::Int(3)],
+        };
+
+        let merged = handle(
+            &mut interpreter,
+            "merge",
+            &[fixed_left.clone(), fixed_right.clone()],
+        )
+        .expect("merge handler should match");
+        assert!(
+            matches!(merged, Value::Dict(dict) if matches!(dict.get("a"), Some(Value::Int(1)))
+                && matches!(dict.get("b"), Some(Value::Int(99)))
+                && matches!(dict.get("c"), Some(Value::Int(3))))
+        );
+
+        let cleared = handle(&mut interpreter, "clear", std::slice::from_ref(&fixed_left))
+            .expect("clear handler should match");
+        assert!(matches!(cleared, Value::Dict(dict) if dict.is_empty()));
+
+        let removed = handle(
+            &mut interpreter,
+            "remove",
+            &[fixed_left, Value::Str(Arc::new("b".to_string()))],
+        )
+        .expect("remove handler should match");
+        assert!(
+            matches!(removed, Value::Array(values) if values.len() == 2
+                && matches!(&values[0], Value::Dict(dict) if matches!(dict.get("a"), Some(Value::Int(1))) && !dict.contains_key("b"))
+                && matches!(&values[1], Value::Int(2)))
         );
     }
 }

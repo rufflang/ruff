@@ -3231,6 +3231,7 @@ impl VM {
                 OpCode::MakeDict(count) => {
                     let mut dict = DictMap::default();
                     dict.reserve(count);
+                    let mut entries = Vec::with_capacity(count);
                     for _ in 0..count {
                         let value = self.stack.pop().ok_or("Stack underflow")?;
                         let key = self.stack.pop().ok_or("Stack underflow")?;
@@ -3240,13 +3241,20 @@ impl VM {
                             _ => return Err("Dict keys must be strings".to_string()),
                         };
 
-                        dict.insert(key_str, value);
+                        entries.push((key_str, value));
+                    }
+
+                    // Preserve source order so later key occurrences override earlier ones.
+                    entries.reverse();
+                    for (key, value) in entries {
+                        dict.insert(key, value);
                     }
                     self.stack.push(Value::Dict(Arc::new(dict)));
                 }
 
                 OpCode::MakeDictFromMarker => {
                     let mut dict = DictMap::default();
+                    let mut entries = Vec::new();
 
                     loop {
                         let value =
@@ -3264,7 +3272,13 @@ impl VM {
                             _ => return Err("Dict keys must be strings".to_string()),
                         };
 
-                        dict.insert(key_str, value);
+                        entries.push((key_str, value));
+                    }
+
+                    // Preserve source order so spread/literal override behavior is deterministic.
+                    entries.reverse();
+                    for (key, value) in entries {
+                        dict.insert(key, value);
                     }
 
                     self.stack.push(Value::Dict(Arc::new(dict)));

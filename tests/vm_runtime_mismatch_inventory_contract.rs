@@ -8,8 +8,8 @@ fn unique_temp_dir(prefix: &str) -> PathBuf {
         .duration_since(UNIX_EPOCH)
         .expect("system time should be valid")
         .as_nanos();
-    let path =
-        std::env::temp_dir().join(format!("ruff_vm_runtime_mismatch_inventory_{}_{}", prefix, nanos));
+    let path = std::env::temp_dir()
+        .join(format!("ruff_vm_runtime_mismatch_inventory_{}_{}", prefix, nanos));
     fs::create_dir_all(&path).expect("failed to create temp directory");
     path
 }
@@ -37,7 +37,7 @@ fn vm_runtime_mismatch_inventory_script_generates_expected_outputs() {
         .arg("--runner")
         .arg("target/debug/ruff")
         .arg("--max-fixtures")
-        .arg("5")
+        .arg("8")
         .arg("--strict")
         .current_dir(env!("CARGO_MANIFEST_DIR"))
         .output()
@@ -53,7 +53,7 @@ fn vm_runtime_mismatch_inventory_script_generates_expected_outputs() {
     let markdown = fs::read_to_string(&output_md).expect("inventory markdown should exist");
     assert!(markdown.contains("# VM Runtime Mismatch Inventory"));
     assert!(markdown.contains("| Fixture | VM Exit | Interpreter Exit | VM Matches Snapshot | Interpreter Matches Snapshot | Delta Type | Mismatch Bucket | Owner | Priority | Rationale |"));
-    assert!(markdown.contains("Summary: `5` fixtures scanned"));
+    assert!(markdown.contains("Summary: `8` fixtures scanned"));
     assert!(markdown.contains("Mismatch classification totals (priority order):"));
     assert!(markdown.contains("runtime-parity-bug"));
     assert!(markdown.contains("VM coverage gate:"));
@@ -64,11 +64,8 @@ fn vm_runtime_mismatch_inventory_script_generates_expected_outputs() {
     let csv = fs::read_to_string(&output_csv).expect("inventory csv should exist");
     assert!(csv.contains("fixture,vm_exit,interpreter_exit,vm_matches_snapshot,interpreter_matches_snapshot,delta_type,mismatch_bucket,bucket_owner,priority,rationale"));
 
-    let has_classified_mismatch = csv
-        .lines()
-        .skip(1)
-        .filter(|line| !line.trim().is_empty())
-        .any(|line| {
+    let has_classified_mismatch =
+        csv.lines().skip(1).filter(|line| !line.trim().is_empty()).any(|line| {
             let parts: Vec<&str> = line.split(',').collect();
             if parts.len() < 10 {
                 return false;
