@@ -2493,42 +2493,129 @@ impl TypeChecker {
 
             Expr::ArrayLiteral(elements) => {
                 use crate::ast::ArrayElement;
-                // Type check all elements
+                let mut inferred_element_type: Option<TypeAnnotation> = None;
+
                 for elem in elements {
-                    match elem {
-                        ArrayElement::Single(expr) => {
-                            self.infer_expr(expr);
-                        }
+                    let current_type = match elem {
+                        ArrayElement::Single(expr) => self.infer_expr(expr),
                         ArrayElement::Spread(expr) => {
-                            self.infer_expr(expr);
+                            let spread_type = self.infer_expr(expr);
+                            match spread_type {
+                                Some(TypeAnnotation::Array(inner_type)) => Some((*inner_type).clone()),
+                                Some(other) => {
+                                    self.errors.push(RuffError::new(
+                                        ErrorKind::TypeError,
+                                        format!(
+                                            "Array spread expects Array value, got {:?}",
+                                            other
+                                        ),
+                                        SourceLocation::unknown(),
+                                    ));
+                                    Some(TypeAnnotation::Any)
+                                }
+                                None => Some(TypeAnnotation::Any),
+                            }
                         }
-                    }
+                    };
+
+                    inferred_element_type =
+                        Self::merge_inferred_types(inferred_element_type, current_type);
                 }
-                None // TODO: Return Array<T> type when generic types are implemented
+
+                Some(TypeAnnotation::Array(Box::new(
+                    inferred_element_type.unwrap_or(TypeAnnotation::Any),
+                )))
             }
 
             Expr::DictLiteral(pairs) => {
                 use crate::ast::DictElement;
-                // Type check all keys and values
+                let mut inferred_key_type: Option<TypeAnnotation> = None;
+                let mut inferred_value_type: Option<TypeAnnotation> = None;
+
                 for elem in pairs {
                     match elem {
                         DictElement::Pair(key, value) => {
-                            self.infer_expr(key);
-                            self.infer_expr(value);
+                            let key_type = self.infer_expr(key);
+                            let value_type = self.infer_expr(value);
+                            inferred_key_type =
+                                Self::merge_inferred_types(inferred_key_type, key_type);
+                            inferred_value_type =
+                                Self::merge_inferred_types(inferred_value_type, value_type);
                         }
                         DictElement::Spread(expr) => {
-                            self.infer_expr(expr);
+                            let spread_type = self.infer_expr(expr);
+                            match spread_type {
+                                Some(TypeAnnotation::Dict { key, value }) => {
+                                    inferred_key_type = Self::merge_inferred_types(
+                                        inferred_key_type,
+                                        Some((*key).clone()),
+                                    );
+                                    inferred_value_type = Self::merge_inferred_types(
+                                        inferred_value_type,
+                                        Some((*value).clone()),
+                                    );
+                                }
+                                Some(other) => {
+                                    self.errors.push(RuffError::new(
+                                        ErrorKind::TypeError,
+                                        format!(
+                                            "Dict spread expects Dict value, got {:?}",
+                                            other
+                                        ),
+                                        SourceLocation::unknown(),
+                                    ));
+                                    inferred_key_type = Self::merge_inferred_types(
+                                        inferred_key_type,
+                                        Some(TypeAnnotation::Any),
+                                    );
+                                    inferred_value_type = Self::merge_inferred_types(
+                                        inferred_value_type,
+                                        Some(TypeAnnotation::Any),
+                                    );
+                                }
+                                None => {
+                                    inferred_key_type = Self::merge_inferred_types(
+                                        inferred_key_type,
+                                        Some(TypeAnnotation::Any),
+                                    );
+                                    inferred_value_type = Self::merge_inferred_types(
+                                        inferred_value_type,
+                                        Some(TypeAnnotation::Any),
+                                    );
+                                }
+                            }
                         }
                     }
                 }
-                None // TODO: Return Dict<K, V> type when generic types are implemented
+
+                Some(TypeAnnotation::Dict {
+                    key: Box::new(inferred_key_type.unwrap_or(TypeAnnotation::Any)),
+                    value: Box::new(inferred_value_type.unwrap_or(TypeAnnotation::Any)),
+                })
             }
 
             Expr::IndexAccess { object, index } => {
-                // Type check object and index
-                self.infer_expr(object);
-                self.infer_expr(index);
-                None // TODO: Return element type based on container type
+                let object_type = self.infer_expr(object);
+                let index_type = self.infer_expr(index);
+
+                match object_type {
+                    Some(TypeAnnotation::Array(inner_type)) => Some((*inner_type).clone()),
+                    Some(TypeAnnotation::Dict { value, .. }) => Some((*value).clone()),
+                    Some(TypeAnnotation::String) => {
+                        if matches!(index_type, Some(TypeAnnotation::Int) | Some(TypeAnnotation::Any))
+                        {
+                            Some(TypeAnnotation::String)
+                        } else {
+                            self.errors.push(RuffError::new(
+                                ErrorKind::TypeError,
+                                "String index access expects integer index".to_string(),
+                                SourceLocation::unknown(),
+                            ));
+                            Some(TypeAnnotation::Any)
+                        }
+                    }
+                    Some(_) | None => Some(TypeAnnotation::Any),
+                }
             }
 
             Expr::Function {
@@ -2657,6 +2744,30 @@ impl TypeChecker {
     fn pop_scope(&mut self) {
         if let Some(prev_scope) = self.scope_stack.pop() {
             self.variables = prev_scope;
+        }
+    }
+
+    fn merge_inferred_types(
+        current: Option<TypeAnnotation>,
+        next: Option<TypeAnnotation>,
+    ) -> Option<TypeAnnotation> {
+        match (current, next) {
+            (None, None) => None,
+            (Some(existing), None) => Some(existing),
+            (None, Some(next)) => Some(next),
+            (Some(existing), Some(next)) => {
+                if existing.matches(&next) || next.matches(&existing) {
+                    if matches!(existing, TypeAnnotation::Float)
+                        || matches!(next, TypeAnnotation::Float)
+                    {
+                        Some(TypeAnnotation::Float)
+                    } else {
+                        Some(existing)
+                    }
+                } else {
+                    Some(TypeAnnotation::Any)
+                }
+            }
         }
     }
 
@@ -2874,5 +2985,69 @@ mod tests {
                 op
             );
         }
+    }
+
+    #[test]
+    fn test_array_literal_infers_element_type() {
+        let mut checker = TypeChecker::new();
+        let result = checker.infer_expr(&Expr::ArrayLiteral(vec![
+            crate::ast::ArrayElement::Single(Expr::Int(1)),
+            crate::ast::ArrayElement::Single(Expr::Int(2)),
+        ]));
+
+        assert_eq!(result, Some(TypeAnnotation::Array(Box::new(TypeAnnotation::Int))));
+        assert!(checker.errors.is_empty());
+    }
+
+    #[test]
+    fn test_array_literal_promotes_mixed_numeric_elements_to_float() {
+        let mut checker = TypeChecker::new();
+        let result = checker.infer_expr(&Expr::ArrayLiteral(vec![
+            crate::ast::ArrayElement::Single(Expr::Int(1)),
+            crate::ast::ArrayElement::Single(Expr::Float(2.5)),
+        ]));
+
+        assert_eq!(result, Some(TypeAnnotation::Array(Box::new(TypeAnnotation::Float))));
+        assert!(checker.errors.is_empty());
+    }
+
+    #[test]
+    fn test_dict_literal_infers_key_and_value_types() {
+        let mut checker = TypeChecker::new();
+        let result = checker.infer_expr(&Expr::DictLiteral(vec![
+            crate::ast::DictElement::Pair(Expr::String("a".to_string()), Expr::Int(1)),
+            crate::ast::DictElement::Pair(Expr::String("b".to_string()), Expr::Int(2)),
+        ]));
+
+        assert_eq!(
+            result,
+            Some(TypeAnnotation::Dict {
+                key: Box::new(TypeAnnotation::String),
+                value: Box::new(TypeAnnotation::Int),
+            })
+        );
+        assert!(checker.errors.is_empty());
+    }
+
+    #[test]
+    fn test_index_access_returns_inferred_container_element_type() {
+        let mut checker = TypeChecker::new();
+
+        let array_index_result = checker.infer_expr(&Expr::IndexAccess {
+            object: Box::new(Expr::ArrayLiteral(vec![
+                crate::ast::ArrayElement::Single(Expr::Int(1)),
+                crate::ast::ArrayElement::Single(Expr::Int(2)),
+            ])),
+            index: Box::new(Expr::Int(0)),
+        });
+        assert_eq!(array_index_result, Some(TypeAnnotation::Int));
+
+        let dict_index_result = checker.infer_expr(&Expr::IndexAccess {
+            object: Box::new(Expr::DictLiteral(vec![
+                crate::ast::DictElement::Pair(Expr::String("a".to_string()), Expr::Bool(true)),
+            ])),
+            index: Box::new(Expr::String("a".to_string())),
+        });
+        assert_eq!(dict_index_result, Some(TypeAnnotation::Bool));
     }
 }

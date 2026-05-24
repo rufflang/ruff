@@ -97,6 +97,8 @@ pub enum TypeAnnotation {
     Float,
     String,
     Bool,
+    Array(Box<TypeAnnotation>),
+    Dict { key: Box<TypeAnnotation>, value: Box<TypeAnnotation> },
     Function { params: Vec<TypeAnnotation>, return_type: Box<TypeAnnotation> },
     Enum(String),
     Union(Vec<TypeAnnotation>),
@@ -117,6 +119,11 @@ impl TypeAnnotation {
             (TypeAnnotation::Float, TypeAnnotation::Int) => true,
             (TypeAnnotation::String, TypeAnnotation::String) => true,
             (TypeAnnotation::Bool, TypeAnnotation::Bool) => true,
+            (TypeAnnotation::Array(left), TypeAnnotation::Array(right)) => left.matches(right),
+            (
+                TypeAnnotation::Dict { key: left_key, value: left_value },
+                TypeAnnotation::Dict { key: right_key, value: right_value },
+            ) => left_key.matches(right_key) && left_value.matches(right_value),
             (TypeAnnotation::Enum(a), TypeAnnotation::Enum(b)) => a == b,
             (TypeAnnotation::Union(types), other) | (other, TypeAnnotation::Union(types)) => {
                 types.iter().any(|t| t.matches(other))
