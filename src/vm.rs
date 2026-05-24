@@ -3109,8 +3109,11 @@ impl VM {
                                         .copied()
                                         .unwrap_or(BytecodeBindingKind::Mutable);
                                     Some((value, kind))
-                                } else if let Some(slot) =
-                                    self.chunk.local_names.iter().position(|name| name == upvalue_name)
+                                } else if let Some(slot) = self
+                                    .chunk
+                                    .local_names
+                                    .iter()
+                                    .position(|name| name == upvalue_name)
                                 {
                                     let value = frame
                                         .local_slots
@@ -3149,8 +3152,7 @@ impl VM {
                                 }
                                 // Wrap in Arc<Mutex<>> for shared mutable state
                                 captured.insert(upvalue_name.clone(), Arc::new(Mutex::new(val)));
-                                captured_binding_kinds
-                                    .insert(upvalue_name.clone(), binding_kind);
+                                captured_binding_kinds.insert(upvalue_name.clone(), binding_kind);
                             } else {
                                 if std::env::var("DEBUG_VM").is_ok() {
                                     eprintln!(
@@ -4525,11 +4527,8 @@ impl VM {
                     // Pop the function from stack and convert it to a generator
                     let function = self.stack.pop().ok_or("Stack underflow in MakeGenerator")?;
 
-                    if let Value::BytecodeFunction {
-                        chunk,
-                        captured,
-                        captured_binding_kinds,
-                    } = function
+                    if let Value::BytecodeFunction { chunk, captured, captured_binding_kinds } =
+                        function
                     {
                         // Create initial generator state (not yet started)
                         let state = GeneratorState {
@@ -4768,9 +4767,62 @@ impl VM {
                 OpCode::Throw => {
                     // Pop error value from stack
                     let error_value = self.stack.pop().ok_or("Stack underflow in Throw")?;
+                    let throw_stack = self.function_call_stack.clone();
+
+                    // Normalize thrown values to ErrorObject so catch blocks receive
+                    // deterministic structured errors with call-stack parity.
+                    let normalized_error = match error_value {
+                        Value::ErrorObject {
+                            message,
+                            mut stack,
+                            line,
+                            cause,
+                        } => {
+                            if stack.is_empty() && !throw_stack.is_empty() {
+                                stack = throw_stack;
+                            }
+                            Value::ErrorObject {
+                                message,
+                                stack,
+                                line,
+                                cause,
+                            }
+                        }
+                        Value::Str(message) => Value::ErrorObject {
+                            message: message.as_ref().clone(),
+                            stack: throw_stack,
+                            line: None,
+                            cause: None,
+                        },
+                        Value::Error(message) => Value::ErrorObject {
+                            message,
+                            stack: throw_stack,
+                            line: None,
+                            cause: None,
+                        },
+                        Value::Struct { name, fields } => {
+                            let message = match fields.get("message") {
+                                Some(Value::Str(msg)) => msg.as_ref().clone(),
+                                _ => format!("{name} error"),
+                            };
+                            let cause = fields.get("cause").cloned().map(Box::new);
+                            Value::ErrorObject {
+                                message,
+                                stack: throw_stack,
+                                line: None,
+                                cause,
+                            }
+                        }
+                        _ => Value::ErrorObject {
+                            message: "error".to_string(),
+                            stack: throw_stack,
+                            line: None,
+                            cause: None,
+                        },
+                    };
 
                     if std::env::var("DEBUG_VM").is_ok() {
-                        eprintln!("THROW: error_value={:?}", error_value);
+                        eprintln!("THROW: error_value={:?}", normalized_error);
                         eprintln!("  Exception handlers: {}", self.exception_handlers.len());
                         eprintln!("  Call frames: {}", self.call_frames.len());
                     }
@@ -4804,7 +4856,7 @@ impl VM {
                         self.stack.truncate(handler.stack_offset);
 
                         // Push error value back onto stack for BeginCatch
-                        self.stack.push(error_value);
+                        self.stack.push(normalized_error);
 
                         // Jump to catch block
                         self.ip = handler.catch_ip;
@@ -4819,7 +4871,7 @@ impl VM {
                         }
                     } else {
                         // No exception handler found - uncaught exception
-                        let error_msg = match error_value {
+                        let error_msg = match normalized_error {
                             Value::Str(s) => s.as_ref().clone(),
                             Value::Error(e) => e,
                             Value::ErrorObject { message, .. } => message,
@@ -5069,13 +5121,11 @@ impl VM {
             Constant::String(s) => Ok(Value::Str(Arc::new(s.clone()))),
             Constant::Bool(b) => Ok(Value::Bool(*b)),
             Constant::None => Ok(Value::Null),
-            Constant::Function(chunk) => {
-                Ok(Value::BytecodeFunction {
-                    chunk: (**chunk).clone(),
-                    captured: HashMap::new(),
-                    captured_binding_kinds: HashMap::new(),
-                })
-            }
+            Constant::Function(chunk) => Ok(Value::BytecodeFunction {
+                chunk: (**chunk).clone(),
+                captured: HashMap::new(),
+                captured_binding_kinds: HashMap::new(),
+            }),
             Constant::Pattern(_) => Err("Cannot convert pattern to value".to_string()),
             Constant::Type(_) => Err("Cannot convert type annotation to value".to_string()),
             Constant::Array(elements) => {
@@ -6105,11 +6155,7 @@ impl VM {
         args: Vec<Value>,
     ) -> Result<Value, String> {
         match &function {
-            Value::BytecodeFunction {
-                chunk,
-                captured: _,
-                captured_binding_kinds: _,
-            } => {
+            Value::BytecodeFunction { chunk, captured: _, captured_binding_kinds: _ } => {
                 // OPTIMIZATION: Check if target function is JIT-compiled
                 // If so, make direct JIT → JIT call for maximum performance
                 if self.jit_enabled {

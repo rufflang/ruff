@@ -42,7 +42,7 @@ tests/simple_ok.ruff,3,3,yes,yes,both_match_snapshot,none,n/a,P4,snapshot matche
 tests/simple_result_test.ruff,3,3,yes,yes,both_match_snapshot,none,n/a,P4,snapshot matches in both runtimes
 tests/spread_operator.ruff,0,0,no,yes,vm_only_mismatch,runtime-parity-bug,runtime-owner,P0,runtime-path mismatch against snapshot indicates parity defect or runtime-specific contract drift
 tests/stdlib_crypto_test.ruff,3,3,yes,yes,both_match_snapshot,none,n/a,P4,snapshot matches in both runtimes
-tests/stdlib_io_test.ruff,4,4,no,yes,vm_only_mismatch,runtime-parity-bug,runtime-owner,P0,runtime-path mismatch against snapshot indicates parity defect or runtime-specific contract drift
+tests/stdlib_io_test.ruff,4,4,yes,yes,both_match_snapshot,none,n/a,P4,snapshot matches in both runtimes
 tests/stdlib_os_path_test.ruff,4,4,no,no,both_mismatch_different_output,runtime-parity-bug,runtime-owner,P0,both runtimes diverge from snapshot and from each other; indicating runtime-path parity drift rather than stale fixture expectations
 tests/stdlib_test.ruff,4,0,no,no,both_mismatch_different_output,runtime-parity-bug,runtime-owner,P0,both runtimes diverge from snapshot and from each other; indicating runtime-path parity drift rather than stale fixture expectations
 tests/string_methods_test.ruff,0,0,yes,yes,both_match_snapshot,none,n/a,P4,snapshot matches in both runtimes
@@ -52,8 +52,8 @@ tests/test_array_simple.ruff,0,0,yes,yes,both_match_snapshot,none,n/a,P4,snapsho
 tests/test_assert_simple.ruff,0,0,yes,yes,both_match_snapshot,none,n/a,P4,snapshot matches in both runtimes
 tests/test_assertions.ruff,4,0,no,no,both_mismatch_different_output,runtime-parity-bug,runtime-owner,P0,both runtimes diverge from snapshot and from each other; indicating runtime-path parity drift rather than stale fixture expectations
 tests/test_basic_print.ruff,0,0,yes,yes,both_match_snapshot,none,n/a,P4,snapshot matches in both runtimes
-tests/test_binary_files.ruff,4,4,no,yes,vm_only_mismatch,runtime-parity-bug,runtime-owner,P0,runtime-path mismatch against snapshot indicates parity defect or runtime-specific contract drift
-tests/test_binary_simple.ruff,0,4,no,yes,vm_only_mismatch,runtime-parity-bug,runtime-owner,P0,runtime-path mismatch against snapshot indicates parity defect or runtime-specific contract drift
+tests/test_binary_files.ruff,4,4,yes,yes,both_match_snapshot,none,n/a,P4,snapshot matches in both runtimes
+tests/test_binary_simple.ruff,4,4,yes,yes,both_match_snapshot,none,n/a,P4,snapshot matches in both runtimes
 tests/test_call_method.ruff,4,0,no,no,both_mismatch_different_output,runtime-parity-bug,runtime-owner,P0,both runtimes diverge from snapshot and from each other; indicating runtime-path parity drift rather than stale fixture expectations
 tests/test_chain.ruff,0,0,yes,yes,both_match_snapshot,none,n/a,P4,snapshot matches in both runtimes
 tests/test_chain_debug.ruff,4,4,yes,no,interpreter_only_mismatch,runtime-parity-bug,runtime-owner,P0,runtime-path mismatch against snapshot indicates parity defect or runtime-specific contract drift
@@ -143,7 +143,7 @@ tests/test_trans_nostr.ruff,4,4,yes,yes,both_match_snapshot,none,n/a,P4,snapshot
 tests/test_trans_vars.ruff,4,4,yes,yes,both_match_snapshot,none,n/a,P4,snapshot matches in both runtimes
 tests/test_transaction_simple.ruff,4,4,yes,yes,both_match_snapshot,none,n/a,P4,snapshot matches in both runtimes
 tests/test_transactions_working.ruff,4,4,yes,yes,both_match_snapshot,none,n/a,P4,snapshot matches in both runtimes
-tests/test_try_except.ruff,0,0,no,no,both_mismatch_different_output,runtime-parity-bug,runtime-owner,P0,both runtimes diverge from snapshot and from each other; indicating runtime-path parity drift rather than stale fixture expectations
+tests/test_try_except.ruff,0,0,yes,yes,both_match_snapshot,none,n/a,P4,snapshot matches in both runtimes
 tests/test_unary_current.ruff,0,0,yes,yes,both_match_snapshot,none,n/a,P4,snapshot matches in both runtimes
 tests/test_unary_lit.ruff,0,0,yes,yes,both_match_snapshot,none,n/a,P4,snapshot matches in both runtimes
 tests/test_unary_mixed.ruff,0,0,yes,yes,both_match_snapshot,none,n/a,P4,snapshot matches in both runtimes

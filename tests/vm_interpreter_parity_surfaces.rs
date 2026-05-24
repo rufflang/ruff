@@ -1634,3 +1634,28 @@ fn vm_and_interpreter_match_spawn_surface() {
     let vm_globals = vm_env.lock().expect("failed to lock vm globals");
     assert!(matches!(vm_globals.get("spawn_ok"), Some(Value::Bool(true))));
 }
+
+#[test]
+fn vm_and_interpreter_match_throw_call_stack_surface() {
+    let script = r#"
+        func safe_divide(a, b) {
+            if b == 0 {
+                throw("division by zero")
+            }
+            return a / b
+        }
+
+        throw_stack_ok := false
+        throw_message_ok := false
+        try {
+            safe_divide(10, 0)
+        } except err {
+            throw_message_ok = err.message == "division by zero"
+            throw_stack_ok = len(err.stack) > 0 && err.stack[0] == "safe_divide"
+        }
+
+        parity_ok := throw_message_ok && throw_stack_ok
+    "#;
+
+    assert_interpreter_and_vm_bool(script, "parity_ok");
+}

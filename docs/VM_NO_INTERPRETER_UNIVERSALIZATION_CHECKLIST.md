@@ -236,6 +236,9 @@ Each loop report must include exactly:
   - Blocker note (2026-05-24): revalidated after harness-debt classifier hardening and size-gate loop; still blocked pending runtime parity bug burn-down.
     - Evidence: `docs/generated/VM_RUNTIME_MISMATCH_INVENTORY.md` now reports `P0 runtime-parity-bug (runtime-owner): 40` and `P2 harness-debt (harness-owner): 0`, so non-intentional divergences still remain and intentional-only documentation would be inaccurate.
     - Runtime sweep evidence: `cargo run -- test --runtime vm` (`Passed 107/150`) and `cargo run -- test --runtime dual` (`Passed 121/150`, `vm_primary=107`, `interpreter_fallback=14`) continue to show unresolved non-intentional divergence families.
+  - Blocker note (2026-05-24, parity burn-down retry): still blocked, but with measurable reduction in non-intentional mismatch volume.
+    - Evidence: throw/catch stack-parity fix in `src/vm.rs` moved `tests/test_try_except.ruff` from `runtime-parity-bug` to `stale-snapshot-expectation`; after snapshot refresh, `docs/generated/VM_RUNTIME_MISMATCH_INVENTORY.md` reports `P0 runtime-parity-bug (runtime-owner): 36`, `P1 stale-snapshot-expectation: 0`, `P2 harness-debt: 0`.
+    - Runtime sweep evidence: `cargo run -- test --runtime vm` improved to `Passed 108/150`; `cargo run -- test --runtime dual` improved to `Passed 122/150` (`vm_primary=108`, `interpreter_fallback=14`).
 
 ### 3) Harness And CLI Runtime Strategy Hardening
 
