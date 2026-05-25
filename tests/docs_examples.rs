@@ -88,7 +88,7 @@ fn run_examples() -> HashSet<&'static str> {
     ])
 }
 
-fn expected_fail_examples_with_reason() -> [(&'static str, &'static str); 30] {
+fn expected_fail_examples_with_reason() -> [(&'static str, &'static str); 29] {
     [
         ("examples/benchmark_async.ruff", "legacy control-flow syntax drift"),
         (
@@ -146,10 +146,6 @@ fn expected_fail_examples_with_reason() -> [(&'static str, &'static str); 30] {
             "project example has unresolved parse/runtime debt",
         ),
         ("examples/projects/log_parser.ruff", "project example has unresolved parse/runtime debt"),
-        (
-            "examples/projects/oauth_github_demo.ruff",
-            "uses unsupported null-coalescing operator syntax",
-        ),
         ("examples/projects/streaming_downloader.ruff", "legacy loop syntax drift"),
         (
             "examples/projects/weather_dashboard.ruff",
