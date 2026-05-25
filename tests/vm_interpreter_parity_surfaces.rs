@@ -909,7 +909,7 @@ fn vm_and_interpreter_error_on_generator_arity_too_many() {
 }
 
 #[test]
-fn generator_iteration_surface_is_intentionally_divergent_with_explicit_vm_error() {
+fn vm_and_interpreter_match_generator_iteration_surface() {
     let script = r#"
         func* emit_numbers(start) {
             yield start
@@ -940,13 +940,20 @@ fn generator_iteration_surface_is_intentionally_divergent_with_explicit_vm_error
     );
 
     let vm_env = vm_env_with_builtins();
-    let vm_error = run_vm(script, vm_env).expect_err(
-        "vm should currently reject top-level generator iteration until dedicated VM support lands",
-    );
+    let vm_result = run_vm(script, vm_env);
     assert!(
-        vm_error.contains("Yield can only be used inside generator functions"),
-        "expected explicit VM generator divergence error, got {:?}",
-        vm_error
+        vm_result.is_ok(),
+        "vm should support top-level generator iteration surface, got {:?}",
+        vm_result
+    );
+
+    let vm_env = vm_env_with_builtins();
+    run_vm(script, vm_env.clone()).expect("vm script should complete");
+    let vm_env_after = vm_env.lock().expect("failed to lock vm globals");
+    assert!(
+        matches!(vm_env_after.get("generator_surface_ok"), Some(Value::Bool(true))),
+        "vm generator result should be true, got {:?}",
+        vm_env_after.get("generator_surface_ok")
     );
 }
 
@@ -1564,6 +1571,29 @@ fn vm_and_interpreter_allow_inner_scope_shadowing_without_leaking() {
     "#;
 
     assert_interpreter_and_vm_bool(script, "shadowing_ok");
+}
+
+#[test]
+fn vm_and_interpreter_assignment_updates_outer_binding_when_present() {
+    let script = r#"
+        total := 0
+
+        func add_to_total(value) {
+            total := total + value
+
+            if value > 1 {
+                total := total + 1
+            }
+
+            return total
+        }
+
+        first := add_to_total(2)
+        second := add_to_total(3)
+        outer_assign_ok := first == 3 && second == 7 && total == 7
+    "#;
+
+    assert_interpreter_and_vm_bool(script, "outer_assign_ok");
 }
 
 #[test]

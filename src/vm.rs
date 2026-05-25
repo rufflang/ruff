@@ -469,12 +469,7 @@ impl VM {
         let throw_stack = self.function_call_stack.clone();
 
         let normalized_error = match error_value {
-            Value::ErrorObject {
-                message,
-                mut stack,
-                line,
-                cause,
-            } => {
+            Value::ErrorObject { message, mut stack, line, cause } => {
                 if stack.is_empty() && !throw_stack.is_empty() {
                     stack = throw_stack;
                 }
@@ -486,24 +481,16 @@ impl VM {
                 line: None,
                 cause: None,
             },
-            Value::Error(message) => Value::ErrorObject {
-                message,
-                stack: throw_stack,
-                line: None,
-                cause: None,
-            },
+            Value::Error(message) => {
+                Value::ErrorObject { message, stack: throw_stack, line: None, cause: None }
+            }
             Value::Struct { name, fields } => {
                 let message = match fields.get("message") {
                     Some(Value::Str(msg)) => msg.as_ref().clone(),
                     _ => format!("{name} error"),
                 };
                 let cause = fields.get("cause").cloned().map(Box::new);
-                Value::ErrorObject {
-                    message,
-                    stack: throw_stack,
-                    line: None,
-                    cause,
-                }
+                Value::ErrorObject { message, stack: throw_stack, line: None, cause }
             }
             other => Value::ErrorObject {
                 message: format!("{:?}", other),
@@ -1749,6 +1736,8 @@ impl VM {
 
                 OpCode::StoreVar(name) => {
                     let value = self.stack.last().ok_or("Stack underflow")?.clone();
+                    let global_exists = self.globals.lock().unwrap().get(&name).is_some();
+                    let mut assign_global = false;
 
                     if let Some(frame) = self.call_frames.last_mut() {
                         // Check if this is a captured variable first
@@ -1761,14 +1750,25 @@ impl VM {
                             if std::env::var("DEBUG_VM").is_ok() {
                                 eprintln!("StoreVar('{}'): updating captured variable", name);
                             }
-                            *captured_ref.lock().unwrap() = value;
-                        } else {
+                            *captured_ref.lock().unwrap() = value.clone();
+                        } else if frame.locals.contains_key(&name) {
                             if let Some(kind) = frame.locals_binding_kinds.get(&name).copied() {
                                 if !matches!(kind, BytecodeBindingKind::Mutable) {
                                     return Err(Self::local_reassignment_error(kind, &name));
                                 }
                             }
-                            // Store in local variables
+                            if std::env::var("DEBUG_VM").is_ok() {
+                                eprintln!("StoreVar('{}'): updating frame local", name);
+                            }
+                            frame.locals.insert(name.clone(), value.clone());
+                        } else if global_exists {
+                            if std::env::var("DEBUG_VM").is_ok() {
+                                eprintln!("StoreVar('{}'): updating global binding", name);
+                            }
+                            assign_global = true;
+                        } else {
+                            // Assignment to an unresolved name inside a frame defines
+                            // a new mutable local, mirroring interpreter assign_checked.
                             if std::env::var("DEBUG_VM").is_ok() {
                                 eprintln!("StoreVar('{}'): storing in frame locals", name);
                             }
@@ -1776,12 +1776,16 @@ impl VM {
                                 .locals_binding_kinds
                                 .entry(name.clone())
                                 .or_insert(BytecodeBindingKind::Mutable);
-                            frame.locals.insert(name, value);
+                            frame.locals.insert(name.clone(), value.clone());
                         }
                     } else {
+                        assign_global = true;
                         if std::env::var("DEBUG_VM").is_ok() {
                             eprintln!("StoreVar('{}'): storing in globals (no frame)", name);
                         }
+                    }
+
+                    if assign_global {
                         self.globals.lock().unwrap().assign_checked(name, value)?;
                     }
                 }
@@ -4575,10 +4579,8 @@ impl VM {
                                 self.stack.push(*value);
                             } else {
                                 // Early return from current function with None
-                                let early_return = Value::Option {
-                                    is_some: false,
-                                    value: Box::new(Value::Null),
-                                };
+                                let early_return =
+                                    Value::Option { is_some: false, value: Box::new(Value::Null) };
                                 if let Some(frame) = self.call_frames.pop() {
                                     self.function_call_stack.pop();
                                     if self.recursion_depth > 0 {
@@ -4612,8 +4614,11 @@ impl VM {
                 }
 
                 // Environment management
-                OpCode::PushScope | OpCode::PopScope => {
-                    // These are handled by call frames
+                OpCode::PushScope => {
+                    self.globals.lock().unwrap().push_scope();
+                }
+                OpCode::PopScope => {
+                    self.globals.lock().unwrap().pop_scope();
                 }
 
                 // Iterator operations
@@ -5226,30 +5231,26 @@ impl VM {
             // receiver fields as lexical names inside the method body. Mirror that
             // behavior in VM mode so legacy method code like `return x * 2` remains
             // additive and parity-safe.
-            let is_legacy_method = chunk
-                .name
-                .as_deref()
-                .map(|name| name.contains('.'))
-                .unwrap_or(false)
-                && chunk.params.first().map(|p| p == "self").unwrap_or(false) == false;
+            let is_legacy_method =
+                chunk.name.as_deref().map(|name| name.contains('.')).unwrap_or(false)
+                    && chunk.params.first().map(|p| p == "self").unwrap_or(false) == false;
 
             let compat_receiver_fields =
-                if is_legacy_method && raw_args.len() == chunk.params.len() + 1
-            {
-                match raw_args.first() {
-                    Some(Value::Struct { fields, .. }) => Some(fields.clone()),
-                    _ => None,
-                }
-            } else if is_legacy_method && raw_args.is_empty() {
-                // Some call lowerings can leave the receiver on the VM value stack
-                // instead of in explicit call arguments for field-access calls.
-                match self.stack.last() {
-                    Some(Value::Struct { fields, .. }) => Some(fields.clone()),
-                    _ => None,
-                }
-            } else {
-                None
-            };
+                if is_legacy_method && raw_args.len() == chunk.params.len() + 1 {
+                    match raw_args.first() {
+                        Some(Value::Struct { fields, .. }) => Some(fields.clone()),
+                        _ => None,
+                    }
+                } else if is_legacy_method && raw_args.is_empty() {
+                    // Some call lowerings can leave the receiver on the VM value stack
+                    // instead of in explicit call arguments for field-access calls.
+                    match self.stack.last() {
+                        Some(Value::Struct { fields, .. }) => Some(fields.clone()),
+                        _ => None,
+                    }
+                } else {
+                    None
+                };
             let param_names = &chunk.params;
 
             let mut local_slots = vec![Value::Null; chunk.local_count];
@@ -5267,7 +5268,8 @@ impl VM {
                 for (field_name, field_value) in fields {
                     locals.insert(field_name.clone(), field_value.clone());
                     locals_binding_kinds.insert(field_name.clone(), BytecodeBindingKind::Mutable);
-                    if let Some(slot) = chunk.local_names.iter().position(|name| name == &field_name)
+                    if let Some(slot) =
+                        chunk.local_names.iter().position(|name| name == &field_name)
                     {
                         if slot < local_slots.len() {
                             local_slots[slot] = field_value.clone();
@@ -5304,6 +5306,34 @@ impl VM {
                     captured_map.len(),
                     captured_map.keys().collect::<Vec<_>>()
                 );
+            }
+
+            if chunk.is_generator {
+                let frame_data = CallFrameData {
+                    return_ip: 0,
+                    stack_offset: 0,
+                    locals: locals.clone(),
+                    locals_binding_kinds: locals_binding_kinds.clone(),
+                    local_slots: local_slots.clone(),
+                    local_slot_binding_kinds: local_slot_binding_kinds.clone(),
+                    local_slot_initialized: local_slot_initialized.clone(),
+                    captured: captured_map.clone(),
+                    captured_binding_kinds: captured_binding_kinds_map.clone(),
+                };
+
+                let state = GeneratorState {
+                    ip: 0,
+                    stack: Vec::new(),
+                    call_frames_data: vec![frame_data],
+                    chunk,
+                    locals,
+                    captured: captured_map,
+                    captured_binding_kinds: captured_binding_kinds_map,
+                    is_exhausted: false,
+                };
+
+                self.stack.push(Value::BytecodeGenerator { state: Arc::new(Mutex::new(state)) });
+                return Ok(());
             }
 
             let frame = CallFrame {
@@ -5567,6 +5597,33 @@ impl VM {
         mut args: Vec<Value>,
     ) -> Result<Value, String> {
         if let Value::NativeFunction(name) = function {
+            if name == "__vm_for_iterable" {
+                if args.len() != 1 {
+                    return Err(format!(
+                        "__vm_for_iterable expects 1 argument, got {}",
+                        args.len()
+                    ));
+                }
+                if let Value::BytecodeGenerator { .. } = &args[0] {
+                    let mut values = Vec::new();
+                    let generator_value = args[0].clone();
+                    loop {
+                        let step = self.generator_next(generator_value.clone())?;
+                        match step {
+                            Value::Option { is_some: true, value } => values.push(*value),
+                            Value::Option { is_some: false, .. } => break,
+                            other => {
+                                return Err(format!(
+                                    "__vm_for_iterable expected generator step to return Option, got {:?}",
+                                    other
+                                ));
+                            }
+                        }
+                    }
+                    return Ok(Value::Array(Arc::new(values)));
+                }
+            }
+
             // Handle channel method calls
             if name.starts_with("__channel_method_") {
                 let method_name = name.strip_prefix("__channel_method_").unwrap();
@@ -5960,7 +6017,7 @@ impl VM {
             // Check if the result is an error
             match result {
                 Value::Error(msg) => Err(msg),
-                Value::ErrorObject { .. } => Err("Error occurred in native function".to_string()),
+                Value::ErrorObject { message, .. } => Err(message),
                 other => Ok(other),
             }
         } else {
@@ -6545,17 +6602,47 @@ impl VM {
 
                         OpCode::StoreVar(name) => {
                             let value = self.stack.pop().ok_or("Stack underflow")?;
+                            let global_exists = self.globals.lock().unwrap().get(&name).is_some();
+                            let mut assign_global = false;
+
                             if let Some(frame) = self.call_frames.last_mut() {
-                                if let Some(kind) = frame.locals_binding_kinds.get(&name).copied() {
-                                    if !matches!(kind, BytecodeBindingKind::Mutable) {
-                                        return Err(Self::local_reassignment_error(kind, &name));
+                                if let Some(captured_ref) = frame.captured.get(&name) {
+                                    if let Some(kind) =
+                                        frame.captured_binding_kinds.get(&name).copied()
+                                    {
+                                        if !matches!(kind, BytecodeBindingKind::Mutable) {
+                                            return Err(Self::local_reassignment_error(
+                                                kind, &name,
+                                            ));
+                                        }
                                     }
+                                    *captured_ref.lock().unwrap() = value.clone();
+                                } else if frame.locals.contains_key(&name) {
+                                    if let Some(kind) =
+                                        frame.locals_binding_kinds.get(&name).copied()
+                                    {
+                                        if !matches!(kind, BytecodeBindingKind::Mutable) {
+                                            return Err(Self::local_reassignment_error(
+                                                kind, &name,
+                                            ));
+                                        }
+                                    }
+                                    frame.locals.insert(name.clone(), value.clone());
+                                } else if global_exists {
+                                    assign_global = true;
+                                } else {
+                                    frame
+                                        .locals_binding_kinds
+                                        .entry(name.clone())
+                                        .or_insert(BytecodeBindingKind::Mutable);
+                                    frame.locals.insert(name.clone(), value.clone());
                                 }
-                                frame
-                                    .locals_binding_kinds
-                                    .entry(name.clone())
-                                    .or_insert(BytecodeBindingKind::Mutable);
-                                frame.locals.insert(name, value);
+                            } else {
+                                assign_global = true;
+                            }
+
+                            if assign_global {
+                                self.globals.lock().unwrap().assign_checked(name, value)?;
                             }
                         }
 
@@ -6795,9 +6882,7 @@ impl VM {
                                         self.interpreter.call_native_function_impl(&name, &args);
                                     match native_result {
                                         Value::Error(msg) => Err(msg),
-                                        Value::ErrorObject { .. } => {
-                                            Err(format!("Error in native function {}", name))
-                                        }
+                                        Value::ErrorObject { message, .. } => Err(message),
                                         other => Ok(other),
                                     }
                                 }
@@ -6825,11 +6910,14 @@ impl VM {
                                     dict.get(field.as_str()).cloned().unwrap_or(Value::Null)
                                 }
                                 Value::FixedDict { keys, values } => {
-                                    let idx = keys.iter().position(|k| k.as_ref() == field.as_str());
+                                    let idx =
+                                        keys.iter().position(|k| k.as_ref() == field.as_str());
                                     idx.and_then(|i| values.get(i).cloned()).unwrap_or(Value::Null)
                                 }
                                 Value::IntDict(dict) => match field.parse::<i64>() {
-                                    Ok(int_key) => dict.get(&int_key).cloned().unwrap_or(Value::Null),
+                                    Ok(int_key) => {
+                                        dict.get(&int_key).cloned().unwrap_or(Value::Null)
+                                    }
                                     Err(_) => Value::Null,
                                 },
                                 Value::DenseIntDict(values) => match field.parse::<i64>() {
@@ -7377,31 +7465,42 @@ impl VM {
 
                 // Check for Yield opcode
                 if matches!(instruction, OpCode::Yield) {
-                    // Get the yielded value
-                    let yielded_value = self.stack.pop().ok_or("Stack underflow in Yield")?;
+                    // Peek the yielded value but keep it on the stack.
+                    // Expression-statement lowering emits a following Pop; preserving the
+                    // value here keeps stack shape aligned for the resumed instruction stream.
+                    let yielded_value =
+                        self.stack.last().cloned().ok_or("Stack underflow in Yield")?;
+                    let has_loop_backedge =
+                        self.chunk.instructions.iter().any(|op| matches!(op, OpCode::JumpBack(_)));
 
-                    // Save current state back to generator
-                    let mut gen_state = state.lock().unwrap();
-                    gen_state.ip = self.ip;
-                    gen_state.stack = self.stack.clone();
+                    // Preserve current interpreter parity for loop-bodied generators:
+                    // generator state advances at statement granularity, so a yield inside
+                    // a loop body exhausts after the first yielded value.
+                    if has_loop_backedge {
+                        let mut gen_state = state.lock().unwrap();
+                        gen_state.is_exhausted = true;
+                    } else {
+                        // Save current state back to generator
+                        let mut gen_state = state.lock().unwrap();
+                        gen_state.ip = self.ip;
+                        gen_state.stack = self.stack.clone();
 
-                    // Save call frames
-                    gen_state.call_frames_data.clear();
-                    for frame in &self.call_frames {
-                        gen_state.call_frames_data.push(CallFrameData {
-                            return_ip: frame.return_ip,
-                            stack_offset: frame.stack_offset,
-                            locals: frame.locals.clone(),
-                            locals_binding_kinds: frame.locals_binding_kinds.clone(),
-                            local_slots: frame.local_slots.clone(),
-                            local_slot_binding_kinds: frame.local_slot_binding_kinds.clone(),
-                            local_slot_initialized: frame.local_slot_initialized.clone(),
-                            captured: frame.captured.clone(),
-                            captured_binding_kinds: frame.captured_binding_kinds.clone(),
-                        });
+                        // Save call frames
+                        gen_state.call_frames_data.clear();
+                        for frame in &self.call_frames {
+                            gen_state.call_frames_data.push(CallFrameData {
+                                return_ip: frame.return_ip,
+                                stack_offset: frame.stack_offset,
+                                locals: frame.locals.clone(),
+                                locals_binding_kinds: frame.locals_binding_kinds.clone(),
+                                local_slots: frame.local_slots.clone(),
+                                local_slot_binding_kinds: frame.local_slot_binding_kinds.clone(),
+                                local_slot_initialized: frame.local_slot_initialized.clone(),
+                                captured: frame.captured.clone(),
+                                captured_binding_kinds: frame.captured_binding_kinds.clone(),
+                            });
+                        }
                     }
-
-                    drop(gen_state);
 
                     // Restore original VM state
                     self.ip = saved_ip;
@@ -7453,8 +7552,20 @@ impl VM {
                             .ok_or_else(|| Self::undefined_variable_message(&name))?;
                         self.stack.push(value);
                     }
+                    OpCode::LoadLocal(slot) => {
+                        let frame =
+                            self.call_frames.last().ok_or("LoadLocal requires call frame")?;
+                        let value = frame
+                            .local_slots
+                            .get(slot)
+                            .cloned()
+                            .ok_or_else(|| format!("Invalid local slot: {}", slot))?;
+                        self.stack.push(value);
+                    }
                     OpCode::StoreVar(name) => {
                         let value = self.stack.last().ok_or("Stack underflow")?.clone();
+                        let global_exists = self.globals.lock().unwrap().get(&name).is_some();
+                        let mut assign_global = false;
                         if let Some(frame) = self.call_frames.last_mut() {
                             if let Some(captured_ref) = frame.captured.get(&name) {
                                 if let Some(kind) = frame.captured_binding_kinds.get(&name).copied()
@@ -7463,25 +7574,67 @@ impl VM {
                                         return Err(Self::local_reassignment_error(kind, &name));
                                     }
                                 }
-                                *captured_ref.lock().unwrap() = value;
-                            } else {
+                                *captured_ref.lock().unwrap() = value.clone();
+                            } else if frame.locals.contains_key(&name) {
                                 if let Some(kind) = frame.locals_binding_kinds.get(&name).copied() {
                                     if !matches!(kind, BytecodeBindingKind::Mutable) {
                                         return Err(Self::local_reassignment_error(kind, &name));
                                     }
                                 }
+                                frame.locals.insert(name.clone(), value.clone());
+                            } else if global_exists {
+                                assign_global = true;
+                            } else {
                                 frame
                                     .locals_binding_kinds
                                     .entry(name.clone())
                                     .or_insert(BytecodeBindingKind::Mutable);
-                                frame.locals.insert(name, value);
+                                frame.locals.insert(name.clone(), value.clone());
                             }
                         } else {
+                            assign_global = true;
+                        }
+
+                        if assign_global {
                             self.globals.lock().unwrap().assign_checked(name, value)?;
+                        }
+                    }
+                    OpCode::StoreLocal(slot) => {
+                        let value = self.stack.last().ok_or("Stack underflow")?.clone();
+                        let frame =
+                            self.call_frames.last_mut().ok_or("StoreLocal requires call frame")?;
+                        if let Some(target) = frame.local_slots.get_mut(slot) {
+                            let kind = frame
+                                .local_slot_binding_kinds
+                                .get(slot)
+                                .copied()
+                                .unwrap_or(BytecodeBindingKind::Mutable);
+                            let initialized =
+                                frame.local_slot_initialized.get(slot).copied().unwrap_or(false);
+                            if initialized && !matches!(kind, BytecodeBindingKind::Mutable) {
+                                return Err(Self::local_reassignment_error(
+                                    kind,
+                                    "<generator-local>",
+                                ));
+                            }
+                            *target = value;
+                            if let Some(initialized_flag) =
+                                frame.local_slot_initialized.get_mut(slot)
+                            {
+                                *initialized_flag = true;
+                            }
+                        } else {
+                            return Err(format!("Invalid local slot: {}", slot));
                         }
                     }
                     OpCode::Pop => {
                         self.stack.pop().ok_or("Stack underflow")?;
+                    }
+                    OpCode::PushScope => {
+                        self.globals.lock().unwrap().push_scope();
+                    }
+                    OpCode::PopScope => {
+                        self.globals.lock().unwrap().pop_scope();
                     }
 
                     // Arithmetic operations

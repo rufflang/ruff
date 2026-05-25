@@ -287,9 +287,11 @@ impl Compiler {
 
                 // Compile then block
                 self.scope_depth += 1;
+                self.chunk.emit(OpCode::PushScope);
                 for stmt in then_branch {
                     self.compile_stmt(stmt)?;
                 }
+                self.chunk.emit(OpCode::PopScope);
                 self.scope_depth -= 1;
 
                 // Jump over else block
@@ -302,9 +304,11 @@ impl Compiler {
                 // Compile else block if present
                 if let Some(else_stmts) = else_branch {
                     self.scope_depth += 1;
+                    self.chunk.emit(OpCode::PushScope);
                     for stmt in else_stmts {
                         self.compile_stmt(stmt)?;
                     }
+                    self.chunk.emit(OpCode::PopScope);
                     self.scope_depth -= 1;
                 }
 
@@ -1050,13 +1054,13 @@ impl Compiler {
                     self.chunk.patch_jump(left_non_null_jump);
                     self.chunk.emit(OpCode::Pop);
                     match right.as_ref() {
-                        Expr::String(field_name) => self.chunk.emit(OpCode::FieldGet(field_name.clone())),
-                        _ => {
-                            return Err(
-                                "Optional chaining requires a field-name string on the right-hand side"
-                                    .to_string(),
-                            )
+                        Expr::String(field_name) => {
+                            self.chunk.emit(OpCode::FieldGet(field_name.clone()))
                         }
+                        _ => return Err(
+                            "Optional chaining requires a field-name string on the right-hand side"
+                                .to_string(),
+                        ),
                     };
                     self.chunk.patch_jump(end_jump);
                     return Ok(());
@@ -1576,8 +1580,10 @@ impl Compiler {
                 } else if let Some(slot) = self.resolve_local_slot(name) {
                     self.chunk.emit(OpCode::StoreLocal(slot));
                 } else if self.uses_local_slots && self.scope_depth > 0 {
-                    let slot = self.declare_local(name, BytecodeBindingKind::Mutable)?;
-                    self.chunk.emit(OpCode::StoreLocal(slot));
+                    // Mirror interpreter semantics for `:=` assignment:
+                    // assign into an existing outer binding when present;
+                    // otherwise define in the current runtime scope.
+                    self.chunk.emit(OpCode::StoreVar(name.clone()));
                 } else if self.scope_depth == 0 {
                     self.chunk.emit(OpCode::StoreGlobal(name.clone()));
                 } else {

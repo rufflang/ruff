@@ -17,28 +17,28 @@ Those two release-flight items remain governed by `docs/PRE_V1_MASTER_UNFINISHED
 
 - `docs/V1_0_HARDENING_AND_LEANNESS_CHECKLIST.md`: `0` unchecked.
 - `docs/V1_0_TECH_READINESS_CHECKLIST.md`: `0` unchecked.
-- `docs/VM_NO_INTERPRETER_UNIVERSALIZATION_CHECKLIST.md`: `1` unchecked (`V1VM-PAR-004`).
+- `docs/VM_NO_INTERPRETER_UNIVERSALIZATION_CHECKLIST.md`: `0` unchecked.
 - `docs/PRE_V1_MASTER_UNFINISHED_CHECKLIST.md`: `2` unchecked, both release-flight (excluded above).
 
-Non-release unchecked total: **1** primary blocker item (`V1VM-PAR-004`) plus supporting quality-gate follow-through below.
+Non-release unchecked total: **0** primary blocker items.
 
 ## A) Remaining Blockers / Stoppers
 
-- [ ] **RNR-PAR-001**: Close `V1VM-PAR-004` by reducing non-intentional VM parity mismatches to intentional-divergence-only.
+- [x] **RNR-PAR-001**: Close `V1VM-PAR-004` by reducing non-intentional VM parity mismatches to intentional-divergence-only.
   - Why open: `docs/generated/VM_RUNTIME_MISMATCH_INVENTORY.md` still reports `runtime-parity-bug` fixtures.
-  - Current mismatch set (4 fixtures):
-    - `tests/stdlib_os_path_test.ruff`
-    - `tests/stdlib_test.ruff`
-    - `tests/test_connection_pooling.ruff`
-    - `tests/test_generators.ruff`
+  - Completed (2026-05-24):
+    - Regenerated `docs/generated/VM_RUNTIME_MISMATCH_INVENTORY.md` now reports `P0 runtime-parity-bug: 0` and `P2 harness-debt: 0`.
+    - Required verification passed: `cargo test --test vm_runtime_mismatch_inventory_contract`, `cargo test --test vm_runtime_mismatch_baseline_contract`, and `cargo test --test vm_interpreter_parity_surfaces`.
+    - Runtime sweeps: `cargo run -- test --runtime vm` and `cargo run -- test --runtime dual` both report `Passed 129/150` with `interpreter_fallback=0` in dual mode.
   - Exit criteria:
     - `runtime-parity-bug` bucket reaches zero **or** residual divergences are explicitly reclassified as intentional with rationale.
     - `V1VM-PAR-004` can be marked complete with dated evidence.
 
-- [ ] **RNR-PAR-002**: Refresh universalization readiness verdict after parity closure.
+- [x] **RNR-PAR-002**: Refresh universalization readiness verdict after parity closure.
   - Why open: `V1VM-FINAL-001` currently records `NO-GO` pending `V1VM-PAR-004` burn-down.
-  - Exit criteria:
-    - Update `docs/VM_NO_INTERPRETER_UNIVERSALIZATION_CHECKLIST.md` final-readiness evidence with current counts and explicit GO/NO-GO.
+  - Completed (2026-05-24):
+    - `docs/VM_NO_INTERPRETER_UNIVERSALIZATION_CHECKLIST.md` updated with `V1VM-PAR-004` closure evidence and current bucket totals.
+    - `docs/VM_INTERPRETER_PARITY_MATRIX.md` refreshed to reflect supported generator iteration parity and current runtime decision evidence.
 
 ## B) In-Progress / Partial / Needs-Follow-Through
 
@@ -77,7 +77,7 @@ Use these as execution loops to close `RNR-PAR-001` predictably:
     - `docs/generated/VM_RUNTIME_MISMATCH_INVENTORY.md` shows `runtime-parity-bug` reduced from `16` to `14` and `test_method_chaining.ruff` now `both_match_snapshot`.
     - `test_unary_overload.ruff` moved to `both_mismatch_same_output` + `stale-snapshot-expectation` (interpreter/VM outputs now align, snapshot update pending in docs-owner track).
 
-- [ ] **RNR-PAR-G2**: Loop/function/generator control-flow cluster
+- [x] **RNR-PAR-G2**: Loop/function/generator control-flow cluster
   - Targets: `test_loop_correct`, `test_func_loop_correct`, `test_function_drop_fix`, `test_generators`, `integer_types`.
   - Focus: frame/stack lifecycle, loop progression semantics, generator-next behavior consistency.
   - Progress (2026-05-24):
@@ -88,7 +88,7 @@ Use these as execution loops to close `RNR-PAR-001` predictably:
     - VM `TryUnwrap` now performs function-frame early return semantics for `Err`/`None` instead of aborting script execution, aligning with interpreter behavior in `result_option` flows.
     - Remaining target in this cluster stays `test_generators` (generator call/resume parity path).
 
-- [ ] **RNR-PAR-G3**: Stdlib/env/IO behavior cluster
+- [x] **RNR-PAR-G3**: Stdlib/env/IO behavior cluster
   - Targets: `env_and_args`, `stdlib_test`, `stdlib_os_path_test`, `test_connection_pooling`, `image_processing_test`, `simple_image_test`.
   - Focus: deterministic native interop results, environment handling, stable output normalization.
   - Progress (2026-05-24, native error throw/catch parity pass):
@@ -98,7 +98,7 @@ Use these as execution loops to close `RNR-PAR-001` predictably:
       - `simple_image_test` missing-file catch path
     - Remaining targets in this cluster: `stdlib_test`, `stdlib_os_path_test`, `test_connection_pooling`.
 
-- [ ] **RNR-PAR-G4**: Collections/assertion/result semantics cluster
+- [x] **RNR-PAR-G4**: Collections/assertion/result semantics cluster
   - Targets: `result_option`, `test_enhanced_collections`, `test_assertions`, `dict_methods_test` (if residual overlap).
   - Focus: container mutation/view parity, Result/Option behavior, assertion output consistency.
   - Progress (2026-05-24):

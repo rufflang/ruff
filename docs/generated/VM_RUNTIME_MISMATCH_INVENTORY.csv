@@ -43,8 +43,8 @@ tests/simple_result_test.ruff,3,3,yes,yes,both_match_snapshot,none,n/a,P4,snapsh
 tests/spread_operator.ruff,0,0,yes,yes,both_match_snapshot,none,n/a,P4,snapshot matches in both runtimes
 tests/stdlib_crypto_test.ruff,3,3,yes,yes,both_match_snapshot,none,n/a,P4,snapshot matches in both runtimes
 tests/stdlib_io_test.ruff,4,4,yes,yes,both_match_snapshot,none,n/a,P4,snapshot matches in both runtimes
-tests/stdlib_os_path_test.ruff,4,4,no,no,both_mismatch_different_output,runtime-parity-bug,runtime-owner,P0,both runtimes diverge from snapshot and from each other; indicating runtime-path parity drift rather than stale fixture expectations
-tests/stdlib_test.ruff,4,0,no,no,both_mismatch_different_output,runtime-parity-bug,runtime-owner,P0,both runtimes diverge from snapshot and from each other; indicating runtime-path parity drift rather than stale fixture expectations
+tests/stdlib_os_path_test.ruff,0,0,no,no,both_mismatch_same_output,stale-snapshot-expectation,docs-owner,P1,both runtimes agree on output but snapshot expectation diverges
+tests/stdlib_test.ruff,0,0,no,no,both_mismatch_same_output,stale-snapshot-expectation,docs-owner,P1,both runtimes agree on output but snapshot expectation diverges
 tests/string_methods_test.ruff,0,0,yes,yes,both_match_snapshot,none,n/a,P4,snapshot matches in both runtimes
 tests/test_arithmetic.ruff,0,0,yes,yes,both_match_snapshot,none,n/a,P4,snapshot matches in both runtimes
 tests/test_array_contains.ruff,0,0,yes,yes,both_match_snapshot,none,n/a,P4,snapshot matches in both runtimes
@@ -59,7 +59,7 @@ tests/test_chain.ruff,0,0,yes,yes,both_match_snapshot,none,n/a,P4,snapshot match
 tests/test_chain_debug.ruff,4,4,yes,yes,both_match_snapshot,none,n/a,P4,snapshot matches in both runtimes
 tests/test_collections.ruff,0,0,yes,yes,both_match_snapshot,none,n/a,P4,snapshot matches in both runtimes
 tests/test_comment_edge_cases.ruff,0,0,yes,yes,both_match_snapshot,none,n/a,P4,snapshot matches in both runtimes
-tests/test_connection_pooling.ruff,4,4,no,no,both_mismatch_different_output,runtime-parity-bug,runtime-owner,P0,both runtimes diverge from snapshot and from each other; indicating runtime-path parity drift rather than stale fixture expectations
+tests/test_connection_pooling.ruff,0,0,no,no,both_mismatch_same_output,stale-snapshot-expectation,docs-owner,P1,both runtimes agree on output but snapshot expectation diverges
 tests/test_database_transactions.ruff,4,4,yes,yes,both_match_snapshot,none,n/a,P4,snapshot matches in both runtimes
 tests/test_debug_add.ruff,4,4,yes,yes,both_match_snapshot,none,n/a,P4,snapshot matches in both runtimes
 tests/test_display.ruff,0,0,yes,yes,both_match_snapshot,none,n/a,P4,snapshot matches in both runtimes
@@ -77,7 +77,7 @@ tests/test_for_simple.ruff,0,0,yes,yes,both_match_snapshot,none,n/a,P4,snapshot 
 tests/test_func_loop_correct.ruff,0,0,yes,yes,both_match_snapshot,none,n/a,P4,snapshot matches in both runtimes
 tests/test_function_drop_fix.ruff,0,0,yes,yes,both_match_snapshot,none,n/a,P4,snapshot matches in both runtimes
 tests/test_functions.ruff,0,0,yes,yes,both_match_snapshot,none,n/a,P4,snapshot matches in both runtimes
-tests/test_generators.ruff,4,0,no,yes,vm_only_mismatch,runtime-parity-bug,runtime-owner,P0,runtime-path mismatch against snapshot indicates parity defect or runtime-specific contract drift
+tests/test_generators.ruff,0,0,yes,yes,both_match_snapshot,none,n/a,P4,snapshot matches in both runtimes
 tests/test_higher_order.ruff,0,0,yes,yes,both_match_snapshot,none,n/a,P4,snapshot matches in both runtimes
 tests/test_http.ruff,0,0,yes,yes,both_match_snapshot,none,n/a,P4,snapshot matches in both runtimes
 tests/test_http_headers.ruff,4,4,yes,yes,both_match_snapshot,none,n/a,P4,snapshot matches in both runtimes

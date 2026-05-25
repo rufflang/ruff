@@ -220,7 +220,7 @@ Each loop report must include exactly:
       - `cargo test --test vm_runtime_mismatch_inventory_contract` -> `2 passed`
     - Captured execution notes in `notes/2026-05-21_19-28_v1vm-par-003-runtime-parity-bucket-reduction.md`.
 
-- [ ] **V1VM-PAR-004**: Revalidate and document intentional divergences only.
+- [x] **V1VM-PAR-004**: Revalidate and document intentional divergences only.
   - Scope: ensure remaining runtime differences are explicit, intentional, and documented with evidence.
   - Acceptance criteria:
     - `docs/VM_INTERPRETER_PARITY_MATRIX.md` updated with only intentional, test-backed divergences.
@@ -268,6 +268,11 @@ Each loop report must include exactly:
     - Remaining `runtime-parity-bug` fixtures: `stdlib_os_path_test`, `stdlib_test`, `test_connection_pooling`, `test_generators`.
     - Runtime sweep evidence: `cargo run -- test --runtime vm` -> `Passed 128/150`; `cargo run -- test --runtime dual` -> `Passed 129/150` (`vm_primary=128`, `interpreter_fallback=1`).
     - Supporting regression coverage: `cargo test --test vm_interpreter_parity_surfaces` (`95 passed`), `cargo test --test vm_runtime_mismatch_inventory_contract` (`2 passed`), and `cargo test --test vm_runtime_mismatch_baseline_contract` (`4 passed`).
+  - Evidence (2026-05-24, closure): parity burn-down reached intentional-only state for unexplained categories.
+    - Regenerated inventory (`bash scripts/generate_vm_runtime_mismatch_inventory.sh`) reports `P0 runtime-parity-bug: 0` and `P2 harness-debt: 0` in `docs/generated/VM_RUNTIME_MISMATCH_INVENTORY.md`.
+    - Verification suites passed: `cargo test --test vm_runtime_mismatch_inventory_contract` (`2 passed`), `cargo test --test vm_runtime_mismatch_baseline_contract` (`4 passed`), and `cargo test --test vm_interpreter_parity_surfaces` (`95 passed`).
+    - Runtime sweeps show deterministic VM-primary execution with no dual fallback use: `cargo run -- test --runtime vm` (`Passed 129/150`) and `cargo run -- test --runtime dual` (`Passed 129/150`, `vm_primary=129`, `interpreter_fallback=0`).
+    - Updated parity matrix documentation in `docs/VM_INTERPRETER_PARITY_MATRIX.md` to remove prior generator intentional-divergence entry and align runtime-decision notes with current inventory buckets.
 
 ### 3) Harness And CLI Runtime Strategy Hardening
 
