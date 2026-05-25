@@ -16,6 +16,7 @@ use crate::jit::{
 };
 use crate::runtime_limits;
 use std::collections::HashMap;
+use std::path::Path;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::OnceLock;
 use std::sync::{Arc, Mutex};
@@ -718,6 +719,11 @@ impl VM {
         self.globals = env.clone();
         // Also set the interpreter's environment so it can resolve native functions
         self.interpreter.set_env(env);
+    }
+
+    /// Adds a module search path used by VM import helpers.
+    pub fn add_module_search_path<P: AsRef<Path>>(&mut self, path: P) {
+        self.interpreter.module_loader.add_search_path(path);
     }
 
     /// Enable or disable JIT compilation

@@ -223,6 +223,93 @@ fn runtime_security_reports_module_cycle_import_chain() {
 }
 
 #[test]
+fn runtime_security_vm_resolves_sibling_module_for_relative_entry_script_path() {
+    let project_root = unique_temp_dir("runtime_security_entry_script_relative_vm");
+    let src_dir = project_root.join("src");
+    fs::create_dir_all(&src_dir).expect("failed to create src directory");
+
+    let common_module = src_dir.join("common.ruff");
+    fs::write(
+        &common_module,
+        "export func dict_get(payload, key, fallback) {\n    if has_key(payload, key) { return payload[key] }\n    return fallback\n}\n",
+    )
+    .expect("failed to write common module");
+
+    let render_script = src_dir.join("render.ruff");
+    fs::write(
+        &render_script,
+        "from src.common import dict_get\npayload := {\"name\": \"ruff\"}\nprint(dict_get(payload, \"name\", \"missing\"))\n",
+    )
+    .expect("failed to write render script");
+
+    let output = run_ruff(&["run", "src/render.ruff"], &project_root);
+    assert!(
+        output.status.success(),
+        "expected VM run to resolve sibling module imports, stdout={} stderr={}",
+        stdout_text(&output),
+        stderr_text(&output)
+    );
+    assert!(
+        stdout_text(&output).contains("ruff"),
+        "expected imported helper output, stdout={} stderr={}",
+        stdout_text(&output),
+        stderr_text(&output)
+    );
+}
+
+#[test]
+fn runtime_security_entry_script_parent_search_path_works_cross_cwd_vm_and_interpreter() {
+    let project_root = unique_temp_dir("runtime_security_entry_script_cross_cwd");
+    let src_dir = project_root.join("src");
+    fs::create_dir_all(&src_dir).expect("failed to create src directory");
+
+    let common_module = src_dir.join("common.ruff");
+    fs::write(
+        &common_module,
+        "export func dict_get(payload, key, fallback) {\n    if has_key(payload, key) { return payload[key] }\n    return fallback\n}\n",
+    )
+    .expect("failed to write common module");
+
+    let render_script = src_dir.join("render.ruff");
+    fs::write(
+        &render_script,
+        "from src.common import dict_get\npayload := {\"name\": \"ruff\"}\nprint(dict_get(payload, \"name\", \"missing\"))\n",
+    )
+    .expect("failed to write render script");
+
+    let isolated_cwd = unique_temp_dir("runtime_security_entry_script_cross_cwd_runner");
+    let render_abs = render_script.to_str().expect("render path should be utf-8");
+
+    let vm_output = run_ruff(&["run", render_abs], &isolated_cwd);
+    assert!(
+        vm_output.status.success(),
+        "expected cross-cwd VM run to resolve entry-script parent imports, stdout={} stderr={}",
+        stdout_text(&vm_output),
+        stderr_text(&vm_output)
+    );
+    assert!(
+        stdout_text(&vm_output).contains("ruff"),
+        "expected VM imported helper output, stdout={} stderr={}",
+        stdout_text(&vm_output),
+        stderr_text(&vm_output)
+    );
+
+    let interpreter_output = run_ruff(&["run", render_abs, "--interpreter"], &isolated_cwd);
+    assert!(
+        interpreter_output.status.success(),
+        "expected cross-cwd interpreter run to resolve entry-script parent imports, stdout={} stderr={}",
+        stdout_text(&interpreter_output),
+        stderr_text(&interpreter_output)
+    );
+    assert!(
+        stdout_text(&interpreter_output).contains("ruff"),
+        "expected interpreter imported helper output, stdout={} stderr={}",
+        stdout_text(&interpreter_output),
+        stderr_text(&interpreter_output)
+    );
+}
+
+#[test]
 fn runtime_security_module_loader_rejects_parent_traversal_import_name_cross_platform() {
     let project_root = unique_temp_dir("runtime_security_module_traversal_guard");
     let mut loader = ModuleLoader::new();
@@ -294,19 +381,12 @@ fn runtime_security_rejects_dotted_module_symlink_escape_in_vm_and_interpreter()
         .expect("failed to create dotted module symlink escape");
 
     let workflow = project_root.join("escape_dotted_main.ruff");
-    fs::write(
-        &workflow,
-        "from src.core.math import answer\nprint(answer)\n",
-    )
-    .expect("failed to write dotted symlink workflow");
+    fs::write(&workflow, "from src.core.math import answer\nprint(answer)\n")
+        .expect("failed to write dotted symlink workflow");
 
     for args in [
         vec!["run", workflow.to_str().expect("path should be utf-8")],
-        vec![
-            "run",
-            "--interpreter",
-            workflow.to_str().expect("path should be utf-8"),
-        ],
+        vec!["run", "--interpreter", workflow.to_str().expect("path should be utf-8")],
     ] {
         let output = run_ruff(&args, &project_root);
         assert_eq!(

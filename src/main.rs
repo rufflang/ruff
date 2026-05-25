@@ -939,6 +939,25 @@ fn parse_ruff_program(file: &Path) -> (String, String, Vec<ast::Stmt>) {
     (code, filename, parse_output.stmts)
 }
 
+fn entry_script_search_paths(entry_file: &Path) -> Vec<PathBuf> {
+    let mut search_paths = Vec::new();
+
+    if let Some(parent) = entry_file.parent() {
+        let normalized_parent = if parent.as_os_str().is_empty() { Path::new(".") } else { parent };
+        search_paths.push(normalized_parent.to_path_buf());
+
+        if parent.file_name().and_then(|name| name.to_str()) == Some("src") {
+            if let Some(project_root) = parent.parent() {
+                let normalized_root =
+                    if project_root.as_os_str().is_empty() { Path::new(".") } else { project_root };
+                search_paths.push(normalized_root.to_path_buf());
+            }
+        }
+    }
+
+    search_paths
+}
+
 #[tokio::main]
 async fn main() {
     let cli = Cli::parse();
@@ -992,6 +1011,9 @@ async fn main() {
                         // Spawn VM execution in a blocking task to avoid runtime conflicts
                         let result = tokio::task::spawn_blocking(move || {
                             let mut vm = vm::VM::new();
+                            for search_path in entry_script_search_paths(&file) {
+                                vm.add_module_search_path(search_path);
+                            }
                             let jit_requested = jit && std::env::var("DISABLE_JIT").is_err();
                             vm.set_jit_enabled(jit_requested);
                             if jit_requested {
@@ -1116,6 +1138,9 @@ async fn main() {
 
                 let mut interpreter =
                     interpreter::Interpreter::with_capability_policy(capability_policy);
+                for search_path in entry_script_search_paths(&file) {
+                    interpreter.module_loader.add_search_path(search_path);
+                }
                 interpreter.set_source(filename, &code);
 
                 // Execute statements
