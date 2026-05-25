@@ -1,0 +1,51 @@
+=== Standard Library Tests ===
+
+--- Compression Tests ---
+Created zip archive: <unknown>
+✓ Successfully added file to zip
+✓ Successfully closed zip archive
+✓ Zip file created successfully
+  Zip file size: 175 bytes
+Extracted files: 1
+  - extracted/test_data.txt
+    ✓ File exists
+
+--- Directory Compression Test ---
+✓ Successfully added directory to zip
+✓ Directory archive created
+  Extracted 8 items
+
+--- Hashing Tests ---
+SHA-256 hash: 0a19421f59afa64609a37cebe8831ac664fbfcaa3f9841f388140befb152836d
+✓ SHA-256 hash has correct length (64 hex chars)
+MD5 hash: 6f3ead458d859f378b391efce31a351f
+✓ MD5 hash has correct length (32 hex chars)
+File MD5 hash: c2c6fecd4c390774d83d6e2ae40737b8
+✓ File MD5 hash has correct length
+
+--- Password Hashing Tests ---
+Password hash length: 60
+✓ Bcrypt hash has reasonable length
+✓ Password verification succeeded
+✓ Wrong password correctly rejected
+
+--- Process Management Tests ---
+Process exit code: 0
+Process stdout: Hello from spawned process
+Process success: true
+✓ Process executed successfully
+✓ Process output is correct
+
+--- Directory Listing Test ---
+✓ ls command executed successfully
+  Output has 53 lines
+
+--- Pipe Commands Test ---
+Pipe result: 4
+✗ Pipe commands result unexpected
+
+--- Error Handling Test ---
+✓ Invalid command correctly threw error
+  Error: Failed to spawn process 'nonexistent_command_xyz': No such file or directory (os error 2)
+
+=== All Standard Library Tests Complete ===

@@ -64,19 +64,26 @@ fn vm_runtime_mismatch_inventory_script_generates_expected_outputs() {
     let csv = fs::read_to_string(&output_csv).expect("inventory csv should exist");
     assert!(csv.contains("fixture,vm_exit,interpreter_exit,vm_matches_snapshot,interpreter_matches_snapshot,delta_type,mismatch_bucket,bucket_owner,priority,rationale"));
 
-    let has_classified_mismatch =
-        csv.lines().skip(1).filter(|line| !line.trim().is_empty()).any(|line| {
-            let parts: Vec<&str> = line.split(',').collect();
-            if parts.len() < 10 {
-                return false;
+    let mut mismatch_rows = 0usize;
+    let mut has_classified_mismatch = false;
+    for line in csv.lines().skip(1).filter(|line| !line.trim().is_empty()) {
+        let parts: Vec<&str> = line.split(',').collect();
+        if parts.len() < 10 {
+            continue;
+        }
+        let delta_type = parts[5];
+        let mismatch_bucket = parts[6];
+        if delta_type != "both_match_snapshot" {
+            mismatch_rows += 1;
+            if mismatch_bucket != "none" {
+                has_classified_mismatch = true;
             }
-            let delta_type = parts[5];
-            let mismatch_bucket = parts[6];
-            delta_type != "both_match_snapshot" && mismatch_bucket != "none"
-        });
+        }
+    }
+
     assert!(
-        has_classified_mismatch,
-        "expected at least one mismatch row to have a non-none classification bucket"
+        mismatch_rows == 0 || has_classified_mismatch,
+        "expected mismatch rows to be classified when present"
     );
 }
 

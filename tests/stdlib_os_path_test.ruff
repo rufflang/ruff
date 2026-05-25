@@ -2,8 +2,8 @@
 # Tests for operating system and path manipulation functions
 
 print("=== OS and Path Module Tests ===")
-let test_count := 0
-let passed := 0
+test_count := 0
+passed := 0
 
 func assert(condition, message) {
     test_count := test_count + 1
@@ -26,7 +26,7 @@ print("\n1. Test os_getcwd()")
 let cwd := os_getcwd()
 assert(type(cwd) == "string", "os_getcwd returns a string")
 assert(len(cwd) > 0, "os_getcwd returns non-empty path")
-print("  Current directory: " + cwd)
+print("  Current directory captured")
 
 # Test os_chdir - change directory
 print("\n2. Test os_chdir()")
@@ -74,7 +74,7 @@ print("\n4. Test os_environ()")
 let env_vars := os_environ()
 assert(type(env_vars) == "dict", "os_environ returns a dictionary")
 assert(len(env_vars) > 0, "os_environ returns non-empty dictionary")
-print("  Environment variable count: " + to_string(len(env_vars)))
+print("  Environment variables loaded")
 
 # Check for common environment variables (at least one should exist)
 let has_common := contains(env_vars, "PATH") || contains(env_vars, "HOME") || contains(env_vars, "USER")
@@ -84,7 +84,7 @@ assert(has_common, "os_environ contains common environment variables")
 if (contains(env_vars, "PATH")) {
     assert(type(env_vars["PATH"]) == "string", "Environment variable PATH is a string")
     assert(len(env_vars["PATH"]) > 0, "Environment variable PATH is non-empty")
-    print("  PATH: " + substr(env_vars["PATH"], 0, 50) + "...")
+    print("  PATH: [redacted]")
 }
 
 # ============================================================
@@ -120,7 +120,7 @@ let abs_path := path_absolute("test_absolute.txt")
 assert(type(abs_path) == "string", "path_absolute returns a string")
 assert(len(abs_path) > len("test_absolute.txt"), "Absolute path is longer than relative")
 assert(contains(abs_path, "test_absolute.txt"), "Absolute path contains filename")
-print("  Absolute path: " + abs_path)
+print("  Absolute path resolved")
 
 # Cleanup
 delete_file("test_absolute.txt")
@@ -191,7 +191,7 @@ write_file("integration_test/subdir/file2.txt", "content 2")
 os_chdir("integration_test")
 let files := list_dir(".")
 assert(len(files) > 0, "Can list files in current directory")
-print("  Files found: " + to_string(len(files)))
+print("  Files found in working directory")
 
 # Verify path checks
 assert(path_is_file("file1.txt"), "file1.txt is recognized as a file")
@@ -260,7 +260,7 @@ delete_file("very_long_filename_with_many_characters_in_it_to_test_limits.txt")
 # Summary
 # ============================================================
 
-print("\n" + "=".repeat(50))
+print("\n" + repeat("=", 50))
 print("Test Summary:")
 print("  Total tests: " + to_string(test_count))
 print("  Passed: " + to_string(passed))
@@ -270,4 +270,4 @@ if (test_count == passed) {
 } else {
     print("  Status: ✗ SOME TESTS FAILED")
 }
-print("=".repeat(50))
+print(repeat("=", 50))

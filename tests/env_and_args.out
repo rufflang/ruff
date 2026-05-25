@@ -1,0 +1,9 @@
+=== Environment Variable Tests ===
+hello
+world
+default_value
+8080
+int
+Caught expected error for invalid int
+30.5
+float

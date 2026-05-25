@@ -5,7 +5,7 @@ tests/bytecode_vm.ruff,4,4,yes,yes,both_match_snapshot,none,n/a,P4,snapshot matc
 tests/destructuring.ruff,3,3,yes,yes,both_match_snapshot,none,n/a,P4,snapshot matches in both runtimes
 tests/dict_methods_test.ruff,0,0,yes,yes,both_match_snapshot,none,n/a,P4,snapshot matches in both runtimes
 tests/enhanced_errors.ruff,0,0,yes,yes,both_match_snapshot,none,n/a,P4,snapshot matches in both runtimes
-tests/env_and_args.ruff,4,4,no,no,both_mismatch_same_output,stale-snapshot-expectation,docs-owner,P1,both runtimes agree on output but snapshot expectation diverges
+tests/env_and_args.ruff,4,4,yes,yes,both_match_snapshot,none,n/a,P4,snapshot matches in both runtimes
 tests/error_call_stack_test.ruff,4,4,yes,yes,both_match_snapshot,none,n/a,P4,snapshot matches in both runtimes
 tests/error_no_stack_test.ruff,4,4,yes,yes,both_match_snapshot,none,n/a,P4,snapshot matches in both runtimes
 tests/fixtures/diagnostics/lexer_invalid_escape.ruff,3,3,yes,yes,both_match_snapshot,none,n/a,P4,snapshot matches in both runtimes
@@ -22,7 +22,7 @@ tests/fixtures/docgen/ruff_parser_assisted_success.ruff,0,0,yes,yes,both_match_s
 tests/fixtures/fuzz/artifacts/parser/crash-synthetic.ruff,3,3,yes,yes,both_match_snapshot,none,n/a,P4,snapshot matches in both runtimes
 tests/fixtures/fuzz/synthetic_crash_input.ruff,3,3,yes,yes,both_match_snapshot,none,n/a,P4,snapshot matches in both runtimes
 tests/generators_test.ruff,3,3,yes,yes,both_match_snapshot,none,n/a,P4,snapshot matches in both runtimes
-tests/image_processing_test.ruff,0,0,no,no,both_mismatch_same_output,stale-snapshot-expectation,docs-owner,P1,both runtimes agree on output but snapshot expectation diverges
+tests/image_processing_test.ruff,0,0,yes,yes,both_match_snapshot,none,n/a,P4,snapshot matches in both runtimes
 tests/integer_types.ruff,0,0,yes,yes,both_match_snapshot,none,n/a,P4,snapshot matches in both runtimes
 tests/iterators_test.ruff,0,0,yes,yes,both_match_snapshot,none,n/a,P4,snapshot matches in both runtimes
 tests/jit_direct_recursion.ruff,4,4,yes,yes,both_match_snapshot,none,n/a,P4,snapshot matches in both runtimes
@@ -36,21 +36,21 @@ tests/net_test.ruff,0,0,yes,yes,both_match_snapshot,none,n/a,P4,snapshot matches
 tests/range_format_test.ruff,0,0,yes,yes,both_match_snapshot,none,n/a,P4,snapshot matches in both runtimes
 tests/result_option.ruff,0,0,yes,yes,both_match_snapshot,none,n/a,P4,snapshot matches in both runtimes
 tests/simple_error_test.ruff,4,4,yes,yes,both_match_snapshot,none,n/a,P4,snapshot matches in both runtimes
-tests/simple_image_test.ruff,0,0,no,no,both_mismatch_same_output,stale-snapshot-expectation,docs-owner,P1,both runtimes agree on output but snapshot expectation diverges
+tests/simple_image_test.ruff,0,0,yes,yes,both_match_snapshot,none,n/a,P4,snapshot matches in both runtimes
 tests/simple_match_test.ruff,0,0,yes,yes,both_match_snapshot,none,n/a,P4,snapshot matches in both runtimes
 tests/simple_ok.ruff,3,3,yes,yes,both_match_snapshot,none,n/a,P4,snapshot matches in both runtimes
 tests/simple_result_test.ruff,3,3,yes,yes,both_match_snapshot,none,n/a,P4,snapshot matches in both runtimes
 tests/spread_operator.ruff,0,0,yes,yes,both_match_snapshot,none,n/a,P4,snapshot matches in both runtimes
 tests/stdlib_crypto_test.ruff,3,3,yes,yes,both_match_snapshot,none,n/a,P4,snapshot matches in both runtimes
 tests/stdlib_io_test.ruff,4,4,yes,yes,both_match_snapshot,none,n/a,P4,snapshot matches in both runtimes
-tests/stdlib_os_path_test.ruff,0,0,no,no,both_mismatch_same_output,stale-snapshot-expectation,docs-owner,P1,both runtimes agree on output but snapshot expectation diverges
-tests/stdlib_test.ruff,0,0,no,no,both_mismatch_same_output,stale-snapshot-expectation,docs-owner,P1,both runtimes agree on output but snapshot expectation diverges
+tests/stdlib_os_path_test.ruff,0,0,yes,yes,both_match_snapshot,none,n/a,P4,snapshot matches in both runtimes
+tests/stdlib_test.ruff,0,0,yes,yes,both_match_snapshot,none,n/a,P4,snapshot matches in both runtimes
 tests/string_methods_test.ruff,0,0,yes,yes,both_match_snapshot,none,n/a,P4,snapshot matches in both runtimes
 tests/test_arithmetic.ruff,0,0,yes,yes,both_match_snapshot,none,n/a,P4,snapshot matches in both runtimes
 tests/test_array_contains.ruff,0,0,yes,yes,both_match_snapshot,none,n/a,P4,snapshot matches in both runtimes
 tests/test_array_simple.ruff,0,0,yes,yes,both_match_snapshot,none,n/a,P4,snapshot matches in both runtimes
 tests/test_assert_simple.ruff,0,0,yes,yes,both_match_snapshot,none,n/a,P4,snapshot matches in both runtimes
-tests/test_assertions.ruff,0,0,no,no,both_mismatch_same_output,stale-snapshot-expectation,docs-owner,P1,both runtimes agree on output but snapshot expectation diverges
+tests/test_assertions.ruff,0,0,yes,yes,both_match_snapshot,none,n/a,P4,snapshot matches in both runtimes
 tests/test_basic_print.ruff,0,0,yes,yes,both_match_snapshot,none,n/a,P4,snapshot matches in both runtimes
 tests/test_binary_files.ruff,4,4,yes,yes,both_match_snapshot,none,n/a,P4,snapshot matches in both runtimes
 tests/test_binary_simple.ruff,4,4,yes,yes,both_match_snapshot,none,n/a,P4,snapshot matches in both runtimes
@@ -59,7 +59,7 @@ tests/test_chain.ruff,0,0,yes,yes,both_match_snapshot,none,n/a,P4,snapshot match
 tests/test_chain_debug.ruff,4,4,yes,yes,both_match_snapshot,none,n/a,P4,snapshot matches in both runtimes
 tests/test_collections.ruff,0,0,yes,yes,both_match_snapshot,none,n/a,P4,snapshot matches in both runtimes
 tests/test_comment_edge_cases.ruff,0,0,yes,yes,both_match_snapshot,none,n/a,P4,snapshot matches in both runtimes
-tests/test_connection_pooling.ruff,0,0,no,no,both_mismatch_same_output,stale-snapshot-expectation,docs-owner,P1,both runtimes agree on output but snapshot expectation diverges
+tests/test_connection_pooling.ruff,0,0,yes,yes,both_match_snapshot,none,n/a,P4,snapshot matches in both runtimes
 tests/test_database_transactions.ruff,4,4,yes,yes,both_match_snapshot,none,n/a,P4,snapshot matches in both runtimes
 tests/test_debug_add.ruff,4,4,yes,yes,both_match_snapshot,none,n/a,P4,snapshot matches in both runtimes
 tests/test_display.ruff,0,0,yes,yes,both_match_snapshot,none,n/a,P4,snapshot matches in both runtimes
@@ -148,7 +148,7 @@ tests/test_unary_current.ruff,0,0,yes,yes,both_match_snapshot,none,n/a,P4,snapsh
 tests/test_unary_lit.ruff,0,0,yes,yes,both_match_snapshot,none,n/a,P4,snapshot matches in both runtimes
 tests/test_unary_mixed.ruff,0,0,yes,yes,both_match_snapshot,none,n/a,P4,snapshot matches in both runtimes
 tests/test_unary_ops.ruff,0,0,yes,yes,both_match_snapshot,none,n/a,P4,snapshot matches in both runtimes
-tests/test_unary_overload.ruff,0,0,no,no,both_mismatch_same_output,stale-snapshot-expectation,docs-owner,P1,both runtimes agree on output but snapshot expectation diverges
+tests/test_unary_overload.ruff,0,0,yes,yes,both_match_snapshot,none,n/a,P4,snapshot matches in both runtimes
 tests/test_undefined_var.ruff,4,4,yes,yes,both_match_snapshot,none,n/a,P4,snapshot matches in both runtimes
 tests/test_vec_add.ruff,0,0,yes,yes,both_match_snapshot,none,n/a,P4,snapshot matches in both runtimes
 tests/test_verifier.ruff,4,4,yes,yes,both_match_snapshot,none,n/a,P4,snapshot matches in both runtimes

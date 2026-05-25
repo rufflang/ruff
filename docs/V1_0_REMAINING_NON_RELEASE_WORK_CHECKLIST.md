@@ -30,6 +30,10 @@ Non-release unchecked total: **0** primary blocker items.
     - Regenerated `docs/generated/VM_RUNTIME_MISMATCH_INVENTORY.md` now reports `P0 runtime-parity-bug: 0` and `P2 harness-debt: 0`.
     - Required verification passed: `cargo test --test vm_runtime_mismatch_inventory_contract`, `cargo test --test vm_runtime_mismatch_baseline_contract`, and `cargo test --test vm_interpreter_parity_surfaces`.
     - Runtime sweeps: `cargo run -- test --runtime vm` and `cargo run -- test --runtime dual` both report `Passed 129/150` with `interpreter_fallback=0` in dual mode.
+  - Follow-up completed (2026-05-25):
+    - Burned down remaining `P1 stale-snapshot-expectation` rows to zero; regenerated inventory now reports `both mismatch: 0` and `P1 stale-snapshot-expectation: 0`.
+    - Runtime sweeps now report `Passed 137/150` for both `--runtime vm` and `--runtime dual` with `interpreter_fallback=0`.
+    - Updated mismatch inventory contracts to remain valid when mismatch rows are zero, preventing false failures when parity reaches full snapshot alignment.
   - Exit criteria:
     - `runtime-parity-bug` bucket reaches zero **or** residual divergences are explicitly reclassified as intentional with rationale.
     - `V1VM-PAR-004` can be marked complete with dated evidence.

@@ -10,11 +10,10 @@ fn repo_root() -> PathBuf {
 #[test]
 fn vm_runtime_mismatch_markdown_artifact_contains_required_markers() {
     let root = repo_root();
-    let markdown_path = root
-        .join("docs")
-        .join("generated")
-        .join("VM_RUNTIME_MISMATCH_INVENTORY.md");
-    let markdown = fs::read_to_string(markdown_path).expect("generated markdown artifact should exist");
+    let markdown_path =
+        root.join("docs").join("generated").join("VM_RUNTIME_MISMATCH_INVENTORY.md");
+    let markdown =
+        fs::read_to_string(markdown_path).expect("generated markdown artifact should exist");
 
     assert!(markdown.contains("# VM Runtime Mismatch Inventory"));
     assert!(markdown.contains("| Fixture | VM Exit | Interpreter Exit | VM Matches Snapshot | Interpreter Matches Snapshot | Delta Type | Mismatch Bucket | Owner | Priority | Rationale |"));
@@ -28,10 +27,7 @@ fn vm_runtime_mismatch_markdown_artifact_contains_required_markers() {
 #[test]
 fn vm_runtime_mismatch_csv_artifact_classifies_every_mismatch_row() {
     let root = repo_root();
-    let csv_path = root
-        .join("docs")
-        .join("generated")
-        .join("VM_RUNTIME_MISMATCH_INVENTORY.csv");
+    let csv_path = root.join("docs").join("generated").join("VM_RUNTIME_MISMATCH_INVENTORY.csv");
     let csv = fs::read_to_string(csv_path).expect("generated csv artifact should exist");
 
     let mut lines = csv.lines();
@@ -52,10 +48,13 @@ fn vm_runtime_mismatch_csv_artifact_classifies_every_mismatch_row() {
     let valid_priorities: HashSet<&str> = HashSet::from(["P0", "P1", "P2", "P4"]);
 
     let mut mismatch_rows = 0usize;
+    let mut total_rows = 0usize;
+    let mut all_rows_are_baseline_matches = true;
     for line in lines {
         if line.trim().is_empty() {
             continue;
         }
+        total_rows += 1;
         let parts: Vec<&str> = line.split(',').collect();
         assert!(parts.len() >= 10, "csv row should contain 10 columns: {line}");
 
@@ -71,6 +70,7 @@ fn vm_runtime_mismatch_csv_artifact_classifies_every_mismatch_row() {
         );
 
         if delta_type != "both_match_snapshot" {
+            all_rows_are_baseline_matches = false;
             mismatch_rows += 1;
             assert_ne!(bucket, "none", "mismatch row must not have bucket=none: {line}");
             assert_ne!(owner, "n/a", "mismatch row must not have owner=n/a: {line}");
@@ -78,7 +78,13 @@ fn vm_runtime_mismatch_csv_artifact_classifies_every_mismatch_row() {
         }
     }
 
-    assert!(mismatch_rows > 0, "expected at least one mismatch row in baseline artifact");
+    assert!(total_rows > 0, "expected at least one baseline row in inventory artifact");
+    if mismatch_rows == 0 {
+        assert!(
+            all_rows_are_baseline_matches,
+            "when mismatch count is zero, every row should be both_match_snapshot"
+        );
+    }
 }
 
 #[test]
@@ -97,13 +103,9 @@ fn vm_runtime_mismatch_generator_strict_mode_succeeds_for_repo_scan() {
             "--max-fixtures",
             "6",
             "--output-md",
-            output_md
-                .to_str()
-                .expect("temp output markdown path should be utf-8"),
+            output_md.to_str().expect("temp output markdown path should be utf-8"),
             "--output-csv",
-            output_csv
-                .to_str()
-                .expect("temp output csv path should be utf-8"),
+            output_csv.to_str().expect("temp output csv path should be utf-8"),
             "--strict",
         ])
         .output()
@@ -120,10 +122,7 @@ fn vm_runtime_mismatch_generator_strict_mode_succeeds_for_repo_scan() {
 #[test]
 fn vm_runtime_mismatch_baseline_does_not_bucket_runtime_divergence_as_harness_debt() {
     let root = repo_root();
-    let csv_path = root
-        .join("docs")
-        .join("generated")
-        .join("VM_RUNTIME_MISMATCH_INVENTORY.csv");
+    let csv_path = root.join("docs").join("generated").join("VM_RUNTIME_MISMATCH_INVENTORY.csv");
     let csv = fs::read_to_string(csv_path).expect("generated csv artifact should exist");
 
     for line in csv.lines().skip(1) {

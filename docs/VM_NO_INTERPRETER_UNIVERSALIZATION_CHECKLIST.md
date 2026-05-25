@@ -273,6 +273,10 @@ Each loop report must include exactly:
     - Verification suites passed: `cargo test --test vm_runtime_mismatch_inventory_contract` (`2 passed`), `cargo test --test vm_runtime_mismatch_baseline_contract` (`4 passed`), and `cargo test --test vm_interpreter_parity_surfaces` (`95 passed`).
     - Runtime sweeps show deterministic VM-primary execution with no dual fallback use: `cargo run -- test --runtime vm` (`Passed 129/150`) and `cargo run -- test --runtime dual` (`Passed 129/150`, `vm_primary=129`, `interpreter_fallback=0`).
     - Updated parity matrix documentation in `docs/VM_INTERPRETER_PARITY_MATRIX.md` to remove prior generator intentional-divergence entry and align runtime-decision notes with current inventory buckets.
+  - Evidence (2026-05-25, snapshot parity follow-through): stale snapshot drift fully closed.
+    - Regenerated `docs/generated/VM_RUNTIME_MISMATCH_INVENTORY.md` now reports `both mismatch: 0`, `P0 runtime-parity-bug: 0`, `P1 stale-snapshot-expectation: 0`, and `P2 harness-debt: 0`.
+    - Required matrix checks pass with no dual fallback: `cargo run -- test --runtime vm` (`Passed 137/150`) and `cargo run -- test --runtime dual` (`Passed 137/150`, `vm_primary=137`, `interpreter_fallback=0`).
+    - Contract validation passes for zero-mismatch state: `cargo test --test vm_runtime_mismatch_inventory_contract` and `cargo test --test vm_runtime_mismatch_baseline_contract`.
 
 ### 3) Harness And CLI Runtime Strategy Hardening
 
