@@ -1241,6 +1241,76 @@ fn vm_and_interpreter_match_import_export_surface() {
 }
 
 #[test]
+fn vm_and_interpreter_match_imported_function_invocation_surface() {
+    let module_name = unique_module_name();
+    let module_filename = format!("{}.ruff", module_name);
+    let module_source = r#"
+export func add_one(x) {
+    return x + 1
+}
+"#;
+    fs::write(&module_filename, module_source).expect("failed to write parity module");
+
+    let script = format!(
+        r#"
+        from {} import add_one
+        import_function_ok := add_one(41) == 42
+    "#,
+        module_name
+    );
+
+    assert_interpreter_and_vm_bool(&script, "import_function_ok");
+    let _ = fs::remove_file(module_filename);
+}
+
+#[test]
+fn vm_and_interpreter_match_import_all_function_invocation_surface() {
+    let module_name = unique_module_name();
+    let module_filename = format!("{}.ruff", module_name);
+    let module_source = r#"
+export func add_one(x) {
+    return x + 1
+}
+"#;
+    fs::write(&module_filename, module_source).expect("failed to write parity module");
+
+    let script = format!(
+        r#"
+        import {}
+        import_all_function_ok := add_one(41) == 42
+    "#,
+        module_name
+    );
+
+    assert_interpreter_and_vm_bool(&script, "import_all_function_ok");
+    let _ = fs::remove_file(module_filename);
+}
+
+#[test]
+fn vm_and_interpreter_match_imported_function_dict_index_surface() {
+    let module_name = unique_module_name();
+    let module_filename = format!("{}.ruff", module_name);
+    let module_source = r#"
+export func read_opts(opts) {
+    return opts["quiet"] == true && opts["parallel_workers"] == 2
+}
+"#;
+    fs::write(&module_filename, module_source).expect("failed to write parity module");
+
+    let script = format!(
+        r#"
+        from {} import read_opts
+        options := {{"quiet": true, "parallel_workers": 2}}
+        import_function_dict_ok := read_opts(options)
+    "#,
+        module_name
+    );
+
+    assert_interpreter_and_vm_bool(&script, "import_function_dict_ok");
+    let _ = fs::remove_file(module_filename);
+}
+
+#[test]
 fn vm_and_interpreter_match_dotted_from_import_surface() {
     let root_module = unique_module_name();
     let nested_dir = format!("modules/{}/core", root_module);
@@ -1258,6 +1328,31 @@ fn vm_and_interpreter_match_dotted_from_import_surface() {
     );
 
     assert_interpreter_and_vm_bool(&script, "dotted_import_ok");
+    let _ = fs::remove_dir_all(format!("modules/{}", root_module));
+}
+
+#[test]
+fn vm_and_interpreter_match_dotted_imported_function_invocation_surface() {
+    let root_module = unique_module_name();
+    let nested_dir = format!("modules/{}/core", root_module);
+    fs::create_dir_all(&nested_dir).expect("failed to create nested parity module dir");
+    let module_filename = format!("{}/math.ruff", nested_dir);
+    let module_source = r#"
+export func add_one(x) {
+    return x + 1
+}
+"#;
+    fs::write(&module_filename, module_source).expect("failed to write nested parity module");
+
+    let script = format!(
+        r#"
+        from {}.core.math import add_one
+        dotted_import_function_ok := add_one(41) == 42
+    "#,
+        root_module
+    );
+
+    assert_interpreter_and_vm_bool(&script, "dotted_import_function_ok");
     let _ = fs::remove_dir_all(format!("modules/{}", root_module));
 }
 

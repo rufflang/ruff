@@ -3072,6 +3072,10 @@ impl VM {
                                 }
                             }
                         }
+                        Value::Function(..) | Value::GeneratorDef(..) => {
+                            let result = self.call_interpreter_callable(&function, &args)?;
+                            self.stack.push(result);
+                        }
                         _ => return Err("Cannot call non-function".to_string()),
                     }
                 }
@@ -5129,6 +5133,90 @@ impl VM {
         Ok(Value::Null)
     }
 
+    fn normalize_value_for_interpreter(value: Value) -> Value {
+        match value {
+            Value::Array(items) => {
+                let normalized = items
+                    .iter()
+                    .cloned()
+                    .map(Self::normalize_value_for_interpreter)
+                    .collect::<Vec<_>>();
+                Value::Array(Arc::new(normalized))
+            }
+            Value::Dict(map) => {
+                let mut normalized = DictMap::default();
+                for (key, entry) in map.iter() {
+                    normalized.insert(
+                        Arc::from(key.as_ref()),
+                        Self::normalize_value_for_interpreter(entry.clone()),
+                    );
+                }
+                Value::Dict(Arc::new(normalized))
+            }
+            Value::FixedDict { keys, values } => {
+                let mut normalized = DictMap::default();
+                for (key, entry) in keys.iter().zip(values.iter()) {
+                    normalized.insert(
+                        Arc::from(key.as_ref()),
+                        Self::normalize_value_for_interpreter(entry.clone()),
+                    );
+                }
+                Value::Dict(Arc::new(normalized))
+            }
+            Value::IntDict(map) => {
+                let mut normalized = DictMap::default();
+                for (key, entry) in map.iter() {
+                    normalized.insert(
+                        Arc::from(key.to_string().as_str()),
+                        Self::normalize_value_for_interpreter(entry.clone()),
+                    );
+                }
+                Value::Dict(Arc::new(normalized))
+            }
+            Value::DenseIntDict(values) => {
+                let mut normalized = DictMap::default();
+                for (index, entry) in values.iter().enumerate() {
+                    normalized.insert(
+                        Arc::from(index.to_string().as_str()),
+                        Self::normalize_value_for_interpreter(entry.clone()),
+                    );
+                }
+                Value::Dict(Arc::new(normalized))
+            }
+            Value::DenseIntDictInt(values) => {
+                let mut normalized = DictMap::default();
+                for (index, entry) in values.iter().enumerate() {
+                    let value = entry.map(Value::Int).unwrap_or(Value::Null);
+                    normalized.insert(Arc::from(index.to_string().as_str()), value);
+                }
+                Value::Dict(Arc::new(normalized))
+            }
+            Value::Struct { name, fields } => {
+                let mut normalized_fields = HashMap::new();
+                for (key, entry) in fields {
+                    normalized_fields.insert(key, Self::normalize_value_for_interpreter(entry));
+                }
+                Value::Struct { name, fields: normalized_fields }
+            }
+            other => other,
+        }
+    }
+
+    fn call_interpreter_callable(
+        &mut self,
+        function: &Value,
+        args: &[Value],
+    ) -> Result<Value, String> {
+        let normalized_args =
+            args.iter().cloned().map(Self::normalize_value_for_interpreter).collect::<Vec<_>>();
+        let result = self.interpreter.call_user_function(function, &normalized_args);
+        match result {
+            Value::Error(message) => Err(message),
+            Value::ErrorObject { message, .. } => Err(message),
+            other => Ok(other),
+        }
+    }
+
     /// Convert a constant to a runtime value
     fn constant_to_value(&self, constant: &Constant) -> Result<Value, String> {
         match constant {
@@ -6999,6 +7087,9 @@ impl VM {
             Value::NativeFunction(_) => {
                 // Native function - call it directly
                 self.call_native_function_vm(function, args)
+            }
+            Value::Function(..) | Value::GeneratorDef(..) => {
+                self.call_interpreter_callable(&function, &args)
             }
             _ => Err("Cannot call non-function".to_string()),
         }

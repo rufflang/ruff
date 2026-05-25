@@ -332,6 +332,7 @@ impl Interpreter {
             "println" => "print",
             "str" => "to_string",
             "time" => "current_timestamp",
+            "substr" => "substring",
             other => other,
         }
     }
@@ -482,6 +483,7 @@ impl Interpreter {
             "len",
             "__vm_for_iterable",
             "substring",
+            "substr",
             "to_upper",
             "upper",
             "to_lower",
@@ -859,6 +861,7 @@ impl Interpreter {
             Value::NativeFunction("__vm_for_iterable".to_string()),
         );
         self.env.define("substring".to_string(), Value::NativeFunction("substring".to_string()));
+        self.env.define("substr".to_string(), Value::NativeFunction("substr".to_string()));
         self.env.define("to_upper".to_string(), Value::NativeFunction("to_upper".to_string()));
         self.env.define("upper".to_string(), Value::NativeFunction("upper".to_string())); // Alias
         self.env.define("to_lower".to_string(), Value::NativeFunction("to_lower".to_string()));
@@ -1539,7 +1542,7 @@ impl Interpreter {
 
     /// Helper function to call a user-defined function with given arguments
     /// Used by higher-order functions like map, filter, reduce
-    fn call_user_function(&mut self, func: &Value, args: &[Value]) -> Value {
+    pub(crate) fn call_user_function(&mut self, func: &Value, args: &[Value]) -> Value {
         match func {
             Value::GeneratorDef(params, body) => {
                 let arity = Self::function_arity("<anonymous generator>", params);
