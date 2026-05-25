@@ -30,26 +30,25 @@ fn high_risk_docs_policies_remain_consistent() {
         ("docs/RUFF_FEATURE_INVENTORY.md", &inventory),
         ("docs/UNFINISHED_AND_MVP_AUDIT.md", &unfinished),
     ] {
-        assert!(
-            content.contains(canonical),
-            "missing canonical readiness boundary in {}",
-            name
-        );
+        assert!(content.contains(canonical), "missing canonical readiness boundary in {}", name);
     }
 
     assert!(
-        readme.contains("Top-level generator functions (`func*`) are currently intentionally divergent"),
-        "README should document top-level generator divergence"
+        readme
+            .contains("Developers should not need `--interpreter` for ordinary modular project layouts."),
+        "README should document VM-first runtime recommendation for modular workflows"
     );
     assert!(
         parity.contains("Top-level generator iteration (`func*`, `yield`, `for ... in generator`)")
-            && parity.contains("| intentionally divergent |"),
-        "VM/interpreter parity matrix should mark top-level generator iteration as intentionally divergent"
+            && parity.contains("| supported |"),
+        "VM/interpreter parity matrix should mark top-level generator iteration as supported"
     );
 
     assert!(
         stdlib_ref.contains("`preview`: in-scope for v1 usage, but not frozen")
-            && stdlib_ref.contains("`experimental`: explicitly non-guaranteed for v1 compatibility commitments"),
+            && stdlib_ref.contains(
+                "`experimental`: explicitly non-guaranteed for v1 compatibility commitments"
+            ),
         "standard library tier policy should keep preview/experimental non-guarantee wording"
     );
 
