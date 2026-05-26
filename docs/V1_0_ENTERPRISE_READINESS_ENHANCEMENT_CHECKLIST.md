@@ -122,12 +122,21 @@ Drive Ruff from "near release-ready" to "enterprise-grade and universally useful
       - `cargo test --test jit_safety_contract_checker` (8/8)
       - `cargo test --test vm_interpreter_parity_surfaces` (100/100)
 
-- [ ] **ER-P1-001**: Binary size optimization pass with reproducible measurements.
+- [x] **ER-P1-001**: Binary size optimization pass with reproducible measurements.
   - Scope: benchmark release binary size and evaluate feature/profile/link-time optimizations without behavior regressions.
   - Acceptance:
     - before/after size table committed,
     - no contract test regressions,
     - tradeoff note for startup/runtime impact.
+  - 2026-05-26 evidence:
+    - Added reproducible measurement report: `docs/RELEASE_BINARY_SIZE_BASELINE_2026-05-26.md`.
+    - Before/after measurements:
+      - Baseline override profile (`strip=none`, `lto=off`, `codegen-units=16`): `34,666,816` bytes (33.1 MiB).
+      - Current optimized release defaults (`strip=symbols`, `lto=thin`, `codegen-units=1`): `24,149,152` bytes (23.0 MiB).
+      - Net reduction: `10,517,664` bytes (`-30.34%`).
+    - Regression validations passed:
+      - `cargo test --test cli_contracts` (15/15)
+      - `cargo test --test vm_interpreter_parity_surfaces` (100/100)
 
 - [ ] **ER-P1-002**: Performance hot-path audit and micro-benchmark stabilization.
   - Scope: VM call dispatch, module loading/import-heavy startup, dict/index hot paths, and JIT/VM crossover.
