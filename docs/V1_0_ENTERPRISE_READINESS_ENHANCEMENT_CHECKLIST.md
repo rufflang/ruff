@@ -138,11 +138,22 @@ Drive Ruff from "near release-ready" to "enterprise-grade and universally useful
       - `cargo test --test cli_contracts` (15/15)
       - `cargo test --test vm_interpreter_parity_surfaces` (100/100)
 
-- [ ] **ER-P1-002**: Performance hot-path audit and micro-benchmark stabilization.
+- [x] **ER-P1-002**: Performance hot-path audit and micro-benchmark stabilization.
   - Scope: VM call dispatch, module loading/import-heavy startup, dict/index hot paths, and JIT/VM crossover.
   - Acceptance:
     - targeted bench commands + results committed,
     - identified regressions fixed or documented with owner/timeline.
+  - 2026-05-26 evidence:
+    - Added hot-path audit report: `docs/PERF_HOT_PATH_AUDIT_2026-05-26.md`.
+    - Committed benchmark/result artifacts referenced by audit:
+      - `docs/generated/VM_IMPORT_HEAVY_CACHE_LOOKUP.md`
+      - `docs/generated/VM_IMPORT_HEAVY_PERF_COMPARISON.md`
+    - Contract validations passed:
+      - `cargo test --test vm_import_heavy_cache_lookup_contract` (1/1)
+      - `cargo test --test vm_import_heavy_perf_comparison_contract` (1/1)
+    - Regression handling:
+      - no import-heavy startup/cache regressions indicated (`PASS` tolerance in perf comparison artifact),
+      - follow-up owner/timeline documented in the audit report.
 
 - [ ] **ER-P1-003**: Type-checker ergonomics and diagnostics hardening for high-signal gaps.
   - Scope: resolve remaining medium/high-value TODO clusters in `src/type_checker.rs` and improve actionable messaging.
