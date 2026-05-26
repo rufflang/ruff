@@ -76,11 +76,17 @@ Drive Ruff from "near release-ready" to "enterprise-grade and universally useful
     - `cargo test --test docs_policy_consistency_contract` passed.
     - Updated `docs/NATIVE_API_SECURITY_POSTURE.md` outbound-policy diagnostics text to explicitly document deterministic invalid-policy and blocked-destination error strings.
 
-- [ ] **ER-P0-005**: Repository hygiene cleanup for production-facing presentation.
+- [x] **ER-P0-005**: Repository hygiene cleanup for production-facing presentation.
   - Scope: remove/archive root-level non-source artifacts that do not belong in the main repo surface (ad-hoc backups, transient DBs, temporary directories) with explicit retention policy.
   - Acceptance:
     - root directory contains only intentional product/repo assets,
     - cleanup policy documented (what is generated vs versioned).
+  - 2026-05-26 evidence:
+    - Added `docs/REPO_HYGIENE_POLICY.md` with explicit root-surface contract, non-root placement rules, and cleanup/retention guidance.
+    - Added `tests/repo_hygiene_contract.rs` to enforce tracked root allowlist and policy markers.
+    - Validation commands passed:
+      - `cargo test --test repo_hygiene_contract` (2/2)
+      - `cargo test --test docs_policy_consistency_contract` (1/1)
 
 - [ ] **ER-P0-006**: Reduce executable `unsafe` budget back under gate threshold with evidence.
   - Scope: current strict inventory reports `Executable matches: 59` vs contract budget `<= 55`.
