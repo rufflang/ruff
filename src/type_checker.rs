@@ -2501,7 +2501,9 @@ impl TypeChecker {
                         ArrayElement::Spread(expr) => {
                             let spread_type = self.infer_expr(expr);
                             match spread_type {
-                                Some(TypeAnnotation::Array(inner_type)) => Some((*inner_type).clone()),
+                                Some(TypeAnnotation::Array(inner_type)) => {
+                                    Some((*inner_type).clone())
+                                }
                                 Some(other) => {
                                     self.errors.push(RuffError::new(
                                         ErrorKind::TypeError,
@@ -2558,10 +2560,7 @@ impl TypeChecker {
                                 Some(other) => {
                                     self.errors.push(RuffError::new(
                                         ErrorKind::TypeError,
-                                        format!(
-                                            "Dict spread expects Dict value, got {:?}",
-                                            other
-                                        ),
+                                        format!("Dict spread expects Dict value, got {:?}", other),
                                         SourceLocation::unknown(),
                                     ));
                                     inferred_key_type = Self::merge_inferred_types(
@@ -2602,8 +2601,10 @@ impl TypeChecker {
                     Some(TypeAnnotation::Array(inner_type)) => Some((*inner_type).clone()),
                     Some(TypeAnnotation::Dict { value, .. }) => Some((*value).clone()),
                     Some(TypeAnnotation::String) => {
-                        if matches!(index_type, Some(TypeAnnotation::Int) | Some(TypeAnnotation::Any))
-                        {
+                        if matches!(
+                            index_type,
+                            Some(TypeAnnotation::Int) | Some(TypeAnnotation::Any)
+                        ) {
                             Some(TypeAnnotation::String)
                         } else {
                             self.errors.push(RuffError::new(
@@ -2705,15 +2706,14 @@ impl TypeChecker {
                 }
             }
 
-            Expr::MethodCall { object, method: _, args } => {
+            Expr::MethodCall { object, method, args } => {
                 // Type check the object and arguments
-                self.infer_expr(object);
+                let object_type = self.infer_expr(object);
                 for arg in args {
                     self.infer_expr(arg);
                 }
-                // For now, we don't know the return type of methods
-                // TODO: Implement method type inference
-                Some(TypeAnnotation::Any)
+                Self::infer_known_method_return_type(object_type.as_ref(), method)
+                    .or(Some(TypeAnnotation::Any))
             }
 
             Expr::Spread(expr) => {
@@ -2768,6 +2768,36 @@ impl TypeChecker {
                     Some(TypeAnnotation::Any)
                 }
             }
+        }
+    }
+
+    fn infer_known_method_return_type(
+        object_type: Option<&TypeAnnotation>,
+        method: &str,
+    ) -> Option<TypeAnnotation> {
+        match object_type {
+            Some(TypeAnnotation::String) => match method {
+                "len" | "count_chars" | "index_of" => Some(TypeAnnotation::Int),
+                "to_upper" | "upper" | "to_lower" | "lower" | "capitalize" | "trim"
+                | "trim_start" | "trim_end" | "char_at" | "substring" | "replace"
+                | "replace_str" => Some(TypeAnnotation::String),
+                "starts_with" | "ends_with" | "contains" | "is_empty" => {
+                    Some(TypeAnnotation::Bool)
+                }
+                "split" => Some(TypeAnnotation::Array(Box::new(TypeAnnotation::String))),
+                _ => None,
+            },
+            Some(TypeAnnotation::Array(_)) => match method {
+                "len" => Some(TypeAnnotation::Int),
+                "is_empty" | "contains" => Some(TypeAnnotation::Bool),
+                _ => None,
+            },
+            Some(TypeAnnotation::Dict { .. }) => match method {
+                "len" => Some(TypeAnnotation::Int),
+                "contains" | "has_key" => Some(TypeAnnotation::Bool),
+                _ => None,
+            },
+            _ => None,
         }
     }
 
@@ -3043,11 +3073,50 @@ mod tests {
         assert_eq!(array_index_result, Some(TypeAnnotation::Int));
 
         let dict_index_result = checker.infer_expr(&Expr::IndexAccess {
-            object: Box::new(Expr::DictLiteral(vec![
-                crate::ast::DictElement::Pair(Expr::String("a".to_string()), Expr::Bool(true)),
-            ])),
+            object: Box::new(Expr::DictLiteral(vec![crate::ast::DictElement::Pair(
+                Expr::String("a".to_string()),
+                Expr::Bool(true),
+            )])),
             index: Box::new(Expr::String("a".to_string())),
         });
         assert_eq!(dict_index_result, Some(TypeAnnotation::Bool));
+    }
+
+    #[test]
+    fn test_method_call_infers_known_string_method_return_types() {
+        let mut checker = TypeChecker::new();
+
+        let len_type = checker.infer_expr(&Expr::MethodCall {
+            object: Box::new(Expr::String("hello".to_string())),
+            method: "len".to_string(),
+            args: vec![],
+        });
+        assert_eq!(len_type, Some(TypeAnnotation::Int));
+
+        let upper_type = checker.infer_expr(&Expr::MethodCall {
+            object: Box::new(Expr::String("hello".to_string())),
+            method: "to_upper".to_string(),
+            args: vec![],
+        });
+        assert_eq!(upper_type, Some(TypeAnnotation::String));
+
+        let contains_type = checker.infer_expr(&Expr::MethodCall {
+            object: Box::new(Expr::String("hello".to_string())),
+            method: "contains".to_string(),
+            args: vec![Expr::String("h".to_string())],
+        });
+        assert_eq!(contains_type, Some(TypeAnnotation::Bool));
+    }
+
+    #[test]
+    fn test_method_call_unknown_method_falls_back_to_any() {
+        let mut checker = TypeChecker::new();
+        let inferred = checker.infer_expr(&Expr::MethodCall {
+            object: Box::new(Expr::String("hello".to_string())),
+            method: "unknown_method".to_string(),
+            args: vec![],
+        });
+
+        assert_eq!(inferred, Some(TypeAnnotation::Any));
     }
 }

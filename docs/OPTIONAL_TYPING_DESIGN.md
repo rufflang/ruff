@@ -119,6 +119,14 @@ Compatibility note:
 
 - Existing error model remains authoritative; this format is a target for a post-v1 implementation.
 
+## Current Type-Checker Inference Boundaries (v1)
+
+- Method-call inference is intentionally partial:
+    - known core method surfaces on `string`, `array`, and `dict` return concrete inferred types in the checker.
+    - unknown/custom method surfaces intentionally fall back to `Any` instead of claiming unsupported precision.
+- Await/generator/struct-field inference remains conservative in v1 and may return `Any` or unknown where full static shape information is not yet modeled.
+- These boundaries are deliberate for additive, non-breaking typing behavior and are tracked in generated TODO triage artifacts under `docs/generated/V1_CODE_TODO_TRIAGE.*`.
+
 ## Typed-JIT Optimization Boundaries (Deferred)
 
 ### Future Candidates

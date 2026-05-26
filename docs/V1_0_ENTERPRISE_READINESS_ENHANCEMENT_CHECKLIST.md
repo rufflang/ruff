@@ -155,12 +155,25 @@ Drive Ruff from "near release-ready" to "enterprise-grade and universally useful
       - no import-heavy startup/cache regressions indicated (`PASS` tolerance in perf comparison artifact),
       - follow-up owner/timeline documented in the audit report.
 
-- [ ] **ER-P1-003**: Type-checker ergonomics and diagnostics hardening for high-signal gaps.
+- [x] **ER-P1-003**: Type-checker ergonomics and diagnostics hardening for high-signal gaps.
   - Scope: resolve remaining medium/high-value TODO clusters in `src/type_checker.rs` and improve actionable messaging.
   - Acceptance:
     - targeted type-checker tests added,
     - TODO triage artifacts updated,
     - no misleading "supported" behavior in docs.
+  - 2026-05-26 evidence:
+    - Implemented partial known-surface method return-type inference in `src/type_checker.rs` for core `string`/`array`/`dict` method surfaces, retaining safe `Any` fallback for unknown/custom methods.
+    - Added targeted regression tests:
+      - `test_method_call_infers_known_string_method_return_types`
+      - `test_method_call_unknown_method_falls_back_to_any`
+    - Refreshed TODO triage artifacts:
+      - `docs/generated/V1_CODE_TODO_TRIAGE.md`
+      - `docs/generated/V1_CODE_TODO_TRIAGE.csv`
+    - Updated typing policy docs to make inference boundaries explicit:
+      - `docs/OPTIONAL_TYPING_DESIGN.md`
+    - Validation commands passed:
+      - `cargo test type_checker::tests::`
+      - `cargo test --test v1_code_todo_triage_contract`
 
 - [x] **ER-P1-004**: Production CLI UX polish for machine + human operators.
   - Scope: ensure deterministic JSON diagnostics, consistent exit-code semantics, and crisp remediation hints.

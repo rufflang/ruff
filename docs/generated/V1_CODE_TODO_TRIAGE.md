@@ -1,6 +1,6 @@
 # V1 Code TODO/FIXME/HACK Triage
 
-Generated: 2026-05-23
+Generated: 2026-05-26
 Source root: `src`
 
 | ID | File | Line | Marker | Summary | Severity | Owner | Target Release Bucket | Scope | Rationale |
@@ -22,23 +22,22 @@ Source root: `src`
 | V1TODO-015 | `src/interpreter/legacy_full.rs` | 10147 | TODO |                             // TODO: Combine transformers | low | interpreter-owner | post-v1 | production | legacy interpreter mirror backlog; keep aligned with primary runtime |
 | V1TODO-016 | `src/interpreter/legacy_full.rs` | 10508 | TODO |                                             // For now, just return None (TODO: could recursively call) | low | interpreter-owner | post-v1 | production | legacy interpreter mirror backlog; keep aligned with primary runtime |
 | V1TODO-017 | `src/interpreter/legacy_full.rs` | 9237 | TODO |                                 // TODO: Implement proper blocking receive | low | interpreter-owner | post-v1 | production | legacy interpreter mirror backlog; keep aligned with primary runtime |
-| V1TODO-018 | `src/jit.rs` | 148 | TODO |     #[allow(dead_code)] // TODO: Will be used when variable hashing is implemented | low | jit-owner | post-v1 | production | experimental JIT backlog outside default release-critical runtime path |
-| V1TODO-019 | `src/jit.rs` | 250 | TODO | #[allow(dead_code)] // TODO: Integrate into VM execution loop for automatic profiling | low | jit-owner | post-v1 | production | experimental JIT backlog outside default release-critical runtime path |
-| V1TODO-020 | `src/jit.rs` | 2684 | TODO |     /// TODO: Future optimization - keep frequently used variables in registers | low | jit-owner | post-v1 | production | experimental JIT backlog outside default release-critical runtime path |
-| V1TODO-021 | `src/jit.rs` | 312 | TODO | #[allow(dead_code)] // TODO: Used in adaptive recompilation decisions | low | jit-owner | post-v1 | production | experimental JIT backlog outside default release-critical runtime path |
-| V1TODO-022 | `src/jit.rs` | 323 | TODO | #[allow(dead_code)] // TODO: Integrate into VM hot path detection | low | jit-owner | post-v1 | production | experimental JIT backlog outside default release-critical runtime path |
-| V1TODO-023 | `src/jit.rs` | 3908 | TODO |                 // TODO: Implement proper tail-call optimization or save/restore slots | low | jit-owner | post-v1 | production | experimental JIT backlog outside default release-critical runtime path |
-| V1TODO-024 | `src/jit.rs` | 7847 | TODO |     /// TODO: Integrate into VM execution loop for automatic profiling | low | jit-owner | post-v1 | production | experimental JIT backlog outside default release-critical runtime path |
-| V1TODO-025 | `src/jit.rs` | 7864 | TODO |     /// TODO: Call from JIT-compiled code guard checks | low | jit-owner | post-v1 | production | experimental JIT backlog outside default release-critical runtime path |
-| V1TODO-026 | `src/jit.rs` | 7873 | TODO |     /// TODO: Call from JIT-compiled code when guard checks fail | low | jit-owner | post-v1 | production | experimental JIT backlog outside default release-critical runtime path |
-| V1TODO-027 | `src/jit.rs` | 7891 | TODO |     /// TODO: Use for adaptive recompilation decisions | low | jit-owner | post-v1 | production | experimental JIT backlog outside default release-critical runtime path |
-| V1TODO-028 | `src/jit.rs` | 88 | TODO |     #[allow(dead_code)] // TODO: Will be used when JIT fully integrated into VM loop | low | jit-owner | post-v1 | production | experimental JIT backlog outside default release-critical runtime path |
+| V1TODO-018 | `src/jit.rs` | 136 | TODO |     #[allow(dead_code)] // TODO: Will be used when JIT fully integrated into VM loop | low | jit-owner | post-v1 | production | experimental JIT backlog outside default release-critical runtime path |
+| V1TODO-019 | `src/jit.rs` | 199 | TODO |     #[allow(dead_code)] // TODO: Will be used when variable hashing is implemented | low | jit-owner | post-v1 | production | experimental JIT backlog outside default release-critical runtime path |
+| V1TODO-020 | `src/jit.rs` | 2927 | TODO |     /// TODO: Future optimization - keep frequently used variables in registers | low | jit-owner | post-v1 | production | experimental JIT backlog outside default release-critical runtime path |
+| V1TODO-021 | `src/jit.rs` | 304 | TODO | #[allow(dead_code)] // TODO: Integrate into VM execution loop for automatic profiling | low | jit-owner | post-v1 | production | experimental JIT backlog outside default release-critical runtime path |
+| V1TODO-022 | `src/jit.rs` | 366 | TODO | #[allow(dead_code)] // TODO: Used in adaptive recompilation decisions | low | jit-owner | post-v1 | production | experimental JIT backlog outside default release-critical runtime path |
+| V1TODO-023 | `src/jit.rs` | 377 | TODO | #[allow(dead_code)] // TODO: Integrate into VM hot path detection | low | jit-owner | post-v1 | production | experimental JIT backlog outside default release-critical runtime path |
+| V1TODO-024 | `src/jit.rs` | 4151 | TODO |                 // TODO: Implement proper tail-call optimization or save/restore slots | low | jit-owner | post-v1 | production | experimental JIT backlog outside default release-critical runtime path |
+| V1TODO-025 | `src/jit.rs` | 8090 | TODO |     /// TODO: Integrate into VM execution loop for automatic profiling | low | jit-owner | post-v1 | production | experimental JIT backlog outside default release-critical runtime path |
+| V1TODO-026 | `src/jit.rs` | 8107 | TODO |     /// TODO: Call from JIT-compiled code guard checks | low | jit-owner | post-v1 | production | experimental JIT backlog outside default release-critical runtime path |
+| V1TODO-027 | `src/jit.rs` | 8116 | TODO |     /// TODO: Call from JIT-compiled code when guard checks fail | low | jit-owner | post-v1 | production | experimental JIT backlog outside default release-critical runtime path |
+| V1TODO-028 | `src/jit.rs` | 8134 | TODO |     /// TODO: Use for adaptive recompilation decisions | low | jit-owner | post-v1 | production | experimental JIT backlog outside default release-critical runtime path |
 | V1TODO-029 | `src/type_checker.rs` | 2027 | TODO |                 // TODO: Implement proper type checking for destructuring patterns | medium | typing-owner | post-v1 | production | optional typing/type-inference backlog outside runtime enforcement path |
 | V1TODO-030 | `src/type_checker.rs` | 2255 | TODO |                 // TODO: When module system is implemented, verify module exists | medium | typing-owner | post-v1 | production | optional typing/type-inference backlog outside runtime enforcement path |
 | V1TODO-031 | `src/type_checker.rs` | 2485 | TODO |                 None // TODO: Return struct type when struct types are implemented | medium | typing-owner | post-v1 | production | optional typing/type-inference backlog outside runtime enforcement path |
 | V1TODO-032 | `src/type_checker.rs` | 2491 | TODO |                 None // TODO: Look up field type from struct definition | medium | typing-owner | post-v1 | production | optional typing/type-inference backlog outside runtime enforcement path |
-| V1TODO-033 | `src/type_checker.rs` | 2715 | TODO |                 // TODO: Implement method type inference | medium | typing-owner | post-v1 | production | optional typing/type-inference backlog outside runtime enforcement path |
-| V1TODO-034 | `src/type_checker.rs` | 2728 | TODO |                 // TODO: If we know it's a Promise<T>, return T | medium | typing-owner | post-v1 | production | optional typing/type-inference backlog outside runtime enforcement path |
-| V1TODO-035 | `src/type_checker.rs` | 2775 | TODO |     /// TODO: This will be used when adding "Did you mean?" suggestions to interpreter | medium | typing-owner | post-v1 | production | optional typing/type-inference backlog outside runtime enforcement path |
+| V1TODO-033 | `src/type_checker.rs` | 2728 | TODO |                 // TODO: If we know it's a Promise<T>, return T | medium | typing-owner | post-v1 | production | optional typing/type-inference backlog outside runtime enforcement path |
+| V1TODO-034 | `src/type_checker.rs` | 2805 | TODO |     /// TODO: This will be used when adding "Did you mean?" suggestions to interpreter | medium | typing-owner | post-v1 | production | optional typing/type-inference backlog outside runtime enforcement path |
 
-Summary: `35` markers triaged, `0` unclassified.
+Summary: `34` markers triaged, `0` unclassified.
