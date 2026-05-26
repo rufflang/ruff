@@ -271,6 +271,22 @@ fn process_native_api_misuse_reports_deterministic_error() {
 }
 
 #[test]
+fn process_execute_rejects_empty_shell_command() {
+    assert_runtime_boundary_failure(
+        "execute(\"   \")\n",
+        "execute() command must not be empty; use spawn_process([...]) for structured argv execution",
+    );
+}
+
+#[test]
+fn process_execute_status_rejects_newline_shell_command() {
+    assert_runtime_boundary_failure(
+        "execute_status(\"echo ok\\nwhoami\")\n",
+        "execute_status() command contains newline; use spawn_process([...]) for structured argv execution",
+    );
+}
+
+#[test]
 fn network_native_api_misuse_reports_deterministic_error() {
     assert_runtime_boundary_failure(
         "tcp_receive(1, 10)\n",

@@ -136,6 +136,28 @@ fn parse_positive_u64(value: &Value, field_name: &str) -> Result<u64, Value> {
     }
 }
 
+fn validate_shell_command_text(command_text: &str, surface: &str) -> Result<(), Value> {
+    if command_text.trim().is_empty() {
+        return Err(Value::Error(format!(
+            "{} command must not be empty; use spawn_process([...]) for structured argv execution",
+            surface
+        )));
+    }
+
+    if command_text.contains('\0') {
+        return Err(Value::Error(format!("{} command contains NUL byte", surface)));
+    }
+
+    if command_text.contains('\n') || command_text.contains('\r') {
+        return Err(Value::Error(format!(
+            "{} command contains newline; use spawn_process([...]) for structured argv execution",
+            surface
+        )));
+    }
+
+    Ok(())
+}
+
 fn parse_process_options(options: Option<&Value>) -> Result<ProcessExecOptions, Value> {
     let Some(options_value) = options else {
         return Ok(ProcessExecOptions::default());
@@ -915,6 +937,9 @@ pub fn handle(name: &str, arg_values: &[Value]) -> Option<Value> {
             };
 
             let command_text = command.as_ref().to_string();
+            if let Err(error) = validate_shell_command_text(&command_text, "execute()") {
+                return Some(error);
+            }
             let process = if cfg!(target_os = "windows") {
                 let mut cmd = Command::new("cmd");
                 cmd.args(["/C", command_text.as_str()]);
@@ -975,6 +1000,9 @@ pub fn handle(name: &str, arg_values: &[Value]) -> Option<Value> {
             };
 
             let command_text = command.as_ref().to_string();
+            if let Err(error) = validate_shell_command_text(&command_text, "execute_status()") {
+                return Some(error);
+            }
             let process = if cfg!(target_os = "windows") {
                 let mut cmd = Command::new("cmd");
                 cmd.args(["/C", command_text.as_str()]);

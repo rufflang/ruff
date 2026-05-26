@@ -1258,10 +1258,33 @@ pub fn sleep_ms(ms: f64) {
     thread::sleep(Duration::from_millis(ms as u64));
 }
 
+fn validate_shell_command_text(command: &str) -> Result<(), String> {
+    if command.trim().is_empty() {
+        return Err(
+            "command must not be empty; use spawn_process([...]) for structured argv execution"
+                .to_string(),
+        );
+    }
+    if command.contains('\0') {
+        return Err("command contains NUL byte".to_string());
+    }
+    if command.contains('\n') || command.contains('\r') {
+        return Err(
+            "command contains newline; use spawn_process([...]) for structured argv execution"
+                .to_string(),
+        );
+    }
+    Ok(())
+}
+
 /// Execute a shell command and return output
 /// Infrastructure for exec() builtin
 #[allow(dead_code)]
 pub fn execute_command(command: &str) -> String {
+    if let Err(error) = validate_shell_command_text(command) {
+        return format!("Error: {}", error);
+    }
+
     if cfg!(target_os = "windows") {
         match Command::new("cmd").args(["/C", command]).output() {
             Ok(output) => String::from_utf8_lossy(&output.stdout).to_string(),

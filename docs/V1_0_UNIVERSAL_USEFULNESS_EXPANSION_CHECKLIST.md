@@ -79,7 +79,7 @@ This list is intentionally execution-oriented so another agent can take one item
       - `cache_promise_result_returns_error_when_lock_poisoned`
     - Command evidence captured in `notes/2026-05-26_07-43_v1x-sec-001-lock-hardening.md`.
 
-- [ ] **V1X-SEC-002 (P0)**: Harden process execution surfaces to minimize shell-injection blast radius.
+- [x] **V1X-SEC-002 (P0)**: Harden process execution surfaces to minimize shell-injection blast radius.
   - Scope:
     - Audit `Command::new(... "sh" "-c" ...)` and `cmd /C` usage in:
       - `src/builtins.rs`
@@ -94,6 +94,17 @@ This list is intentionally execution-oriented so another agent can take one item
     - `cargo test --test native_api_security_boundaries`
     - focused system/process native function tests
     - `cargo test --test cli_contracts`
+  - 2026-05-26 closure evidence:
+    - Added deterministic shell command input validation for `execute()` / `execute_status()` in `src/interpreter/native_functions/system.rs`:
+      - reject empty command text,
+      - reject embedded NUL bytes,
+      - reject newline/carriage-return command payloads with explicit guidance to use `spawn_process([...])`.
+    - Applied aligned command-text validation in legacy builtin shell helper `execute_command(...)` (`src/builtins.rs`) to avoid unconstrained shell payload execution on direct helper use.
+    - Added regression boundary tests:
+      - `process_execute_rejects_empty_shell_command`
+      - `process_execute_status_rejects_newline_shell_command`
+      in `tests/native_api_security_boundaries.rs`.
+    - Command evidence captured in `notes/2026-05-26_08-01_v1x-sec-002-shell-surface-hardening.md`.
 
 - [ ] **V1X-DRY-001 (P0)**: Resolve `src/interpreter/legacy_full.rs` duplication risk.
   - Scope:
