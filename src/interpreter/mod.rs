@@ -1951,41 +1951,89 @@ impl Interpreter {
                 let req_obj = Value::Dict(Arc::new(req_fields));
 
                 // Call handler function
-                if let Value::Function(params, body, _captured_env) = handler {
-                    self.env.push_scope();
+                if let Value::Function(params, body, captured_env) = handler {
+                    self.call_stack.push("<http route handler>".to_string());
 
-                    // Bind request parameter
-                    if let Some(param) = params.first() {
-                        self.env.define(param.clone(), req_obj);
-                    }
+                    let result = if let Some(closure_env_ref) = captured_env {
+                        // Route handlers can be closures and must resolve symbols against
+                        // their captured lexical environment instead of the request loop state.
+                        let saved_env = self.env.clone();
+                        self.env = closure_env_ref.lock().unwrap().clone();
+                        self.env.push_scope();
 
-                    if let Err(error) = self
-                        .with_function_context("<http route handler>", |interp| {
-                            interp.eval_stmts(&body.get())
-                        })
-                    {
-                        self.return_value = Some(error);
-                    }
-
-                    // Get result
-                    let result = if let Some(Value::Return(val)) = self.return_value.clone() {
-                        self.return_value = None;
-                        *val
-                    } else if let Some(Value::Error(message)) = self.return_value.clone() {
-                        self.return_value = None;
-                        Value::Error(message)
-                    } else if let Some(Value::ErrorObject { .. }) = self.return_value.clone() {
-                        self.return_value.clone().unwrap()
-                    } else {
-                        self.return_value = None;
-                        Value::HttpResponse {
-                            status: 200,
-                            body: "OK".to_string(),
-                            headers: HashMap::new(),
+                        if let Some(param) = params.first() {
+                            self.env.define(param.clone(), req_obj.clone());
                         }
+
+                        if let Err(error) = self
+                            .with_function_context("<http route handler>", |interp| {
+                                interp.eval_stmts(&body.get())
+                            })
+                        {
+                            self.return_value = Some(error);
+                        }
+
+                        let result = if let Some(Value::Return(val)) = self.return_value.clone() {
+                            self.return_value = None;
+                            *val
+                        } else if let Some(Value::Error(message)) = self.return_value.clone() {
+                            self.return_value = None;
+                            Value::Error(message)
+                        } else if let Some(Value::ErrorObject { .. }) = self.return_value.clone() {
+                            self.return_value.clone().unwrap()
+                        } else {
+                            self.return_value = None;
+                            Value::HttpResponse {
+                                status: 200,
+                                body: "OK".to_string(),
+                                headers: HashMap::new(),
+                            }
+                        };
+
+                        self.env.pop_scope();
+                        *closure_env_ref.lock().unwrap() = self.env.clone();
+                        self.env = saved_env;
+
+                        result
+                    } else {
+                        self.env.push_scope();
+
+                        // Bind request parameter
+                        if let Some(param) = params.first() {
+                            self.env.define(param.clone(), req_obj);
+                        }
+
+                        if let Err(error) = self
+                            .with_function_context("<http route handler>", |interp| {
+                                interp.eval_stmts(&body.get())
+                            })
+                        {
+                            self.return_value = Some(error);
+                        }
+
+                        // Get result
+                        let result = if let Some(Value::Return(val)) = self.return_value.clone() {
+                            self.return_value = None;
+                            *val
+                        } else if let Some(Value::Error(message)) = self.return_value.clone() {
+                            self.return_value = None;
+                            Value::Error(message)
+                        } else if let Some(Value::ErrorObject { .. }) = self.return_value.clone() {
+                            self.return_value.clone().unwrap()
+                        } else {
+                            self.return_value = None;
+                            Value::HttpResponse {
+                                status: 200,
+                                body: "OK".to_string(),
+                                headers: HashMap::new(),
+                            }
+                        };
+
+                        self.env.pop_scope();
+                        result
                     };
 
-                    self.env.pop_scope();
+                    self.call_stack.pop();
 
                     // Build response
                     if let Value::HttpResponse { status, body, headers } = result {
