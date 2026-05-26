@@ -39,13 +39,20 @@ Drive Ruff from "near release-ready" to "enterprise-grade and universally useful
     - `cargo run -- test --runtime dual` currently passes `136/150` (includes `tests/stdlib_test.ruff` snapshot/runtime drift in addition to parser-debt fixtures).
     - Evidence note: `notes/2026-05-25_23-59_er-p0-001-verification-matrix-refresh.md`.
 
-- [ ] **ER-P0-002**: Complete unsafe boundary tightening follow-through (JIT focus).
+- [x] **ER-P0-002**: Complete unsafe boundary tightening follow-through (JIT focus).
   - Scope: maintain machine-verifiable `SAFETY:` contracts and close remaining high-risk unsafe review gaps.
   - Acceptance:
     - unsafe inventory regenerated,
     - unsafe contract/checker tests pass,
     - residual unsafe sites categorized by risk and ownership.
   - 2026-05-26 blocker: JIT safety-contract enforcement is green (`cargo test --test jit_safety_contract_checker`, 8/8), but strict unsafe inventory contract remains red via executable-budget gate (`cargo test --test unsafe_inventory_contract`: `expected <=55, got 59`). Until `ER-P0-006` reduces executable unsafe count below threshold and artifacts are re-generated, this item cannot be closed. Evidence note: `notes/2026-05-26_00-08_er-p0-002-unsafe-followthrough-blocker-refresh.md`.
+  - 2026-05-26 closure evidence:
+    - `ER-P0-006` reduced strict executable unsafe count to gate threshold (`55`) and regenerated inventory artifacts.
+    - Unsafe/JIT contract validations passed:
+      - `cargo test --test unsafe_inventory_contract` (3/3)
+      - `cargo test --test jit_safety_contract_checker` (8/8)
+      - `cargo test --test vm_interpreter_parity_surfaces` (100/100)
+    - Residual unsafe inventory remains categorized and concentrated in JIT runtime boundaries (`jit_executable`) with generated evidence in `docs/generated/UNSAFE_INVENTORY.md` and ownership tracking in checklist/notes.
 
 - [x] **ER-P0-003**: Finish runtime parity burn-down to zero known high-impact mismatches.
   - Scope: resolve remaining VM/interpreter mismatch inventory items and rebaseline artifacts.
