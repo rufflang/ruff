@@ -41,6 +41,7 @@ Ruff is VM-first (`ruff run`), with a tree-walking interpreter available as an e
 - [docs/LANGUAGE_SPEC.md](docs/LANGUAGE_SPEC.md)
 - [docs/STANDARD_LIBRARY.md](docs/STANDARD_LIBRARY.md)
 - [docs/INSTALL_MATRIX.md](docs/INSTALL_MATRIX.md)
+- [docs/FIRST_TOOL_COOKBOOK.md](docs/FIRST_TOOL_COOKBOOK.md)
 - [docs/RELEASE_PROCESS.md](docs/RELEASE_PROCESS.md)
 - [docs/VM_INTERPRETER_PARITY_MATRIX.md](docs/VM_INTERPRETER_PARITY_MATRIX.md)
 

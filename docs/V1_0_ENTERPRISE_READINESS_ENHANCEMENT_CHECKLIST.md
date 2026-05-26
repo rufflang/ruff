@@ -130,11 +130,17 @@ Drive Ruff from "near release-ready" to "enterprise-grade and universally useful
     - Documented platform caveats for macOS/Linux/Windows and pre-v1 distribution guidance.
     - Linked install matrix from `README.md` core references.
 
-- [ ] **ER-P2-002**: Developer onboarding quality pass.
+- [x] **ER-P2-002**: Developer onboarding quality pass.
   - Scope: add concise "build your first real tool" path and operational cookbook for production scripting.
   - Acceptance:
     - runnable examples validated in CI or contract tests,
     - docs links audited for dead/outdated references.
+  - 2026-05-25 evidence:
+    - Added `docs/FIRST_TOOL_COOKBOOK.md` with a concise first-tool build path, operational exit-code conventions, VM-default execution guidance, and extension patterns.
+    - Linked cookbook in `README.md` Core Reference Links for discoverable onboarding.
+    - Validation commands passed:
+      - `cargo test --test docs_examples`
+      - `cargo test --test readme_contracts`
 
 ## Immediate Next Suggested Order
 
