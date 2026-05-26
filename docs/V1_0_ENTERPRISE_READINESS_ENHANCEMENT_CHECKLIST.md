@@ -120,11 +120,15 @@ Drive Ruff from "near release-ready" to "enterprise-grade and universally useful
       - `docs/VM_INTERPRETER_PARITY_MATRIX.md` runtime-decision marker/date alignment for contract stability.
       - `docs/STANDARD_LIBRARY.md` inventory sync for runtime-registered builtins (`__vm_for_iterable`, `substr`).
 
-- [ ] **ER-P2-001**: Packaging/distribution ergonomics improvement plan.
+- [x] **ER-P2-001**: Packaging/distribution ergonomics improvement plan.
   - Scope: installer, package-manager guidance, and reproducible build/documentation improvements.
   - Acceptance:
     - clear install matrix published,
     - known platform caveats documented.
+  - 2026-05-25 evidence:
+    - Added `docs/INSTALL_MATRIX.md` with installation/distribution matrix for source, release, Cargo install, commit-pinned install, and CI locked builds.
+    - Documented platform caveats for macOS/Linux/Windows and pre-v1 distribution guidance.
+    - Linked install matrix from `README.md` core references.
 
 - [ ] **ER-P2-002**: Developer onboarding quality pass.
   - Scope: add concise "build your first real tool" path and operational cookbook for production scripting.
