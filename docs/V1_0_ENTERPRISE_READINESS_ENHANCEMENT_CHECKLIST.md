@@ -45,6 +45,7 @@ Drive Ruff from "near release-ready" to "enterprise-grade and universally useful
     - unsafe inventory regenerated,
     - unsafe contract/checker tests pass,
     - residual unsafe sites categorized by risk and ownership.
+  - 2026-05-26 blocker: JIT safety-contract enforcement is green (`cargo test --test jit_safety_contract_checker`, 8/8), but strict unsafe inventory contract remains red via executable-budget gate (`cargo test --test unsafe_inventory_contract`: `expected <=55, got 59`). Until `ER-P0-006` reduces executable unsafe count below threshold and artifacts are re-generated, this item cannot be closed. Evidence note: `notes/2026-05-26_00-08_er-p0-002-unsafe-followthrough-blocker-refresh.md`.
 
 - [ ] **ER-P0-003**: Finish runtime parity burn-down to zero known high-impact mismatches.
   - Scope: resolve remaining VM/interpreter mismatch inventory items and rebaseline artifacts.
