@@ -88,6 +88,15 @@ use zip::{write::FileOptions, ZipArchive, ZipWriter};
 
 pub const DEFAULT_ASYNC_TASK_POOL_SIZE: usize = 256;
 
+fn lock_or_runtime_error<'a, T>(
+    mutex: &'a Mutex<T>,
+    context: &str,
+) -> Result<std::sync::MutexGuard<'a, T>, Value> {
+    mutex
+        .lock()
+        .map_err(|_| Value::Error(format!("{}: shared runtime state lock poisoned", context)))
+}
+
 #[derive(Clone, Debug)]
 enum SpawnCapturedValue {
     Tagged { tag: String, fields: Vec<(String, SpawnCapturedValue)> },
@@ -399,7 +408,7 @@ impl Interpreter {
     /// Set the environment (used by VM to share environment)
     pub fn set_env(&mut self, env: Arc<Mutex<Environment>>) {
         // We need to extract the environment from the Mutex
-        let locked_env = env.lock().unwrap();
+        let locked_env = env.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
         self.env = locked_env.clone();
     }
 
@@ -1588,7 +1597,10 @@ impl Interpreter {
                     let saved_env = self.env.clone();
 
                     // Use the captured environment (which is shared via Arc<Mutex<>>)
-                    self.env = closure_env_ref.lock().unwrap().clone();
+                    self.env = closure_env_ref
+                        .lock()
+                        .unwrap_or_else(|poisoned| poisoned.into_inner())
+                        .clone();
                     self.env.push_scope();
 
                     // Bind parameters to arguments
@@ -1630,7 +1642,8 @@ impl Interpreter {
                     self.env.pop_scope();
 
                     // Update the captured environment with the modified state
-                    *closure_env_ref.lock().unwrap() = self.env.clone();
+                    *closure_env_ref.lock().unwrap_or_else(|poisoned| poisoned.into_inner()) =
+                        self.env.clone();
 
                     // Restore the saved environment
                     self.env = saved_env;
@@ -1958,7 +1971,10 @@ impl Interpreter {
                         // Route handlers can be closures and must resolve symbols against
                         // their captured lexical environment instead of the request loop state.
                         let saved_env = self.env.clone();
-                        self.env = closure_env_ref.lock().unwrap().clone();
+                        self.env = closure_env_ref
+                            .lock()
+                            .unwrap_or_else(|poisoned| poisoned.into_inner())
+                            .clone();
                         self.env.push_scope();
 
                         if let Some(param) = params.first() {
@@ -1991,7 +2007,8 @@ impl Interpreter {
                         };
 
                         self.env.pop_scope();
-                        *closure_env_ref.lock().unwrap() = self.env.clone();
+                        *closure_env_ref.lock().unwrap_or_else(|poisoned| poisoned.into_inner()) =
+                            self.env.clone();
                         self.env = saved_env;
 
                         result
@@ -2867,7 +2884,7 @@ impl Interpreter {
     /// Helper to write output to either the output buffer or stdout
     fn write_output(&self, msg: &str) {
         if let Some(out) = &self.output {
-            let mut buffer = out.lock().unwrap();
+            let mut buffer = out.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
             let _ = writeln!(buffer, "{}", msg); // already includes newline
         } else {
             println!("{}", msg);
@@ -3811,7 +3828,10 @@ impl Interpreter {
                                 // Store current environment
                                 let current = self.env.clone();
                                 // Set interpreter's environment to the closure's captured environment
-                                self.env = closure_env.lock().unwrap().clone();
+                                self.env = closure_env
+                                    .lock()
+                                    .unwrap_or_else(|poisoned| poisoned.into_inner())
+                                    .clone();
                                 Some(current)
                             } else {
                                 None
@@ -4375,7 +4395,10 @@ impl Interpreter {
                             let saved_env = self.env.clone();
 
                             // Use the captured environment
-                            self.env = closure_env_ref.lock().unwrap().clone();
+                            self.env = closure_env_ref
+                                .lock()
+                                .unwrap_or_else(|poisoned| poisoned.into_inner())
+                                .clone();
                             self.env.push_scope();
 
                             for (i, param) in params.iter().enumerate() {
@@ -4412,7 +4435,10 @@ impl Interpreter {
 
                             self.env.pop_scope();
                             // Update the captured environment
-                            *closure_env_ref.lock().unwrap() = self.env.clone();
+                            *closure_env_ref
+                                .lock()
+                                .unwrap_or_else(|poisoned| poisoned.into_inner()) =
+                                self.env.clone();
                             self.env = saved_env;
                             self.call_stack.pop();
 
@@ -4477,7 +4503,7 @@ impl Interpreter {
                         let params = params.clone();
                         let body = body.clone();
                         let base_env = if let Some(ref env_ref) = captured_env {
-                            env_ref.lock().unwrap().clone()
+                            env_ref.lock().unwrap_or_else(|poisoned| poisoned.into_inner()).clone()
                         } else {
                             self.env.clone()
                         };
@@ -4522,7 +4548,8 @@ impl Interpreter {
 
                             async_interpreter.env.pop_scope();
                             if let Some(env_ref) = closure_env_for_update {
-                                *env_ref.lock().unwrap() = async_interpreter.env.clone();
+                                *env_ref.lock().unwrap_or_else(|poisoned| poisoned.into_inner()) =
+                                    async_interpreter.env.clone();
                             }
 
                             // Send the result back
@@ -4629,7 +4656,10 @@ impl Interpreter {
                                 let saved_env = self.env.clone();
 
                                 // Use the captured environment
-                                self.env = closure_env_ref.lock().unwrap().clone();
+                                self.env = closure_env_ref
+                                    .lock()
+                                    .unwrap_or_else(|poisoned| poisoned.into_inner())
+                                    .clone();
                                 self.env.push_scope();
 
                                 for (i, param) in params.iter().enumerate() {
@@ -4673,7 +4703,10 @@ impl Interpreter {
 
                                 self.env.pop_scope();
                                 // Update the captured environment
-                                *closure_env_ref.lock().unwrap() = self.env.clone();
+                                *closure_env_ref
+                                    .lock()
+                                    .unwrap_or_else(|poisoned| poisoned.into_inner()) =
+                                    self.env.clone();
                                 self.env = saved_env;
                                 self.call_stack.pop();
 
@@ -4803,11 +4836,13 @@ impl Interpreter {
                         // Access image properties
                         match field.as_str() {
                             "width" => {
-                                let img = data.lock().unwrap();
+                                let img =
+                                    data.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
                                 Value::Float(img.width() as f64)
                             }
                             "height" => {
-                                let img = data.lock().unwrap();
+                                let img =
+                                    data.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
                                 Value::Float(img.height() as f64)
                             }
                             "format" => Value::Str(Arc::new(format)),
@@ -4955,8 +4990,20 @@ impl Interpreter {
                     Value::Promise { receiver, is_polled, cached_result, .. } => {
                         // Check if we've already polled this promise
                         {
-                            let polled = is_polled.lock().unwrap();
-                            let cached = cached_result.lock().unwrap();
+                            let polled = match lock_or_runtime_error(
+                                is_polled.as_ref(),
+                                "await.promise.is_polled",
+                            ) {
+                                Ok(guard) => guard,
+                                Err(error) => return error,
+                            };
+                            let cached = match lock_or_runtime_error(
+                                cached_result.as_ref(),
+                                "await.promise.cached_result",
+                            ) {
+                                Ok(guard) => guard,
+                                Err(error) => return error,
+                            };
 
                             if *polled {
                                 // Use cached result
@@ -4976,7 +5023,13 @@ impl Interpreter {
                         // Poll the promise using tokio runtime
                         // We need to take ownership of the receiver to await it
                         let result = {
-                            let mut recv_guard = receiver.lock().unwrap();
+                            let mut recv_guard = match lock_or_runtime_error(
+                                receiver.as_ref(),
+                                "await.promise.receiver",
+                            ) {
+                                Ok(guard) => guard,
+                                Err(error) => return error,
+                            };
                             // Take ownership by replacing with a dummy closed channel
                             let (dummy_tx, dummy_rx) = tokio::sync::oneshot::channel();
                             drop(dummy_tx); // Close immediately
@@ -4988,8 +5041,20 @@ impl Interpreter {
                         };
 
                         // Now update the cache with the result
-                        let mut polled = is_polled.lock().unwrap();
-                        let mut cached = cached_result.lock().unwrap();
+                        let mut polled = match lock_or_runtime_error(
+                            is_polled.as_ref(),
+                            "await.promise.is_polled",
+                        ) {
+                            Ok(guard) => guard,
+                            Err(error) => return error,
+                        };
+                        let mut cached = match lock_or_runtime_error(
+                            cached_result.as_ref(),
+                            "await.promise.cached_result",
+                        ) {
+                            Ok(guard) => guard,
+                            Err(error) => return error,
+                        };
 
                         match result {
                             Ok(Ok(value)) => {
@@ -5074,7 +5139,10 @@ impl Interpreter {
                 if args.len() < 2 {
                     Value::Error("resize requires at least width and height arguments".to_string())
                 } else if let (Some(w), Some(h)) = (as_f32(&args[0]), as_f32(&args[1])) {
-                    let img = data.lock().unwrap();
+                    let img = match lock_or_runtime_error(data.as_ref(), "image.resize") {
+                        Ok(guard) => guard,
+                        Err(error) => return Some(error),
+                    };
                     let resized = if args.len() >= 3 {
                         if let Value::Str(mode) = &args[2] {
                             if mode.as_ref() == "fit" {
@@ -5111,7 +5179,10 @@ impl Interpreter {
                 } else if let (Some(x), Some(y), Some(w), Some(h)) =
                     (as_f32(&args[0]), as_f32(&args[1]), as_f32(&args[2]), as_f32(&args[3]))
                 {
-                    let mut img = data.lock().unwrap().clone();
+                    let mut img = match lock_or_runtime_error(data.as_ref(), "image.crop") {
+                        Ok(guard) => guard.clone(),
+                        Err(error) => return Some(error),
+                    };
                     let cropped = img.crop(x as u32, y as u32, w as u32, h as u32);
                     Value::Image { data: Arc::new(Mutex::new(cropped)), format: format.clone() }
                 } else {
@@ -5122,7 +5193,10 @@ impl Interpreter {
                 if args.is_empty() {
                     Value::Error("rotate requires a degrees argument".to_string())
                 } else if let Some(degrees) = as_f32(&args[0]) {
-                    let img = data.lock().unwrap();
+                    let img = match lock_or_runtime_error(data.as_ref(), "image.rotate") {
+                        Ok(guard) => guard,
+                        Err(error) => return Some(error),
+                    };
                     let rotated = match degrees as i32 {
                         90 => img.rotate90(),
                         180 => img.rotate180(),
@@ -5145,7 +5219,10 @@ impl Interpreter {
                             .to_string(),
                     )
                 } else if let Value::Str(direction) = &args[0] {
-                    let img = data.lock().unwrap();
+                    let img = match lock_or_runtime_error(data.as_ref(), "image.flip") {
+                        Ok(guard) => guard,
+                        Err(error) => return Some(error),
+                    };
                     let flipped = match direction.as_str() {
                         "horizontal" => img.fliph(),
                         "vertical" => img.flipv(),
@@ -5164,7 +5241,10 @@ impl Interpreter {
                 if args.is_empty() {
                     Value::Error("save requires a path argument".to_string())
                 } else if let Value::Str(path) = &args[0] {
-                    let img = data.lock().unwrap();
+                    let img = match lock_or_runtime_error(data.as_ref(), "image.save") {
+                        Ok(guard) => guard,
+                        Err(error) => return Some(error),
+                    };
                     match img.save(path.as_ref()) {
                         Ok(_) => Value::Bool(true),
                         Err(e) => Value::Error(format!("Failed to save image: {}", e)),
@@ -5174,7 +5254,10 @@ impl Interpreter {
                 }
             }
             "to_grayscale" => {
-                let img = data.lock().unwrap();
+                let img = match lock_or_runtime_error(data.as_ref(), "image.to_grayscale") {
+                    Ok(guard) => guard,
+                    Err(error) => return Some(error),
+                };
                 let gray = img.grayscale();
                 Value::Image { data: Arc::new(Mutex::new(gray)), format: format.clone() }
             }
@@ -5182,7 +5265,10 @@ impl Interpreter {
                 if args.is_empty() {
                     Value::Error("blur requires a sigma argument".to_string())
                 } else if let Some(sigma) = as_f32(&args[0]) {
-                    let img = data.lock().unwrap();
+                    let img = match lock_or_runtime_error(data.as_ref(), "image.blur") {
+                        Ok(guard) => guard,
+                        Err(error) => return Some(error),
+                    };
                     let blurred = img.blur(sigma);
                     Value::Image { data: Arc::new(Mutex::new(blurred)), format: format.clone() }
                 } else {
@@ -5193,7 +5279,11 @@ impl Interpreter {
                 if args.is_empty() {
                     Value::Error("adjust_brightness requires a factor argument".to_string())
                 } else if let Some(factor) = as_f64(&args[0]) {
-                    let img = data.lock().unwrap();
+                    let img = match lock_or_runtime_error(data.as_ref(), "image.adjust_brightness")
+                    {
+                        Ok(guard) => guard,
+                        Err(error) => return Some(error),
+                    };
                     let adjusted = img.brighten((factor * 50.0) as i32);
                     Value::Image { data: Arc::new(Mutex::new(adjusted)), format: format.clone() }
                 } else {
@@ -5204,7 +5294,10 @@ impl Interpreter {
                 if args.is_empty() {
                     Value::Error("adjust_contrast requires a factor argument".to_string())
                 } else if let Some(factor) = as_f32(&args[0]) {
-                    let img = data.lock().unwrap();
+                    let img = match lock_or_runtime_error(data.as_ref(), "image.adjust_contrast") {
+                        Ok(guard) => guard,
+                        Err(error) => return Some(error),
+                    };
                     let adjusted = img.adjust_contrast(factor);
                     Value::Image { data: Arc::new(Mutex::new(adjusted)), format: format.clone() }
                 } else {
@@ -5222,7 +5315,10 @@ impl Interpreter {
         chan: &Arc<Mutex<(std::sync::mpsc::Sender<Value>, std::sync::mpsc::Receiver<Value>)>>,
         value: Value,
     ) -> Value {
-        let chan_lock = chan.lock().unwrap();
+        let chan_lock = match lock_or_runtime_error(chan.as_ref(), "channel.send") {
+            Ok(guard) => guard,
+            Err(error) => return error,
+        };
         let (sender, _) = &*chan_lock;
         match sender.send(value) {
             Ok(_) => Value::Bool(true),
@@ -5236,7 +5332,10 @@ impl Interpreter {
     ) -> Value {
         loop {
             let receive_result = {
-                let chan_lock = chan.lock().unwrap();
+                let chan_lock = match lock_or_runtime_error(chan.as_ref(), "channel.receive") {
+                    Ok(guard) => guard,
+                    Err(error) => return error,
+                };
                 let (_, receiver) = &*chan_lock;
                 receiver.try_recv()
             };
@@ -5674,7 +5773,7 @@ impl Interpreter {
                 let saved_return_value = self.return_value.take();
 
                 // Use the generator's environment
-                self.env = env.lock().unwrap().clone();
+                self.env = env.lock().unwrap_or_else(|poisoned| poisoned.into_inner()).clone();
 
                 let stmts = body.get();
                 let mut yielded_value = None;
@@ -5709,7 +5808,7 @@ impl Interpreter {
                 }
 
                 // Save the generator's environment state
-                *env.lock().unwrap() = self.env.clone();
+                *env.lock().unwrap_or_else(|poisoned| poisoned.into_inner()) = self.env.clone();
 
                 // If we finished all statements without explicit return/yield, generator is exhausted
                 if *pc >= stmts.len() {
@@ -5982,35 +6081,41 @@ impl Interpreter {
             {
                 // Check if in transaction
                 let is_in_trans = {
-                    let in_trans = in_transaction.lock().unwrap();
-                    *in_trans
+                    match in_transaction.lock() {
+                        Ok(in_trans) => *in_trans,
+                        Err(_) => false,
+                    }
                 };
 
                 if is_in_trans {
                     // Rollback the transaction
                     match (connection, db_type.as_str()) {
                         (DatabaseConnection::Sqlite(conn_arc), "sqlite") => {
-                            let conn = conn_arc.lock().unwrap();
-                            let _ = conn.execute("ROLLBACK", []);
+                            if let Ok(conn) = conn_arc.lock() {
+                                let _ = conn.execute("ROLLBACK", []);
+                            }
                         }
                         (DatabaseConnection::Postgres(client_arc), "postgres") => {
-                            let mut client = client_arc.lock().unwrap();
-                            let _ = client.execute("ROLLBACK", &[]);
+                            if let Ok(mut client) = client_arc.lock() {
+                                let _ = client.execute("ROLLBACK", &[]);
+                            }
                         }
                         (DatabaseConnection::Mysql(conn_arc), "mysql") => {
-                            let mut conn = conn_arc.lock().unwrap();
-                            if let Ok(runtime) = tokio::runtime::Runtime::new() {
-                                let _ = runtime.block_on(async {
-                                    conn.exec_drop("ROLLBACK", mysql_async::Params::Empty).await
-                                });
+                            if let Ok(mut conn) = conn_arc.lock() {
+                                if let Ok(runtime) = tokio::runtime::Runtime::new() {
+                                    let _ = runtime.block_on(async {
+                                        conn.exec_drop("ROLLBACK", mysql_async::Params::Empty).await
+                                    });
+                                }
                             }
                         }
                         _ => {}
                     }
 
                     // Update transaction flag
-                    let mut in_trans = in_transaction.lock().unwrap();
-                    *in_trans = false;
+                    if let Ok(mut in_trans) = in_transaction.lock() {
+                        *in_trans = false;
+                    }
                 }
             }
         }

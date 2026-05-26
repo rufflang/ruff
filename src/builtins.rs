@@ -25,6 +25,10 @@ use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 /// When set, all random functions use this instead of thread_rng()
 static SEEDED_RNG: Mutex<Option<StdRng>> = Mutex::new(None);
 
+fn lock_seeded_rng() -> std::sync::MutexGuard<'static, Option<StdRng>> {
+    SEEDED_RNG.lock().unwrap_or_else(|poisoned| poisoned.into_inner())
+}
+
 /// Returns a HashMap of all built-in functions
 #[allow(dead_code)]
 pub fn get_builtins() -> HashMap<String, Value> {
@@ -94,17 +98,17 @@ pub fn exp(x: f64) -> f64 {
 /// Set a seed for deterministic random number generation (for testing)
 pub fn set_random_seed(seed: u64) {
     let rng = StdRng::seed_from_u64(seed);
-    *SEEDED_RNG.lock().unwrap() = Some(rng);
+    *lock_seeded_rng() = Some(rng);
 }
 
 /// Clear the random seed, returning to true randomness
 pub fn clear_random_seed() {
-    *SEEDED_RNG.lock().unwrap() = None;
+    *lock_seeded_rng() = None;
 }
 
 /// Generate a random float between 0.0 and 1.0
 pub fn random() -> f64 {
-    let mut seeded = SEEDED_RNG.lock().unwrap();
+    let mut seeded = lock_seeded_rng();
     if let Some(ref mut rng) = *seeded {
         rng.gen::<f64>()
     } else {
@@ -119,7 +123,7 @@ pub fn random_int(min: f64, max: f64) -> f64 {
     let min_i = min as i64;
     let max_i = max as i64;
 
-    let mut seeded = SEEDED_RNG.lock().unwrap();
+    let mut seeded = lock_seeded_rng();
     if let Some(ref mut rng) = *seeded {
         rng.gen_range(min_i..=max_i) as f64
     } else {
@@ -135,7 +139,7 @@ pub fn random_choice(arr: &[Value]) -> Value {
         return Value::Int(0);
     }
 
-    let mut seeded = SEEDED_RNG.lock().unwrap();
+    let mut seeded = lock_seeded_rng();
     let idx = if let Some(ref mut rng) = *seeded {
         rng.gen_range(0..arr.len())
     } else {
@@ -1882,7 +1886,7 @@ pub fn format_debug_value(value: &Value) -> String {
             format!("BytecodeFunction({})", name)
         }
         Value::BytecodeGenerator { state } => {
-            let gen_state = state.lock().unwrap();
+            let gen_state = state.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
             format!("BytecodeGenerator(exhausted: {})", gen_state.is_exhausted)
         }
         Value::ArrayMarker => "ArrayMarker".to_string(),
@@ -1940,7 +1944,7 @@ pub fn format_debug_value(value: &Value) -> String {
         }
         Value::Iterator { source, .. } => format!("Iterator(source: {:?})", source),
         Value::Promise { cached_result, .. } => {
-            let result = cached_result.lock().unwrap();
+            let result = cached_result.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
             match &*result {
                 None => "Promise(Pending)".to_string(),
                 Some(Ok(value)) => format!("Promise(Resolved: {})", format_debug_value(value)),
@@ -1948,7 +1952,7 @@ pub fn format_debug_value(value: &Value) -> String {
             }
         }
         Value::TaskHandle { is_cancelled, .. } => {
-            let cancelled = is_cancelled.lock().unwrap();
+            let cancelled = is_cancelled.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
             if *cancelled {
                 "TaskHandle(Cancelled)".to_string()
             } else {

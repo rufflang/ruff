@@ -10,7 +10,7 @@ use rayon::prelude::*;
 use rayon::ThreadPoolBuilder;
 use std::collections::HashMap;
 use std::io::{Error, ErrorKind, IoSlice, Read, Write};
-use std::sync::{Arc, Mutex, OnceLock};
+use std::sync::{Arc, Mutex, MutexGuard, OnceLock};
 use std::time::{Duration, Instant};
 use tokio::io::AsyncWriteExt;
 
@@ -548,16 +548,29 @@ fn resolved_promise(result: Result<Value, String>) -> Value {
     }
 }
 
+fn lock_or_async_error<'a, T>(
+    mutex: &'a Mutex<T>,
+    context: &str,
+) -> Result<MutexGuard<'a, T>, String> {
+    mutex.lock().map_err(|_| format!("{}: shared async state lock poisoned", context))
+}
+
 fn read_cached_promise_result(
     is_polled: &Arc<Mutex<bool>>,
     cached_result: &Arc<Mutex<Option<Result<Value, String>>>>,
 ) -> Option<Result<Value, String>> {
-    let polled = is_polled.lock().unwrap();
+    let polled = match lock_or_async_error(is_polled.as_ref(), "promise.is_polled") {
+        Ok(guard) => guard,
+        Err(error) => return Some(Err(error)),
+    };
     if !*polled {
         return None;
     }
 
-    let cached = cached_result.lock().unwrap();
+    let cached = match lock_or_async_error(cached_result.as_ref(), "promise.cached_result") {
+        Ok(guard) => guard,
+        Err(error) => return Some(Err(error)),
+    };
     match cached.as_ref() {
         Some(result) => Some(result.clone()),
         None => Some(Err("Promise polled but no result cached".to_string())),
@@ -568,11 +581,12 @@ fn cache_promise_result(
     is_polled: &Arc<Mutex<bool>>,
     cached_result: &Arc<Mutex<Option<Result<Value, String>>>>,
     result: Result<Value, String>,
-) {
-    let mut polled = is_polled.lock().unwrap();
-    let mut cached = cached_result.lock().unwrap();
+) -> Result<(), String> {
+    let mut polled = lock_or_async_error(is_polled.as_ref(), "promise.is_polled")?;
+    let mut cached = lock_or_async_error(cached_result.as_ref(), "promise.cached_result")?;
     *cached = Some(result);
     *polled = true;
+    Ok(())
 }
 
 fn supports_rayon_parallel_map_native(mapper_name: &str) -> bool {
@@ -804,8 +818,26 @@ pub fn handle(
                     AsyncRuntime::spawn_task(async move {
                         // Check if promise already polled (has cached result)
                         {
-                            let polled = is_polled.lock().unwrap();
-                            let cached = cached_result.lock().unwrap();
+                            let polled = match lock_or_async_error(
+                                is_polled.as_ref(),
+                                "async_timeout.promise.is_polled",
+                            ) {
+                                Ok(guard) => guard,
+                                Err(error) => {
+                                    let _ = tx.send(Err(error));
+                                    return Value::Null;
+                                }
+                            };
+                            let cached = match lock_or_async_error(
+                                cached_result.as_ref(),
+                                "async_timeout.promise.cached_result",
+                            ) {
+                                Ok(guard) => guard,
+                                Err(error) => {
+                                    let _ = tx.send(Err(error));
+                                    return Value::Null;
+                                }
+                            };
 
                             if *polled {
                                 // Use cached result
@@ -821,7 +853,16 @@ pub fn handle(
 
                         // Extract the receiver from the mutex
                         let actual_rx = {
-                            let mut recv_guard = receiver.lock().unwrap();
+                            let mut recv_guard = match lock_or_async_error(
+                                receiver.as_ref(),
+                                "async_timeout.promise.receiver",
+                            ) {
+                                Ok(guard) => guard,
+                                Err(error) => {
+                                    let _ = tx.send(Err(error));
+                                    return Value::Null;
+                                }
+                            };
                             let (dummy_tx, dummy_rx) = tokio::sync::oneshot::channel();
                             drop(dummy_tx);
                             std::mem::replace(&mut *recv_guard, dummy_rx)
@@ -1747,7 +1788,13 @@ pub fn handle(
             let handle = AsyncRuntime::spawn_task(async move {
                 // Check if cancelled
                 {
-                    let cancelled = is_cancelled_clone.lock().unwrap();
+                    let cancelled = match lock_or_async_error(
+                        is_cancelled_clone.as_ref(),
+                        "spawn_task.is_cancelled",
+                    ) {
+                        Ok(guard) => guard,
+                        Err(error) => return Value::Error(error),
+                    };
                     if *cancelled {
                         return Value::Error("Task was cancelled".to_string());
                     }
@@ -1789,14 +1836,31 @@ pub fn handle(
                     AsyncRuntime::spawn_task(async move {
                         // Extract the handle
                         let handle = {
-                            let mut handle_guard = handle_arc.lock().unwrap();
+                            let mut handle_guard =
+                                match lock_or_async_error(handle_arc.as_ref(), "await_task.handle")
+                                {
+                                    Ok(guard) => guard,
+                                    Err(error) => {
+                                        let _ = tx.send(Err(error));
+                                        return Value::Null;
+                                    }
+                                };
                             handle_guard.take()
                         };
 
                         let result = if let Some(h) = handle {
                             // Check if cancelled (drop guard before await)
                             let is_task_cancelled = {
-                                let cancelled = is_cancelled.lock().unwrap();
+                                let cancelled = match lock_or_async_error(
+                                    is_cancelled.as_ref(),
+                                    "await_task.is_cancelled",
+                                ) {
+                                    Ok(guard) => guard,
+                                    Err(error) => {
+                                        let _ = tx.send(Err(error));
+                                        return Value::Null;
+                                    }
+                                };
                                 *cancelled
                             };
 
@@ -1843,12 +1907,22 @@ pub fn handle(
                 Value::TaskHandle { handle: handle_arc, is_cancelled } => {
                     // Mark as cancelled
                     {
-                        let mut cancelled = is_cancelled.lock().unwrap();
+                        let mut cancelled = match lock_or_async_error(
+                            is_cancelled.as_ref(),
+                            "cancel_task.is_cancelled",
+                        ) {
+                            Ok(guard) => guard,
+                            Err(error) => return Some(Value::Error(error)),
+                        };
                         *cancelled = true;
                     }
 
                     // Abort the task if possible
-                    let mut handle_guard = handle_arc.lock().unwrap();
+                    let mut handle_guard =
+                        match lock_or_async_error(handle_arc.as_ref(), "cancel_task.handle") {
+                            Ok(guard) => guard,
+                            Err(error) => return Some(Value::Error(error)),
+                        };
                     if let Some(handle) = handle_guard.take() {
                         handle.abort();
                         Some(Value::Bool(true))
@@ -1992,7 +2066,16 @@ pub fn handle(
                 let mut futures = Vec::with_capacity(count);
                 for (idx, receiver_arc, is_polled, cached_result) in pending_promises {
                     let actual_rx = {
-                        let mut recv_guard = receiver_arc.lock().unwrap();
+                        let mut recv_guard = match lock_or_async_error(
+                            receiver_arc.as_ref(),
+                            "Promise.all.receiver",
+                        ) {
+                            Ok(guard) => guard,
+                            Err(error) => {
+                                let _ = tx.send(Err(error));
+                                return Value::Null;
+                            }
+                        };
                         let (dummy_tx, dummy_rx) = tokio::sync::oneshot::channel();
                         drop(dummy_tx);
                         std::mem::replace(&mut *recv_guard, dummy_rx)
@@ -2036,7 +2119,12 @@ pub fn handle(
 
                     match recv_result {
                         Ok(Ok(value)) => {
-                            cache_promise_result(&is_polled, &cached_result, Ok(value.clone()));
+                            if let Err(error) =
+                                cache_promise_result(&is_polled, &cached_result, Ok(value.clone()))
+                            {
+                                let _ = tx.send(Err(error));
+                                return Value::Null;
+                            }
                             if debug_async {
                                 eprintln!("Promise.all: task {} resolved successfully", idx);
                             }
@@ -2044,7 +2132,12 @@ pub fn handle(
                             completed += 1;
                         }
                         Ok(Err(err)) => {
-                            cache_promise_result(&is_polled, &cached_result, Err(err.clone()));
+                            if let Err(error) =
+                                cache_promise_result(&is_polled, &cached_result, Err(err.clone()))
+                            {
+                                let _ = tx.send(Err(error));
+                                return Value::Null;
+                            }
                             if debug_async {
                                 eprintln!("Promise.all: task {} rejected: {}", idx, err);
                             }
@@ -2054,11 +2147,14 @@ pub fn handle(
                         Err(_) => {
                             let channel_error =
                                 "Promise never resolved (channel closed)".to_string();
-                            cache_promise_result(
+                            if let Err(error) = cache_promise_result(
                                 &is_polled,
                                 &cached_result,
                                 Err(channel_error.clone()),
-                            );
+                            ) {
+                                let _ = tx.send(Err(error));
+                                return Value::Null;
+                            }
                             if debug_async {
                                 eprintln!(
                                     "Promise.all: task {} channel closed (Err from oneshot)",
@@ -2234,7 +2330,16 @@ pub fn handle(
                 let mut futures = Vec::with_capacity(count);
                 for (idx, receiver_arc, is_polled, cached_result) in pending_receivers {
                     let actual_rx = {
-                        let mut recv_guard = receiver_arc.lock().unwrap();
+                        let mut recv_guard = match lock_or_async_error(
+                            receiver_arc.as_ref(),
+                            "parallel_map.receiver",
+                        ) {
+                            Ok(guard) => guard,
+                            Err(error) => {
+                                let _ = tx.send(Err(error));
+                                return Value::Null;
+                            }
+                        };
                         let (dummy_tx, dummy_rx) = tokio::sync::oneshot::channel();
                         drop(dummy_tx);
                         std::mem::replace(&mut *recv_guard, dummy_rx)
@@ -2262,22 +2367,35 @@ pub fn handle(
                 {
                     match recv_result {
                         Ok(Ok(value)) => {
-                            cache_promise_result(&is_polled, &cached_result, Ok(value.clone()));
+                            if let Err(error) =
+                                cache_promise_result(&is_polled, &cached_result, Ok(value.clone()))
+                            {
+                                let _ = tx.send(Err(error));
+                                return Value::Null;
+                            }
                             mapped_results[idx] = value;
                         }
                         Ok(Err(err)) => {
-                            cache_promise_result(&is_polled, &cached_result, Err(err.clone()));
+                            if let Err(error) =
+                                cache_promise_result(&is_polled, &cached_result, Err(err.clone()))
+                            {
+                                let _ = tx.send(Err(error));
+                                return Value::Null;
+                            }
                             let _ = tx.send(Err(format!("Promise {} rejected: {}", idx, err)));
                             return Value::Null;
                         }
                         Err(_) => {
                             let channel_error =
                                 "Promise never resolved (channel closed)".to_string();
-                            cache_promise_result(
+                            if let Err(error) = cache_promise_result(
                                 &is_polled,
                                 &cached_result,
                                 Err(channel_error.clone()),
-                            );
+                            ) {
+                                let _ = tx.send(Err(error));
+                                return Value::Null;
+                            }
                             let _ = tx.send(Err(format!(
                                 "Promise {} never resolved (channel closed)",
                                 idx
@@ -2335,7 +2453,16 @@ pub fn handle(
                     AsyncRuntime::spawn_task(async move {
                         let await_result = {
                             let rx = {
-                                let mut receiver_guard = receiver.lock().unwrap();
+                                let mut receiver_guard = match lock_or_async_error(
+                                    receiver.as_ref(),
+                                    "par_each.receiver",
+                                ) {
+                                    Ok(guard) => guard,
+                                    Err(error) => {
+                                        let _ = tx.send(Err(error));
+                                        return Value::Null;
+                                    }
+                                };
                                 let (dummy_tx, dummy_rx) = tokio::sync::oneshot::channel();
                                 drop(dummy_tx);
                                 std::mem::replace(&mut *receiver_guard, dummy_rx)
@@ -2451,6 +2578,42 @@ mod tests {
                 }
             }),
             _ => panic!("Expected Promise value"),
+        }
+    }
+
+    fn poison_mutex<T: Send + 'static>(mutex: Arc<Mutex<T>>) {
+        let _ = std::thread::spawn(move || {
+            let _guard = mutex.lock().expect("poison helper should acquire lock");
+            panic!("intentional poison");
+        })
+        .join();
+    }
+
+    #[test]
+    fn read_cached_promise_result_returns_error_when_lock_poisoned() {
+        let is_polled = Arc::new(Mutex::new(false));
+        let cached_result = Arc::new(Mutex::new(None::<Result<Value, String>>));
+        poison_mutex(is_polled.clone());
+
+        let result = read_cached_promise_result(&is_polled, &cached_result);
+        match result {
+            Some(Err(message)) => {
+                assert!(message.contains("shared async state lock poisoned"), "{}", message)
+            }
+            other => panic!("expected poisoned lock error, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn cache_promise_result_returns_error_when_lock_poisoned() {
+        let is_polled = Arc::new(Mutex::new(false));
+        let cached_result = Arc::new(Mutex::new(None::<Result<Value, String>>));
+        poison_mutex(cached_result.clone());
+
+        let result = cache_promise_result(&is_polled, &cached_result, Ok(Value::Null));
+        match result {
+            Err(message) => assert!(message.contains("shared async state lock poisoned")),
+            Ok(_) => panic!("expected poisoned lock error"),
         }
     }
 
