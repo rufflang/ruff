@@ -205,7 +205,7 @@ fn cli_test_discovers_and_runs_expected_fixtures() {
 }
 
 #[test]
-fn cli_test_runtime_vm_mode_reports_mismatch_for_vm_drift_fixture() {
+fn cli_test_runtime_vm_mode_executes_vm_drift_fixture_without_snapshot_mismatch() {
     let workspace = unique_temp_dir("cli_test_runtime_vm_mode");
     let tests_dir = workspace.join("tests");
     fs::create_dir_all(&tests_dir).expect("failed to create tests directory");
@@ -223,8 +223,8 @@ fn cli_test_runtime_vm_mode_reports_mismatch_for_vm_drift_fixture() {
     assert!(output.stderr.is_empty(), "test command should report results on stdout");
 
     let stdout = String::from_utf8(output.stdout).expect("stdout should be utf-8");
-    assert!(stdout.contains("Passed 0/1 tests"), "vm mode should report failed snapshot match");
-    assert!(stdout.contains("[✗]"), "vm mode should mark mismatched fixture as failed");
+    assert!(stdout.contains("Passed 1/1 tests"), "vm mode should pass snapshot for this fixture");
+    assert!(stdout.contains("[✓]"), "vm mode should mark fixture as passed");
     assert!(
         stdout.contains("Runtime strategy: vm"),
         "vm mode should print runtime strategy summary"
@@ -236,7 +236,7 @@ fn cli_test_runtime_vm_mode_reports_mismatch_for_vm_drift_fixture() {
 }
 
 #[test]
-fn cli_test_runtime_dual_mode_falls_back_to_interpreter_for_vm_drift_fixture() {
+fn cli_test_runtime_dual_mode_keeps_vm_primary_for_vm_drift_fixture() {
     let workspace = unique_temp_dir("cli_test_runtime_dual_mode");
     let tests_dir = workspace.join("tests");
     fs::create_dir_all(&tests_dir).expect("failed to create tests directory");
@@ -256,7 +256,7 @@ fn cli_test_runtime_dual_mode_falls_back_to_interpreter_for_vm_drift_fixture() {
     let stdout = String::from_utf8(output.stdout).expect("stdout should be utf-8");
     assert!(
         stdout.contains("Passed 1/1 tests"),
-        "dual mode should recover via interpreter fallback"
+        "dual mode should pass fixture on primary VM path"
     );
     assert!(stdout.contains("[✓]"), "dual mode should report passing fixture");
     assert!(
@@ -264,12 +264,12 @@ fn cli_test_runtime_dual_mode_falls_back_to_interpreter_for_vm_drift_fixture() {
         "dual mode should print runtime strategy summary"
     );
     assert!(
-        stdout.contains("interpreter_fallback=1"),
-        "dual mode should report fallback count for drift fixtures"
+        stdout.contains("interpreter_fallback=0"),
+        "dual mode should report zero fallback when VM output matches snapshot"
     );
     assert!(
-        stdout.contains("[dual fallback: interpreter]"),
-        "dual mode should emit per-fixture fallback marker when interpreter fallback is used"
+        !stdout.contains("[dual fallback: interpreter]"),
+        "dual mode should not emit fallback marker when interpreter fallback is unused"
     );
 }
 

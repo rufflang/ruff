@@ -91,11 +91,15 @@ Drive Ruff from "near release-ready" to "enterprise-grade and universally useful
     - TODO triage artifacts updated,
     - no misleading "supported" behavior in docs.
 
-- [ ] **ER-P1-004**: Production CLI UX polish for machine + human operators.
+- [x] **ER-P1-004**: Production CLI UX polish for machine + human operators.
   - Scope: ensure deterministic JSON diagnostics, consistent exit-code semantics, and crisp remediation hints.
   - Acceptance:
     - CLI contract tests updated and passing,
     - docs/examples match actual behavior.
+  - 2026-05-25 evidence:
+    - `cargo test --test cli_contracts` passed (15/15), including dual/vm runtime summary and fallback-marker expectations.
+    - `cargo test --test cli_json_contracts` passed (13/13), preserving machine-readable JSON surfaces and negative-path failure semantics.
+    - Updated `docs/CLI_MACHINE_READABLE_CONTRACTS.md` with explicit deterministic `ruff test` runtime-summary/fallback-marker contracts referenced by test names.
 
 - [ ] **ER-P1-005**: Root-to-docs consistency pass.
   - Scope: verify README, roadmap, release process, security posture, and migration docs are aligned with current runtime behavior.
