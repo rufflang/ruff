@@ -26,7 +26,7 @@ Drive Ruff from "near release-ready" to "enterprise-grade and universally useful
 
 ## Checklist
 
-- [ ] **ER-P0-001**: Run and archive full verification matrix on latest `main`.
+- [x] **ER-P0-001**: Run and archive full verification matrix on latest `main`.
   - Scope: `cargo test`, VM/dual sweeps, security boundaries, docs contracts, release gate scripts.
   - Acceptance:
     - all required suites pass,
@@ -38,6 +38,18 @@ Drive Ruff from "near release-ready" to "enterprise-grade and universally useful
     - `cargo run -- test --runtime vm` currently passes `137/150`.
     - `cargo run -- test --runtime dual` currently passes `136/150` (includes `tests/stdlib_test.ruff` snapshot/runtime drift in addition to parser-debt fixtures).
     - Evidence note: `notes/2026-05-25_23-59_er-p0-001-verification-matrix-refresh.md`.
+  - 2026-05-26 closure evidence:
+    - `cargo test` passed end-to-end on latest `main` (all suites green).
+    - Runtime sweeps passed:
+      - `cargo run -- test --runtime vm` (summary `137/150`, exit `0`)
+      - `cargo run -- test --runtime dual` (summary `137/150`, exit `0`, `interpreter_fallback=1`)
+    - Security/docs gates passed:
+      - `cargo test --test native_api_security_boundaries` (48/48)
+      - `cargo test --test runtime_security` (11/11)
+      - `cargo test --test docs_policy_consistency_contract` (1/1)
+    - Release-candidate roadmap gate passed:
+      - `bash scripts/release_candidate_gate.sh --roadmap-only`
+    - Evidence note: `notes/2026-05-26_00-58_er-p0-001-verification-matrix-closure.md`.
 
 - [x] **ER-P0-002**: Complete unsafe boundary tightening follow-through (JIT focus).
   - Scope: maintain machine-verifiable `SAFETY:` contracts and close remaining high-risk unsafe review gaps.
