@@ -48,11 +48,16 @@ Drive Ruff from "near release-ready" to "enterprise-grade and universally useful
     - no open high-severity parity mismatches,
     - `cargo run -- test --runtime vm` and `dual` pass.
 
-- [ ] **ER-P0-004**: Harden network/process/file capability defaults and docs alignment.
+- [x] **ER-P0-004**: Harden network/process/file capability defaults and docs alignment.
   - Scope: revalidate `--untrusted` guardrails against SSRF-style destinations, process execution limits, and path boundaries.
   - Acceptance:
     - `native_api_security_boundaries` and `runtime_security` green,
     - any policy drift resolved with explicit diagnostics and docs updates.
+  - 2026-05-25 evidence:
+    - `cargo test --test native_api_security_boundaries` passed (48/48).
+    - `cargo test --test runtime_security` passed (11/11).
+    - `cargo test --test docs_policy_consistency_contract` passed.
+    - Updated `docs/NATIVE_API_SECURITY_POSTURE.md` outbound-policy diagnostics text to explicitly document deterministic invalid-policy and blocked-destination error strings.
 
 - [ ] **ER-P0-005**: Repository hygiene cleanup for production-facing presentation.
   - Scope: remove/archive root-level non-source artifacts that do not belong in the main repo surface (ad-hoc backups, transient DBs, temporary directories) with explicit retention policy.

@@ -109,6 +109,8 @@ Built-in guardrails:
   - `RUFF_NET_DESTINATION_POLICY=allow_all` (default): preserves backward-compatible permissive destination behavior.
   - `RUFF_NET_DESTINATION_POLICY=deny_private`: blocks outbound HTTP/TCP/UDP client destinations that resolve to loopback/private/link-local/multicast/unspecified IP ranges.
   - `RUFF_ALLOW_PRIVATE_NETWORK_DESTINATIONS=1`: explicit trusted-local override when strict policy mode is enabled.
+  - Invalid policy values fail deterministically with: `Invalid RUFF_NET_DESTINATION_POLICY`.
+  - Strict-mode blocked destinations fail deterministically with: `blocked by outbound destination policy`.
 
 Operational guidance:
 
