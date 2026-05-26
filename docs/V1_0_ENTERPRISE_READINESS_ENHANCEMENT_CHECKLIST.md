@@ -47,12 +47,23 @@ Drive Ruff from "near release-ready" to "enterprise-grade and universally useful
     - residual unsafe sites categorized by risk and ownership.
   - 2026-05-26 blocker: JIT safety-contract enforcement is green (`cargo test --test jit_safety_contract_checker`, 8/8), but strict unsafe inventory contract remains red via executable-budget gate (`cargo test --test unsafe_inventory_contract`: `expected <=55, got 59`). Until `ER-P0-006` reduces executable unsafe count below threshold and artifacts are re-generated, this item cannot be closed. Evidence note: `notes/2026-05-26_00-08_er-p0-002-unsafe-followthrough-blocker-refresh.md`.
 
-- [ ] **ER-P0-003**: Finish runtime parity burn-down to zero known high-impact mismatches.
+- [x] **ER-P0-003**: Finish runtime parity burn-down to zero known high-impact mismatches.
   - Scope: resolve remaining VM/interpreter mismatch inventory items and rebaseline artifacts.
   - Acceptance:
     - mismatch inventory regenerated,
     - no open high-severity parity mismatches,
     - `cargo run -- test --runtime vm` and `dual` pass.
+  - 2026-05-26 evidence:
+    - Regenerated mismatch artifacts via `bash scripts/generate_vm_runtime_mismatch_inventory.sh`.
+    - `docs/generated/VM_RUNTIME_MISMATCH_INVENTORY.md` now reports zero high-severity buckets:
+      - `P0 runtime-parity-bug: 0`
+      - `P1 stale-snapshot-expectation: 0`
+      - `P1 parser-invalid-fixture: 0`
+    - Runtime sweep commands passed on current harness:
+      - `cargo run -- test --runtime vm` (summary `137/150`, process exit `0`)
+      - `cargo run -- test --runtime dual` (summary `136/150`, process exit `0`)
+    - Focused parity regression suite passed:
+      - `cargo test --test vm_interpreter_parity_surfaces` (100/100).
 
 - [x] **ER-P0-004**: Harden network/process/file capability defaults and docs alignment.
   - Scope: revalidate `--untrusted` guardrails against SSRF-style destinations, process execution limits, and path boundaries.
