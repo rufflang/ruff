@@ -46,7 +46,9 @@ This matrix tracks parity for roadmap item `V1-COMP-001`.
 | `ruff lsp-diagnostics <file>` | Parse/diagnostic pipeline (runtime-agnostic) | n/a | Uses lexer/parser diagnostics without executing VM/interpreter runtime. | `tests/cli_contracts.rs` (`cli_lsp_diagnostics_json_is_valid_json`) |
 | `ruff check <file>` | Parse/compile validation (runtime-agnostic) | n/a | Validates source without runtime execution side effects. | `tests/cli_contracts.rs` (`cli_check_does_not_execute_script_side_effects`) |
 
-### `ruff test` Default Runtime Decision (2026-05-24)
+### `ruff test` Default Runtime Decision (2026-05-21)
+
+Updated evidence snapshot: 2026-05-24
 
 - Decision: keep default `ruff test` runtime at `dual` for now.
 - Evidence:

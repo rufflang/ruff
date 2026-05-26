@@ -1,9 +1,9 @@
 # Ruff
 
 Ruff is an AI-native programming language and runtime built in Rust.
-It is designed for production-grade scripting and application workflows where deterministic runtime behavior, strong native capabilities, and practical developer ergonomics matter.
+It is designed for production automation, agentic workflows, and application scripting where deterministic behavior, strong native capabilities, and practical ergonomics matter.
 
-Ruff is VM-first (`ruff run`), with a tree-walking interpreter still available as an explicit fallback/debug path.
+Ruff is VM-first (`ruff run`), with a tree-walking interpreter available as an explicit fallback/debug path.
 
 ## Current Status
 
@@ -11,6 +11,14 @@ Ruff is VM-first (`ruff run`), with a tree-walking interpreter still available a
 - VM runtime parity for modular workflows has been significantly hardened.
 - Dotted module import workflows are supported on the default VM path.
 - Native capability controls are available for trusted and untrusted execution modes.
+
+## Why Ruff
+
+- VM-first execution for predictable runtime behavior in production scripts.
+- Practical native APIs (filesystem, process, network, async, crypto, database).
+- Security policy controls for trusted and untrusted execution.
+- Module workflows that support both flat and dotted imports.
+- Strong diagnostics, contract tests, and release-gate automation.
 
 ## 1.0 Readiness Status
 
@@ -107,6 +115,14 @@ Common commands:
 - `ruff lsp`: run Ruff’s LSP server.
 
 Machine-readable contracts and diagnostics behavior are documented in [docs/CLI_MACHINE_READABLE_CONTRACTS.md](docs/CLI_MACHINE_READABLE_CONTRACTS.md).
+
+## Repository Layout
+
+- `src/`: core runtime/compiler/parser/VM/interpreter implementation.
+- `tests/`: contract, integration, and parity coverage.
+- `docs/`: language spec, security posture, roadmap, release process, and readiness checklists.
+- `examples/`: runnable scripts and integration fixtures.
+- `scripts/`: release gates and generation/verification utilities.
 
 ## Language Snapshot
 

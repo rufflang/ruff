@@ -101,12 +101,24 @@ Drive Ruff from "near release-ready" to "enterprise-grade and universally useful
     - `cargo test --test cli_json_contracts` passed (13/13), preserving machine-readable JSON surfaces and negative-path failure semantics.
     - Updated `docs/CLI_MACHINE_READABLE_CONTRACTS.md` with explicit deterministic `ruff test` runtime-summary/fallback-marker contracts referenced by test names.
 
-- [ ] **ER-P1-005**: Root-to-docs consistency pass.
+- [x] **ER-P1-005**: Root-to-docs consistency pass.
   - Scope: verify README, roadmap, release process, security posture, and migration docs are aligned with current runtime behavior.
   - Acceptance:
     - docs contract tests pass,
     - contradictions removed,
     - examples runnable on default VM path unless explicitly marked otherwise.
+  - 2026-05-25 evidence:
+    - Docs contracts passed:
+      - `cargo test --test readme_contracts`
+      - `cargo test --test docs_policy_consistency_contract`
+      - `cargo test --test architecture_docs_contract`
+      - `cargo test --test release_process_docs_contract`
+      - `cargo test --test runtime_path_matrix_contract`
+    - Docs examples suite passed: `cargo test --test docs_examples`.
+    - Consistency updates applied to root/operator-facing docs:
+      - `README.md` positioning and repo-layout cleanup.
+      - `docs/VM_INTERPRETER_PARITY_MATRIX.md` runtime-decision marker/date alignment for contract stability.
+      - `docs/STANDARD_LIBRARY.md` inventory sync for runtime-registered builtins (`__vm_for_iterable`, `substr`).
 
 - [ ] **ER-P2-001**: Packaging/distribution ergonomics improvement plan.
   - Scope: installer, package-manager guidance, and reproducible build/documentation improvements.
