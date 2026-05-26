@@ -33,6 +33,11 @@ Drive Ruff from "near release-ready" to "enterprise-grade and universally useful
     - failures triaged with owner and fix plan,
     - evidence captured in a dated note under `notes/`.
   - 2026-05-25 blocker: verification matrix is still red because `cargo test --test unsafe_inventory_contract` fails on executable-unsafe budget (`expected <=55, got 59`); VM/dual fixture sweeps remain at `137/150` with known parser-fixture debt (`tests/test_module_syntax.ruff`, `tests/testing_framework.ruff`, `tests/generators_test.ruff`, `tests/destructuring.ruff`, etc.). Evidence note: `notes/2026-05-25_23-06_er-p0-001-verification-matrix-triage.md`.
+  - 2026-05-25 blocker refresh: verification matrix remains red on latest `main`:
+    - `cargo test --test unsafe_inventory_contract` still fails budget gate (`expected <=55, got 59`).
+    - `cargo run -- test --runtime vm` currently passes `137/150`.
+    - `cargo run -- test --runtime dual` currently passes `136/150` (includes `tests/stdlib_test.ruff` snapshot/runtime drift in addition to parser-debt fixtures).
+    - Evidence note: `notes/2026-05-25_23-59_er-p0-001-verification-matrix-refresh.md`.
 
 - [ ] **ER-P0-002**: Complete unsafe boundary tightening follow-through (JIT focus).
   - Scope: maintain machine-verifiable `SAFETY:` contracts and close remaining high-risk unsafe review gaps.
