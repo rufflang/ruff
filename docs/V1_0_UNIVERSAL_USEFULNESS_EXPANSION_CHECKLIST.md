@@ -13,11 +13,11 @@ This list is intentionally execution-oriented so another agent can take one item
 ## Evidence Snapshot (Why This Exists)
 
 - TODO debt still present in production tree:
-  - `docs/generated/V1_CODE_TODO_TRIAGE.md` reports `34` markers, including medium-priority `src/type_checker.rs` clusters.
+  - `docs/generated/V1_CODE_TODO_TRIAGE.md` reports `30` markers, including medium-priority `src/type_checker.rs` clusters.
 - Unsafe surface remains concentrated:
   - `docs/generated/UNSAFE_INVENTORY.md` reports `Executable matches: 55`, mostly JIT boundaries in `src/jit.rs`.
 - Large complexity hotspots remain:
-  - `src/interpreter/legacy_full.rs` (`14,805` LOC, mirror/debt surface).
+  - `src/interpreter/legacy_full.rs` has been removed from the active tree to eliminate mirror-runtime debt.
   - `src/jit.rs` (`9,288` LOC), `src/vm.rs` (`9,202` LOC), `src/interpreter/mod.rs` (`6,018` LOC).
 - Dependency footprint remains broad in default build:
   - `Cargo.toml` compiles heavy stacks by default (`tokio`, `reqwest`, `mysql_async`, `postgres`, `rusqlite`, `image`, `zip`, `cranelift*`) without optional dependency partitioning.
@@ -106,7 +106,7 @@ This list is intentionally execution-oriented so another agent can take one item
       in `tests/native_api_security_boundaries.rs`.
     - Command evidence captured in `notes/2026-05-26_08-01_v1x-sec-002-shell-surface-hardening.md`.
 
-- [ ] **V1X-DRY-001 (P0)**: Resolve `src/interpreter/legacy_full.rs` duplication risk.
+- [x] **V1X-DRY-001 (P0)**: Resolve `src/interpreter/legacy_full.rs` duplication risk.
   - Scope:
     - Decide one path:
       - remove/archive it with policy evidence, or
@@ -119,6 +119,18 @@ This list is intentionally execution-oriented so another agent can take one item
     - `cargo test --test v1_code_todo_triage_contract`
     - `cargo test --test vm_interpreter_parity_surfaces`
     - `cargo test`
+  - 2026-05-26 closure evidence:
+    - Removed `src/interpreter/legacy_full.rs` from the active source tree to eliminate ambiguous shadow-runtime maintenance risk.
+    - Updated TODO triage generation logic (`scripts/generate_v1_code_todo_triage.sh`) to remove stale `legacy_full` special-case handling.
+    - Regenerated triage artifacts:
+      - `docs/generated/V1_CODE_TODO_TRIAGE.md`
+      - `docs/generated/V1_CODE_TODO_TRIAGE.csv`
+      now reporting `30` classified markers with `0` unclassified.
+    - Verified required suites:
+      - `cargo test --test v1_code_todo_triage_contract`
+      - `cargo test --test vm_interpreter_parity_surfaces`
+      - `cargo test` (full workspace pass).
+    - Command evidence captured in `notes/2026-05-26_09-02_v1x-dry-001-legacy-full-removal.md`.
 
 - [ ] **V1X-SIZE-001 (P0)**: Convert heavy runtime dependencies to true optional features.
   - Scope:

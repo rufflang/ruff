@@ -97,11 +97,6 @@ classify_item() {
     owner="interpreter-owner"
     bucket="v1"
     reason="interpreter behavior TODO in script-facing runtime path"
-  elif [[ "$file" == *"/interpreter/legacy_full.rs" ]]; then
-    severity="low"
-    owner="interpreter-owner"
-    bucket="post-v1"
-    reason="legacy interpreter mirror backlog; keep aligned with primary runtime"
   elif [[ "$file" == *"/jit.rs" ]]; then
     severity="low"
     owner="jit-owner"
