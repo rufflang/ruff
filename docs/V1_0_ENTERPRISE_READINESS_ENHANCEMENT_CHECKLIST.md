@@ -88,11 +88,20 @@ Drive Ruff from "near release-ready" to "enterprise-grade and universally useful
       - `cargo test --test repo_hygiene_contract` (2/2)
       - `cargo test --test docs_policy_consistency_contract` (1/1)
 
-- [ ] **ER-P0-006**: Reduce executable `unsafe` budget back under gate threshold with evidence.
+- [x] **ER-P0-006**: Reduce executable `unsafe` budget back under gate threshold with evidence.
   - Scope: current strict inventory reports `Executable matches: 59` vs contract budget `<= 55`.
   - Acceptance:
     - `cargo test --test unsafe_inventory_contract` passes without raising budget ceilings,
     - reduction work is classified and documented in `docs/generated/UNSAFE_INVENTORY.md` + dated `notes/` entry.
+  - 2026-05-26 evidence:
+    - Reduced non-essential executable unsafe callsites in `src/jit_disabled.rs` (JIT-disabled shim) by replacing unsafe extern function-pointer aliases and wrapper invocations with safe equivalents.
+    - Regenerated inventory artifacts:
+      - `docs/generated/UNSAFE_INVENTORY.md`
+      - `docs/generated/UNSAFE_INVENTORY.csv`
+    - Contract and safety validations passed:
+      - `cargo test --test unsafe_inventory_contract` (3/3)
+      - `cargo test --test jit_safety_contract_checker` (8/8)
+      - `cargo test --test vm_interpreter_parity_surfaces` (100/100)
 
 - [ ] **ER-P1-001**: Binary size optimization pass with reproducible measurements.
   - Scope: benchmark release binary size and evaluate feature/profile/link-time optimizations without behavior regressions.

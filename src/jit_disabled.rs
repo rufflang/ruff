@@ -67,12 +67,12 @@ impl VMContext {
     }
 }
 
-pub type CompiledFn = unsafe extern "C" fn(*mut VMContext) -> i64;
-pub type CompiledFnWithArg = unsafe extern "C" fn(*mut VMContext, i64) -> i64;
+pub type CompiledFn = extern "C" fn(*mut VMContext) -> i64;
+pub type CompiledFnWithArg = extern "C" fn(*mut VMContext, i64) -> i64;
 
 #[inline]
 pub fn invoke_compiled_fn(compiled_fn: CompiledFn, ctx: &mut VMContext) -> i64 {
-    unsafe { compiled_fn(ctx as *mut VMContext) }
+    compiled_fn(ctx as *mut VMContext)
 }
 
 #[inline]
@@ -81,7 +81,7 @@ pub fn invoke_compiled_fn_with_arg(
     ctx: &mut VMContext,
     arg: i64,
 ) -> i64 {
-    unsafe { compiled_fn(ctx as *mut VMContext, arg) }
+    compiled_fn(ctx as *mut VMContext, arg)
 }
 
 #[derive(Debug, Clone, PartialEq)]
