@@ -132,7 +132,7 @@ This list is intentionally execution-oriented so another agent can take one item
       - `cargo test` (full workspace pass).
     - Command evidence captured in `notes/2026-05-26_09-02_v1x-dry-001-legacy-full-removal.md`.
 
-- [ ] **V1X-SIZE-001 (P0)**: Convert heavy runtime dependencies to true optional features.
+- [x] **V1X-SIZE-001 (P0)**: Convert heavy runtime dependencies to true optional features.
   - Scope:
     - Update `Cargo.toml` so large surfaces (`db`, `image`, `archive`, possibly `jit`) use optional dependencies and feature wiring.
     - Keep default behavior compatible (or document exact additive profile plan).
@@ -144,6 +144,19 @@ This list is intentionally execution-oriented so another agent can take one item
     - `cargo test --test cli_contracts`
     - `cargo test --test vm_interpreter_parity_surfaces`
     - `cargo test` (if feature matrix is changed broadly)
+  - 2026-05-27 closure evidence:
+    - Updated `Cargo.toml` feature/dependency wiring so heavyweight runtime stacks are wired as true optional dependencies:
+      - `runtime-db` -> `dep:rusqlite`, `dep:postgres`, `dep:mysql_async`
+      - `runtime-image` -> `dep:image`
+      - `runtime-archive` -> `dep:zip`
+      while preserving default compatibility via unchanged default feature set.
+    - Captured reproducible binary-size evidence before/after with `scripts/measure_binary_size.sh` (default release remained stable at `24157416` bytes) and a reduced no-JIT profile (`--no-default-features --features runtime-db,runtime-image,runtime-archive`) at `21955772` bytes (`-2201644` bytes, `-9.11%`).
+    - Verified required suites:
+      - `cargo build --release`
+      - `cargo test --test cli_contracts` (`15 passed`)
+      - `cargo test --test vm_interpreter_parity_surfaces` (`100 passed`)
+    - Broader `cargo test` sweep was executed and blocked by environment tooling (`rg` unavailable for `scripts/generate_interpreter_flag_dependency_map.sh`), not by this feature-wiring change.
+    - Command evidence captured in `notes/2026-05-27_01-12_v1x-size-001-optional-runtime-dependencies-and-size-evidence.md`.
 
 - [ ] **V1X-VM-001 (P0)**: Add external-project VM smoke gates (no interpreter fallback).
   - Scope:
