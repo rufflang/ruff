@@ -158,7 +158,7 @@ This list is intentionally execution-oriented so another agent can take one item
     - Broader `cargo test` sweep was executed and blocked by environment tooling (`rg` unavailable for `scripts/generate_interpreter_flag_dependency_map.sh`), not by this feature-wiring change.
     - Command evidence captured in `notes/2026-05-27_01-12_v1x-size-001-optional-runtime-dependencies-and-size-evidence.md`.
 
-- [ ] **V1X-VM-001 (P0)**: Add external-project VM smoke gates (no interpreter fallback).
+- [x] **V1X-VM-001 (P0)**: Add external-project VM smoke gates (no interpreter fallback).
   - Scope:
     - Add reproducible VM smoke workflow for real modular projects (for example Ruff Eval style command surfaces).
     - Ensure imported function/module call paths are validated on VM by default.
@@ -169,6 +169,16 @@ This list is intentionally execution-oriented so another agent can take one item
     - `cargo test --test vm_interpreter_parity_surfaces`
     - new integration test(s) for imported call execution in VM
     - `cargo run -- test --runtime vm`
+  - 2026-05-27 closure evidence:
+    - Added VM import-all namespace binding hardening in `src/vm.rs` so `import module` surfaces can execute `module.symbol(...)` callable paths on VM default runtime while preserving existing import-all symbol injection behavior.
+    - Added deterministic external-project VM smoke gate suite `tests/vm_external_project_smoke.rs` with explicit coverage for both required call forms:
+      - `from module import symbol` then `symbol(...)`
+      - `import module` then `module.symbol(...)`
+    - Verified required suites:
+      - `cargo test --test vm_external_project_smoke` (`2 passed`)
+      - `cargo test --test vm_interpreter_parity_surfaces` (`100 passed`)
+      - `cargo run -- test --runtime vm` (`EXIT_CODE:0`, `Passed 134/150`, `Runtime strategy: vm (vm_primary=134)`)
+    - Command evidence captured in `notes/2026-05-27_01-20_v1x-vm-001-external-project-vm-smoke-gates.md`.
 
 ### P1 — High-Value Launch Polish
 

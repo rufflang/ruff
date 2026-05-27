@@ -5092,6 +5092,45 @@ impl VM {
         }
     }
 
+    fn module_binding_name(module_name: &str) -> String {
+        module_name.rsplit('.').next().unwrap_or(module_name).to_string()
+    }
+
+    fn wrap_module_export_for_method_call(value: &Value) -> Value {
+        match value {
+            Value::Function(params, body, captured_env) => {
+                let mut method_params = Vec::with_capacity(params.len() + 1);
+                method_params.push("__module_receiver".to_string());
+                method_params.extend(params.iter().cloned());
+                Value::Function(method_params, body.clone(), captured_env.clone())
+            }
+            Value::AsyncFunction(params, body, captured_env) => {
+                let mut method_params = Vec::with_capacity(params.len() + 1);
+                method_params.push("__module_receiver".to_string());
+                method_params.extend(params.iter().cloned());
+                Value::AsyncFunction(method_params, body.clone(), captured_env.clone())
+            }
+            Value::GeneratorDef(params, body) => {
+                let mut method_params = Vec::with_capacity(params.len() + 1);
+                method_params.push("__module_receiver".to_string());
+                method_params.extend(params.iter().cloned());
+                Value::GeneratorDef(method_params, body.clone())
+            }
+            other => other.clone(),
+        }
+    }
+
+    fn module_namespace_value(module_name: &str, exports: &HashMap<String, Value>) -> Value {
+        let mut module_fields = HashMap::with_capacity(exports.len());
+        for (name, value) in exports {
+            module_fields.insert(name.clone(), Self::wrap_module_export_for_method_call(value));
+        }
+        Value::Struct {
+            name: format!("__module_namespace_{}", module_name),
+            fields: module_fields,
+        }
+    }
+
     fn vm_import_all(&mut self, args: &[Value]) -> Result<Value, String> {
         if args.len() != 1 {
             return Err(format!("__vm_import_all expects 1 arguments, got {}", args.len()));
@@ -5108,8 +5147,20 @@ impl VM {
             .get_all_exports(&module_name)
             .map_err(|err| err.message)?;
 
+        let module_binding_name = Self::module_binding_name(&module_name);
+        let module_namespace_value =
+            if exports.contains_key(module_binding_name.as_str()) {
+                None
+            } else {
+                Some(Self::module_namespace_value(&module_name, &exports))
+            };
+
         for (name, value) in exports {
             self.define_import_binding_in_current_scope(name, value);
+        }
+
+        if let Some(module_value) = module_namespace_value {
+            self.define_import_binding_in_current_scope(module_binding_name, module_value);
         }
 
         Ok(Value::Null)
