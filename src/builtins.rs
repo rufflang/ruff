@@ -20,6 +20,7 @@ use std::process::Command;
 use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
+use uuid::Uuid;
 
 /// Global seeded RNG for deterministic testing
 /// When set, all random functions use this instead of thread_rng()
@@ -149,6 +150,27 @@ pub fn random_choice(arr: &[Value]) -> Value {
     };
 
     arr[idx].clone()
+}
+
+/// Generate a RFC 4122 version 4 UUID string.
+pub fn uuid_v4() -> String {
+    Uuid::new_v4().to_string()
+}
+
+/// Generate a random lowercase alphanumeric identifier.
+pub fn random_id(length: usize) -> String {
+    const ALPHABET: &[u8] = b"abcdefghijklmnopqrstuvwxyz0123456789";
+
+    let make_char = |idx: usize| ALPHABET[idx] as char;
+    let mut seeded = lock_seeded_rng();
+
+    if let Some(ref mut rng) = *seeded {
+        (0..length).map(|_| make_char(rng.gen_range(0..ALPHABET.len()))).collect()
+    } else {
+        drop(seeded);
+        let mut rng = rand::thread_rng();
+        (0..length).map(|_| make_char(rng.gen_range(0..ALPHABET.len()))).collect()
+    }
 }
 
 /// Array generation functions
@@ -1027,6 +1049,17 @@ pub fn now() -> f64 {
     Utc::now().timestamp() as f64
 }
 
+/// Get current UTC time as an ISO-8601 UTC timestamp.
+pub fn now_utc() -> String {
+    Utc::now().format("%Y-%m-%dT%H:%M:%SZ").to_string()
+}
+
+/// Get current Unix timestamp in seconds.
+pub fn now_unix() -> i64 {
+    SystemTime::now().duration_since(UNIX_EPOCH).expect("System time before UNIX epoch").as_secs()
+        as i64
+}
+
 /// Get current timestamp in milliseconds since UNIX epoch
 /// Returns the number of milliseconds elapsed since January 1, 1970 00:00:00 UTC
 /// This is useful for timestamps and timing operations
@@ -1717,6 +1750,15 @@ pub fn jwt_decode(token: &str, secret: &str) -> Result<DictMap, String> {
     }
 
     Ok(result)
+}
+
+/// Verify a JWT token signature and basic validity checks.
+pub fn jwt_verify(token: &str, secret: &str) -> bool {
+    let mut validation = Validation::new(Algorithm::HS256);
+    validation.required_spec_claims.clear();
+    validation.validate_exp = true;
+
+    decode::<Claims>(token, &DecodingKey::from_secret(secret.as_bytes()), &validation).is_ok()
 }
 
 /// OAuth2 Helper Functions

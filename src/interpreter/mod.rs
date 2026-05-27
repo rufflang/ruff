@@ -342,6 +342,7 @@ impl Interpreter {
             "str" => "to_string",
             "time" => "current_timestamp",
             "substr" => "substring",
+            "now_utc_seconds" => "now_unix",
             other => other,
         }
     }
@@ -643,10 +644,15 @@ impl Interpreter {
             "random",
             "random_int",
             "random_choice",
+            "uuid_v4",
+            "random_id",
             "set_random_seed",
             "clear_random_seed",
             // Date/Time functions
             "now",
+            "now_utc",
+            "now_unix",
+            "now_utc_seconds",
             "current_timestamp",
             "time",
             "performance_now",
@@ -707,6 +713,7 @@ impl Interpreter {
             // JWT authentication functions
             "jwt_encode",
             "jwt_decode",
+            "jwt_verify",
             // OAuth2 helper functions
             "oauth2_auth_url",
             "oauth2_get_token",
@@ -1111,6 +1118,8 @@ impl Interpreter {
             "random_choice".to_string(),
             Value::NativeFunction("random_choice".to_string()),
         );
+        self.env.define("uuid_v4".to_string(), Value::NativeFunction("uuid_v4".to_string()));
+        self.env.define("random_id".to_string(), Value::NativeFunction("random_id".to_string()));
         self.env.define(
             "set_random_seed".to_string(),
             Value::NativeFunction("set_random_seed".to_string()),
@@ -1122,6 +1131,10 @@ impl Interpreter {
 
         // Date/Time functions
         self.env.define("now".to_string(), Value::NativeFunction("now".to_string()));
+        self.env.define("now_utc".to_string(), Value::NativeFunction("now_utc".to_string()));
+        self.env.define("now_unix".to_string(), Value::NativeFunction("now_unix".to_string()));
+        self.env
+            .define("now_utc_seconds".to_string(), Value::NativeFunction("now_unix".to_string()));
         self.env.define(
             "current_timestamp".to_string(),
             Value::NativeFunction("current_timestamp".to_string()),
@@ -1233,6 +1246,7 @@ impl Interpreter {
         // JWT authentication functions
         self.env.define("jwt_encode".to_string(), Value::NativeFunction("jwt_encode".to_string()));
         self.env.define("jwt_decode".to_string(), Value::NativeFunction("jwt_decode".to_string()));
+        self.env.define("jwt_verify".to_string(), Value::NativeFunction("jwt_verify".to_string()));
 
         // OAuth2 helper functions
         self.env.define(

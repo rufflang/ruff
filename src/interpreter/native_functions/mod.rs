@@ -383,6 +383,7 @@ mod tests {
             "parallel_http",
             "jwt_encode",
             "jwt_decode",
+            "jwt_verify",
             "oauth2_auth_url",
             "oauth2_get_token",
             "http_get_stream",
@@ -479,9 +480,14 @@ mod tests {
             "random",
             "random_int",
             "random_choice",
+            "uuid_v4",
+            "random_id",
             "set_random_seed",
             "clear_random_seed",
             "now",
+            "now_utc",
+            "now_unix",
+            "now_utc_seconds",
             "current_timestamp",
             "performance_now",
             "time_us",
@@ -1864,6 +1870,22 @@ mod tests {
             &[Value::Array(Arc::new(vec![Value::Int(10), Value::Int(20), Value::Int(30)]))],
         );
         assert!(matches!(random_choice_value, Value::Int(10) | Value::Int(20) | Value::Int(30)));
+
+        let uuid_value = call_native_function(&mut interpreter, "uuid_v4", &[]);
+        assert!(matches!(uuid_value, Value::Str(value) if value.len() == 36));
+
+        let random_id_value = call_native_function(&mut interpreter, "random_id", &[Value::Int(10)]);
+        assert!(matches!(random_id_value, Value::Str(value) if value.len() == 10));
+
+        let now_utc_value = call_native_function(&mut interpreter, "now_utc", &[]);
+        assert!(matches!(now_utc_value, Value::Str(value) if value.ends_with('Z') && value.contains('T')));
+
+        let now_unix_value = call_native_function(&mut interpreter, "now_unix", &[]);
+        assert!(matches!(now_unix_value, Value::Int(value) if value > 0));
+
+        let now_utc_seconds_value =
+            call_native_function(&mut interpreter, "now_utc_seconds", &[]);
+        assert!(matches!(now_utc_seconds_value, Value::Int(value) if value > 0));
 
         let set_seed_missing = call_native_function(&mut interpreter, "set_random_seed", &[]);
         assert!(
@@ -3909,6 +3931,24 @@ mod tests {
             matches!(jwt_decode_extra, Value::Error(message) if message.contains("jwt_decode() expects 2 arguments"))
         );
 
+        let jwt_verify_missing = call_native_function(&mut interpreter, "jwt_verify", &[]);
+        assert!(
+            matches!(jwt_verify_missing, Value::Error(message) if message.contains("jwt_verify() expects 2 arguments"))
+        );
+
+        let jwt_verify_extra = call_native_function(
+            &mut interpreter,
+            "jwt_verify",
+            &[
+                Value::Str(Arc::new("token".to_string())),
+                Value::Str(Arc::new("secret".to_string())),
+                Value::Int(1),
+            ],
+        );
+        assert!(
+            matches!(jwt_verify_extra, Value::Error(message) if message.contains("jwt_verify() expects 2 arguments"))
+        );
+
         let oauth2_auth_url_missing =
             call_native_function(&mut interpreter, "oauth2_auth_url", &[]);
         assert!(
@@ -3999,6 +4039,20 @@ mod tests {
             }
             other => panic!("Expected Dict payload from jwt_decode, got {:?}", other),
         }
+
+        let verify_valid = call_native_function(
+            &mut interpreter,
+            "jwt_verify",
+            &[Value::Str(token.clone()), secret.clone()],
+        );
+        assert!(matches!(verify_valid, Value::Bool(true)));
+
+        let verify_invalid = call_native_function(
+            &mut interpreter,
+            "jwt_verify",
+            &[Value::Str(token), Value::Str(Arc::new("wrong-secret".to_string()))],
+        );
+        assert!(matches!(verify_invalid, Value::Bool(false)));
 
         let auth_url = call_native_function(
             &mut interpreter,

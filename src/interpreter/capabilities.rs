@@ -156,12 +156,13 @@ pub fn capability_for_native_function(name: &str) -> Option<NativeCapability> {
         | "db_rollback" | "db_last_insert_id" => Some(NativeCapability::Database),
 
         // Clock/time
-        "now" | "current_timestamp" | "performance_now" | "time_us" | "time_ns"
+        "now" | "now_utc" | "now_unix" | "current_timestamp" | "performance_now" | "time_us" | "time_ns"
         | "format_duration" | "elapsed" | "format_date" | "parse_date" | "sleep"
         | "async_sleep" | "async_timeout" => Some(NativeCapability::Clock),
 
         // Randomness
-        "random" | "random_int" | "random_choice" | "set_random_seed" | "clear_random_seed" => {
+        "random" | "random_int" | "random_choice" | "uuid_v4" | "random_id"
+        | "set_random_seed" | "clear_random_seed" => {
             Some(NativeCapability::Random)
         }
 

@@ -836,6 +836,19 @@ impl TypeChecker {
             },
         );
 
+        self.functions.insert(
+            "uuid_v4".to_string(),
+            FunctionSignature { param_types: vec![], return_type: Some(TypeAnnotation::String) },
+        );
+
+        self.functions.insert(
+            "random_id".to_string(),
+            FunctionSignature {
+                param_types: vec![Some(TypeAnnotation::Int)],
+                return_type: Some(TypeAnnotation::String),
+            },
+        );
+
         // Random seed control (for deterministic testing)
         self.functions.insert(
             "set_random_seed".to_string(),
@@ -854,6 +867,21 @@ impl TypeChecker {
         self.functions.insert(
             "now".to_string(),
             FunctionSignature { param_types: vec![], return_type: Some(TypeAnnotation::Float) },
+        );
+
+        self.functions.insert(
+            "now_utc".to_string(),
+            FunctionSignature { param_types: vec![], return_type: Some(TypeAnnotation::String) },
+        );
+
+        self.functions.insert(
+            "now_unix".to_string(),
+            FunctionSignature { param_types: vec![], return_type: Some(TypeAnnotation::Int) },
+        );
+
+        self.functions.insert(
+            "now_utc_seconds".to_string(),
+            FunctionSignature { param_types: vec![], return_type: Some(TypeAnnotation::Int) },
         );
 
         self.functions.insert(
@@ -1305,6 +1333,14 @@ impl TypeChecker {
             FunctionSignature {
                 param_types: vec![Some(TypeAnnotation::String), Some(TypeAnnotation::String)], // Token and secret
                 return_type: None, // Returns dict or error
+            },
+        );
+
+        self.functions.insert(
+            "jwt_verify".to_string(),
+            FunctionSignature {
+                param_types: vec![Some(TypeAnnotation::String), Some(TypeAnnotation::String)],
+                return_type: Some(TypeAnnotation::Bool),
             },
         );
 

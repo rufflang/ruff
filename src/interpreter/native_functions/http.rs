@@ -1357,6 +1357,23 @@ pub fn handle(name: &str, arg_values: &[Value]) -> Option<Value> {
             }
         }
 
+        "jwt_verify" => {
+            if arg_values.len() != 2 {
+                return Some(Value::Error(format!(
+                    "jwt_verify() expects 2 arguments (token, secret), got {}",
+                    arg_values.len()
+                )));
+            }
+
+            if let (Some(Value::Str(token)), Some(Value::Str(secret))) =
+                (arg_values.first(), arg_values.get(1))
+            {
+                Value::Bool(builtins::jwt_verify(token, secret))
+            } else {
+                Value::Error("jwt_verify requires a token string and secret key string".to_string())
+            }
+        }
+
         "oauth2_auth_url" => {
             if arg_values.len() != 4 {
                 return Some(Value::Error(format!(

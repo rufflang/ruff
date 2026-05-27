@@ -483,6 +483,36 @@ pub fn handle(name: &str, arg_values: &[Value]) -> Option<Value> {
             }
         }
 
+        "uuid_v4" => {
+            if !arg_values.is_empty() {
+                return Some(Value::Error(format!(
+                    "uuid_v4() expects 0 arguments, got {}",
+                    arg_values.len()
+                )));
+            }
+
+            Value::Str(Arc::new(builtins::uuid_v4()))
+        }
+
+        "random_id" => {
+            if arg_values.len() != 1 {
+                return Some(Value::Error(format!(
+                    "random_id() expects 1 argument (length), got {}",
+                    arg_values.len()
+                )));
+            }
+
+            if let Some(Value::Int(length)) = arg_values.first() {
+                if *length < 0 {
+                    Value::Error("random_id length must be >= 0".to_string())
+                } else {
+                    Value::Str(Arc::new(builtins::random_id(*length as usize)))
+                }
+            } else {
+                Value::Error("random_id requires an integer length argument".to_string())
+            }
+        }
+
         // Random seed control (for deterministic testing)
         "set_random_seed" => {
             if arg_values.len() != 1 {
@@ -525,6 +555,28 @@ pub fn handle(name: &str, arg_values: &[Value]) -> Option<Value> {
             }
 
             Value::Float(builtins::now())
+        }
+
+        "now_utc" => {
+            if !arg_values.is_empty() {
+                return Some(Value::Error(format!(
+                    "now_utc() expects 0 arguments, got {}",
+                    arg_values.len()
+                )));
+            }
+
+            Value::Str(Arc::new(builtins::now_utc()))
+        }
+
+        "now_unix" => {
+            if !arg_values.is_empty() {
+                return Some(Value::Error(format!(
+                    "now_unix() expects 0 arguments, got {}",
+                    arg_values.len()
+                )));
+            }
+
+            Value::Int(builtins::now_unix())
         }
 
         "current_timestamp" => {
@@ -1273,6 +1325,21 @@ mod tests {
     }
 
     #[test]
+    fn test_uuid_random_id_and_time_helpers() {
+        let uuid = handle("uuid_v4", &[]).unwrap();
+        assert!(matches!(uuid, Value::Str(value) if value.len() == 36 && value.chars().nth(14) == Some('4')));
+
+        let random_id = handle("random_id", &[Value::Int(12)]).unwrap();
+        assert!(matches!(random_id, Value::Str(value) if value.len() == 12));
+
+        let now_utc = handle("now_utc", &[]).unwrap();
+        assert!(matches!(now_utc, Value::Str(value) if value.ends_with('Z') && value.contains('T')));
+
+        let now_unix = handle("now_unix", &[]).unwrap();
+        assert!(matches!(now_unix, Value::Int(value) if value > 0));
+    }
+
+    #[test]
     fn test_random_time_env_and_args_api_strict_arity_rejects_extra_arguments() {
         let random_extra = handle("random", &[Value::Int(1)]).unwrap();
         assert!(matches!(
@@ -1285,6 +1352,30 @@ mod tests {
         assert!(matches!(
             random_int_extra,
             Value::Error(message) if message.contains("random_int() expects 2 arguments")
+        ));
+
+        let uuid_extra = handle("uuid_v4", &[Value::Int(1)]).unwrap();
+        assert!(matches!(
+            uuid_extra,
+            Value::Error(message) if message.contains("uuid_v4() expects 0 arguments")
+        ));
+
+        let random_id_extra = handle("random_id", &[Value::Int(8), Value::Int(1)]).unwrap();
+        assert!(matches!(
+            random_id_extra,
+            Value::Error(message) if message.contains("random_id() expects 1 argument")
+        ));
+
+        let now_utc_extra = handle("now_utc", &[Value::Int(1)]).unwrap();
+        assert!(matches!(
+            now_utc_extra,
+            Value::Error(message) if message.contains("now_utc() expects 0 arguments")
+        ));
+
+        let now_unix_extra = handle("now_unix", &[Value::Int(1)]).unwrap();
+        assert!(matches!(
+            now_unix_extra,
+            Value::Error(message) if message.contains("now_unix() expects 0 arguments")
         ));
 
         let format_duration_extra =
