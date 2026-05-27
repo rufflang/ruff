@@ -124,6 +124,22 @@ pub fn handle(name: &str, args: &[Value]) -> Option<Value> {
             // Polymorphic: strings handled here, arrays delegated to collections.rs
             match args.first() {
                 Some(Value::Array(_)) => return None,
+                Some(Value::Dict(dict)) => match args.get(1) {
+                    Some(Value::Str(key)) => Value::Bool(dict.contains_key(key.as_str())),
+                    _ => Value::Error(
+                        "contains() requires two arguments: string/array and substring/item"
+                            .to_string(),
+                    ),
+                },
+                Some(Value::FixedDict { keys, .. }) => match args.get(1) {
+                    Some(Value::Str(key)) => {
+                        Value::Bool(keys.iter().any(|existing| existing.as_ref() == key.as_str()))
+                    }
+                    _ => Value::Error(
+                        "contains() requires two arguments: string/array and substring/item"
+                            .to_string(),
+                    ),
+                },
                 Some(Value::Str(s)) => match args.get(1) {
                     Some(Value::Str(substr)) => {
                         Value::Int(if builtins::contains(&**s, &**substr) { 1 } else { 0 })
@@ -133,9 +149,9 @@ pub fn handle(name: &str, args: &[Value]) -> Option<Value> {
                             .to_string(),
                     ),
                 },
-                Some(_) => {
-                    Value::Error("contains() first argument must be a string or array".to_string())
-                }
+                Some(_) => Value::Error(
+                    "contains() first argument must be a string, array, or dictionary".to_string(),
+                ),
                 None => Value::Error(
                     "contains() requires two arguments: string/array and substring/item"
                         .to_string(),
@@ -143,7 +159,7 @@ pub fn handle(name: &str, args: &[Value]) -> Option<Value> {
             }
         }
 
-        "substring" => {
+        "substring" | "substr" => {
             let s = match require_string_arg(args, 0, "substring", "value") {
                 Ok(value) => value,
                 Err(error) => return Some(error),
@@ -748,6 +764,38 @@ mod tests {
     }
 
     #[test]
+    fn test_contains_supports_dictionary_keys() {
+        let mut dict = DictMap::default();
+        dict.insert(Arc::<str>::from("alpha"), Value::Int(1));
+        dict.insert(Arc::<str>::from("beta"), Value::Int(2));
+
+        let contains_dict =
+            handle("contains", &[Value::Dict(Arc::new(dict)), str_value("beta")]).unwrap();
+        assert!(matches!(contains_dict, Value::Bool(true)));
+
+        let fixed_dict = Value::FixedDict {
+            keys: Arc::new(vec![Arc::<str>::from("alpha"), Arc::<str>::from("beta")]),
+            values: vec![Value::Int(1), Value::Int(2)],
+        };
+        let contains_fixed = handle("contains", &[fixed_dict.clone(), str_value("alpha")]).unwrap();
+        assert!(matches!(contains_fixed, Value::Bool(true)));
+
+        let missing_fixed = handle("contains", &[fixed_dict, str_value("gamma")]).unwrap();
+        assert!(matches!(missing_fixed, Value::Bool(false)));
+    }
+
+    #[test]
+    fn test_substr_alias_matches_substring_behavior() {
+        let substring =
+            handle("substring", &[str_value("rufflang"), Value::Int(1), Value::Int(4)]).unwrap();
+        let substr = handle("substr", &[str_value("rufflang"), Value::Int(1), Value::Int(4)])
+            .expect("substr alias should be available");
+
+        assert!(matches!(&substring, Value::Str(value) if value.as_ref() == "uff"));
+        assert!(matches!(&substr, Value::Str(value) if value.as_ref() == "uff"));
+    }
+
+    #[test]
     fn test_contains_and_index_of_argument_shape_errors() {
         let contains_missing = handle("contains", &[str_value("ruff")]).unwrap();
         assert!(
@@ -761,7 +809,7 @@ mod tests {
 
         let contains_invalid_type = handle("contains", &[Value::Int(1), str_value("x")]).unwrap();
         assert!(
-            matches!(contains_invalid_type, Value::Error(message) if message.contains("first argument must be a string or array"))
+            matches!(contains_invalid_type, Value::Error(message) if message.contains("first argument must be a string, array, or dictionary"))
         );
 
         let index_invalid_type = handle("index_of", &[Value::Bool(true), str_value("x")]).unwrap();

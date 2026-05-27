@@ -133,7 +133,7 @@ print("--- Password Hashing Tests ---")
 
 let password := "my_secure_password"
 let hashed := hash_password(password)
-print("Password hash: ${substring(hashed, 0, 30)}...")
+print("Password hash length: ${len(hashed)}")
 
 if len(hashed) > 50 {
     print("✓ Bcrypt hash has reasonable length")

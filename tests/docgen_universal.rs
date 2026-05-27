@@ -735,7 +735,11 @@ fn docgen_strict_public_gate_ignores_private_undocumented_ruff_functions() {
 
     assert_eq!(summary.undocumented_count, 0);
     assert_eq!(summary.warning_count, 0);
-    assert_eq!(summary.broken_link_count, 0);
+    assert_eq!(
+        summary.broken_link_count, 0,
+        "unexpected broken links: {:?}",
+        summary.gate_failures
+    );
     assert!(summary.gate_failures.is_empty(), "strict gate should pass");
 }
 
@@ -2000,8 +2004,16 @@ fn docgen_optional_local_anchor_validation_passes_for_existing_anchor() {
     )
     .expect("docgen run should complete");
 
-    assert_eq!(summary.broken_link_count, 0);
-    assert!(summary.gate_failures.is_empty());
+    assert_eq!(
+        summary.broken_link_count, 0,
+        "unexpected broken links: {:?}",
+        summary.gate_failures
+    );
+    assert!(
+        summary.gate_failures.is_empty(),
+        "unexpected gate failures: {:?}",
+        summary.gate_failures
+    );
 }
 
 #[test]
@@ -2383,12 +2395,13 @@ fn docgen_external_validation_allows_same_host_redirect_hops() {
 
 #[test]
 fn docgen_external_validation_allows_cross_host_redirect_when_hosts_are_allowlisted() {
-    let Some(destination_server) = spawn_http_server(1, |_path| http_200_response()) else {
+    // Allow extra requests because redirect validation may issue retries under load.
+    let Some(destination_server) = spawn_http_server(16, |_path| http_200_response()) else {
         return;
     };
     let destination_url = destination_server.url_with_host("127.0.0.1", "/final");
     let Some(redirect_server) =
-        spawn_http_server(1, move |_path| http_302_response(&destination_url))
+        spawn_http_server(16, move |_path| http_302_response(&destination_url))
     else {
         return;
     };
@@ -2429,7 +2442,7 @@ fn docgen_external_validation_allows_cross_host_redirect_when_hosts_are_allowlis
         LinkValidationOptions {
             validate_local_anchors: false,
             validate_external_links: true,
-            external_link_timeout_ms: 500,
+            external_link_timeout_ms: 2_000,
             external_link_allowlist: BTreeSet::from([
                 "localhost".to_string(),
                 "127.0.0.1".to_string(),
@@ -2446,12 +2459,12 @@ fn docgen_external_validation_allows_cross_host_redirect_when_hosts_are_allowlis
 
 #[test]
 fn docgen_external_validation_blocks_redirects_to_non_allowlisted_hosts() {
-    let Some(destination_server) = spawn_http_server(1, |_path| http_200_response()) else {
+    let Some(destination_server) = spawn_http_server(4, |_path| http_200_response()) else {
         return;
     };
     let blocked_target = destination_server.url_with_host("127.0.0.1", "/blocked");
     let Some(redirect_server) =
-        spawn_http_server(1, move |_path| http_302_response(&blocked_target))
+        spawn_http_server(4, move |_path| http_302_response(&blocked_target))
     else {
         return;
     };

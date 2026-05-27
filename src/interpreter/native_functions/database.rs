@@ -12,12 +12,7 @@ macro_rules! lock_or_db_error {
     ($mutex:expr, $context:expr) => {
         match $mutex.lock() {
             Ok(guard) => guard,
-            Err(_) => {
-                return Some(Value::Error(format!(
-                    "{}: database lock poisoned",
-                    $context
-                )))
-            }
+            Err(_) => return Some(Value::Error(format!("{}: database lock poisoned", $context))),
         }
     };
 }
@@ -240,7 +235,8 @@ pub fn handle(name: &str, arg_values: &[Value]) -> Option<Value> {
                             }
                         }
                         (DatabaseConnection::Mysql(connection), "mysql") => {
-                            let mut connection = lock_or_db_error!(connection, "database.connection_mut");
+                            let mut connection =
+                                lock_or_db_error!(connection, "database.connection_mut");
                             match create_runtime() {
                                 Ok(runtime) => {
                                     let execute_result = if let Some(Value::Array(param_arr)) =
@@ -438,7 +434,8 @@ pub fn handle(name: &str, arg_values: &[Value]) -> Option<Value> {
                             }
                         }
                         (DatabaseConnection::Mysql(connection), "mysql") => {
-                            let mut connection = lock_or_db_error!(connection, "database.connection_mut");
+                            let mut connection =
+                                lock_or_db_error!(connection, "database.connection_mut");
                             match create_runtime() {
                                 Ok(runtime) => {
                                     let query_result: Result<
@@ -520,14 +517,27 @@ pub fn handle(name: &str, arg_values: &[Value]) -> Option<Value> {
             if let (Some(Value::Str(db_type)), Some(Value::Str(connection_string))) =
                 (arg_values.first(), arg_values.get(1))
             {
-                let config = if let Some(Value::Dict(config)) = arg_values.get(2) {
-                    let mut standard_map = HashMap::new();
-                    for (key, value) in config.iter() {
-                        standard_map.insert(key.as_ref().to_string(), value.clone());
+                let config = match arg_values.get(2) {
+                    Some(Value::Dict(config)) => {
+                        let mut standard_map = HashMap::new();
+                        for (key, value) in config.iter() {
+                            standard_map.insert(key.as_ref().to_string(), value.clone());
+                        }
+                        standard_map
                     }
-                    standard_map
-                } else {
-                    HashMap::new()
+                    Some(Value::FixedDict { keys, values }) => {
+                        let mut standard_map = HashMap::new();
+                        for (key, value) in keys.iter().zip(values.iter()) {
+                            standard_map.insert(key.as_ref().to_string(), value.clone());
+                        }
+                        standard_map
+                    }
+                    Some(_) => {
+                        return Some(Value::Error(
+                            "db_pool optional config argument must be a dictionary".to_string(),
+                        ));
+                    }
+                    None => HashMap::new(),
                 };
 
                 match ConnectionPool::new(
@@ -685,7 +695,8 @@ pub fn handle(name: &str, arg_values: &[Value]) -> Option<Value> {
 
             match result {
                 Ok(()) => {
-                    let mut in_trans = lock_or_db_error!(in_transaction, "database.in_transaction_mut");
+                    let mut in_trans =
+                        lock_or_db_error!(in_transaction, "database.in_transaction_mut");
                     *in_trans = true;
                     Value::Bool(true)
                 }
@@ -723,7 +734,8 @@ pub fn handle(name: &str, arg_values: &[Value]) -> Option<Value> {
                             .map_err(|e| format!("Failed to commit transaction: {}", e))
                     }
                     (DatabaseConnection::Mysql(connection), "mysql") => {
-                        let mut connection = lock_or_db_error!(connection, "database.connection_mut");
+                        let mut connection =
+                            lock_or_db_error!(connection, "database.connection_mut");
                         match create_runtime() {
                             Ok(runtime) => runtime
                                 .block_on(async {
@@ -739,7 +751,8 @@ pub fn handle(name: &str, arg_values: &[Value]) -> Option<Value> {
 
                 match result {
                     Ok(()) => {
-                        let mut in_trans = lock_or_db_error!(in_transaction, "database.in_transaction_mut");
+                        let mut in_trans =
+                            lock_or_db_error!(in_transaction, "database.in_transaction_mut");
                         *in_trans = false;
                         Value::Bool(true)
                     }
@@ -781,7 +794,8 @@ pub fn handle(name: &str, arg_values: &[Value]) -> Option<Value> {
                             .map_err(|e| format!("Failed to rollback transaction: {}", e))
                     }
                     (DatabaseConnection::Mysql(connection), "mysql") => {
-                        let mut connection = lock_or_db_error!(connection, "database.connection_mut");
+                        let mut connection =
+                            lock_or_db_error!(connection, "database.connection_mut");
                         match create_runtime() {
                             Ok(runtime) => runtime
                                 .block_on(async {
@@ -799,7 +813,8 @@ pub fn handle(name: &str, arg_values: &[Value]) -> Option<Value> {
 
                 match result {
                     Ok(()) => {
-                        let mut in_trans = lock_or_db_error!(in_transaction, "database.in_transaction_mut");
+                        let mut in_trans =
+                            lock_or_db_error!(in_transaction, "database.in_transaction_mut");
                         *in_trans = false;
                         Value::Bool(true)
                     }
@@ -843,7 +858,8 @@ pub fn handle(name: &str, arg_values: &[Value]) -> Option<Value> {
                         }
                     }
                     (DatabaseConnection::Mysql(connection), "mysql") => {
-                        let mut connection = lock_or_db_error!(connection, "database.connection_mut");
+                        let mut connection =
+                            lock_or_db_error!(connection, "database.connection_mut");
                         match create_runtime() {
                             Ok(runtime) => match runtime.block_on(async {
                                 connection.query_first::<u64, _>("SELECT LAST_INSERT_ID()").await
@@ -1006,6 +1022,24 @@ mod tests {
     }
 
     #[test]
+    fn test_db_pool_accepts_fixed_dict_optional_config() {
+        let db_path = tmp_db_path("sqlite_pool_fixed_dict.db");
+        let fixed_config = Value::FixedDict {
+            keys: Arc::new(vec![]),
+            values: vec![],
+        };
+
+        let pool = handle("db_pool", &[str_value("sqlite"), str_value(&db_path), fixed_config])
+            .expect("db_pool should return a value");
+        assert!(matches!(pool, Value::DatabasePool { .. }));
+
+        let close = handle("db_pool_close", &[pool]).expect("db_pool_close should return a value");
+        assert!(matches!(close, Value::Bool(true)));
+
+        let _ = std::fs::remove_file(db_path);
+    }
+
+    #[test]
     fn test_db_argument_shape_errors() {
         let execute_error = handle("db_execute", &[Value::Int(1)]).unwrap();
         assert!(
@@ -1026,6 +1060,15 @@ mod tests {
         assert!(
             matches!(pool_error, Value::Error(message) if message.contains("db_pool requires database type and connection string"))
         );
+
+        let pool_invalid_config =
+            handle("db_pool", &[str_value("sqlite"), str_value(":memory:"), Value::Int(3)])
+                .unwrap();
+        assert!(matches!(
+            pool_invalid_config,
+            Value::Error(message)
+                if message.contains("db_pool optional config argument must be a dictionary")
+        ));
     }
 
     #[test]
