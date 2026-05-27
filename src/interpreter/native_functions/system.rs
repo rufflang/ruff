@@ -728,6 +728,45 @@ pub fn handle(name: &str, arg_values: &[Value]) -> Option<Value> {
             }
         }
 
+        "kv_set" => {
+            if arg_values.len() != 2 {
+                return Some(Value::Error(format!(
+                    "kv_set() expects 2 arguments (key, value), got {}",
+                    arg_values.len()
+                )));
+            }
+
+            if let (Some(Value::Str(key)), Some(Value::Str(value))) =
+                (arg_values.first(), arg_values.get(1))
+            {
+                match builtins::kv_set(key.as_ref(), value.as_ref()) {
+                    Ok(saved) => Value::Bool(saved),
+                    Err(message) => Value::Error(message),
+                }
+            } else {
+                Value::Error("kv_set requires key and value string arguments".to_string())
+            }
+        }
+
+        "kv_get" => {
+            if arg_values.len() != 1 {
+                return Some(Value::Error(format!(
+                    "kv_get() expects 1 argument (key), got {}",
+                    arg_values.len()
+                )));
+            }
+
+            if let Some(Value::Str(key)) = arg_values.first() {
+                match builtins::kv_get(key.as_ref()) {
+                    Ok(Some(value)) => Value::Str(Arc::new(value)),
+                    Ok(None) => Value::Null,
+                    Err(message) => Value::Error(message),
+                }
+            } else {
+                Value::Error("kv_get requires a key string argument".to_string())
+            }
+        }
+
         // System operation functions
         "env" => {
             if arg_values.len() != 1 {
@@ -1340,6 +1379,34 @@ mod tests {
     }
 
     #[test]
+    fn test_kv_set_and_get_round_trip() {
+        let kv_path = std::env::temp_dir().join(format!(
+            "ruff_native_kv_store_{}.json",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .expect("system clock should be after UNIX_EPOCH")
+                .as_nanos()
+        ));
+
+        std::env::set_var("RUFF_KV_PATH", kv_path.to_string_lossy().to_string());
+
+        let set_result = handle("kv_set", &[string_value("device:android"), string_value("ok")])
+            .expect("kv_set should return a value");
+        assert!(matches!(set_result, Value::Bool(true)));
+
+        let get_result = handle("kv_get", &[string_value("device:android")])
+            .expect("kv_get should return a value");
+        assert!(matches!(get_result, Value::Str(value) if value.as_ref() == "ok"));
+
+        let missing_result =
+            handle("kv_get", &[string_value("device:missing")]).expect("kv_get should return");
+        assert!(matches!(missing_result, Value::Null));
+
+        std::env::remove_var("RUFF_KV_PATH");
+        let _ = std::fs::remove_file(kv_path);
+    }
+
+    #[test]
     fn test_random_time_env_and_args_api_strict_arity_rejects_extra_arguments() {
         let random_extra = handle("random", &[Value::Int(1)]).unwrap();
         assert!(matches!(
@@ -1376,6 +1443,19 @@ mod tests {
         assert!(matches!(
             now_unix_extra,
             Value::Error(message) if message.contains("now_unix() expects 0 arguments")
+        ));
+
+        let kv_set_extra =
+            handle("kv_set", &[string_value("k"), string_value("v"), Value::Int(1)]).unwrap();
+        assert!(matches!(
+            kv_set_extra,
+            Value::Error(message) if message.contains("kv_set() expects 2 arguments")
+        ));
+
+        let kv_get_extra = handle("kv_get", &[string_value("k"), Value::Int(1)]).unwrap();
+        assert!(matches!(
+            kv_get_extra,
+            Value::Error(message) if message.contains("kv_get() expects 1 argument")
         ));
 
         let format_duration_extra =

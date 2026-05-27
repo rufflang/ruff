@@ -946,6 +946,22 @@ impl TypeChecker {
         );
 
         self.functions.insert(
+            "kv_get".to_string(),
+            FunctionSignature {
+                param_types: vec![Some(TypeAnnotation::String)],
+                return_type: Some(TypeAnnotation::String),
+            },
+        );
+
+        self.functions.insert(
+            "kv_set".to_string(),
+            FunctionSignature {
+                param_types: vec![Some(TypeAnnotation::String), Some(TypeAnnotation::String)],
+                return_type: Some(TypeAnnotation::Bool),
+            },
+        );
+
+        self.functions.insert(
             "args".to_string(),
             FunctionSignature {
                 param_types: vec![],

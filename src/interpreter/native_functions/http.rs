@@ -72,6 +72,35 @@ fn parse_ai_headers(options: &DictMap, surface: &str) -> Result<Vec<(String, Str
     Ok(headers)
 }
 
+fn dict_like_from_value(value: &Value) -> Option<DictMap> {
+    match value {
+        Value::Dict(dict) => Some((**dict).clone()),
+        Value::FixedDict { keys, values } => {
+            let mut result = DictMap::default();
+            for (key, value) in keys.iter().zip(values.iter()) {
+                result.insert(key.clone(), value.clone());
+            }
+            Some(result)
+        }
+        _ => None,
+    }
+}
+
+fn header_pairs_from_value(value: &Value) -> Option<Vec<(String, String)>> {
+    let dict = dict_like_from_value(value)?;
+    Some(
+        dict.iter()
+            .filter_map(|(key, value)| {
+                if let Value::Str(header_value) = value {
+                    Some((key.to_string(), header_value.to_string()))
+                } else {
+                    None
+                }
+            })
+            .collect(),
+    )
+}
+
 fn parse_ai_request_config(options: &DictMap, surface: &str) -> Result<AiRequestConfig, Value> {
     let endpoint = match options.get("endpoint") {
         Some(Value::Str(endpoint)) if !endpoint.trim().is_empty() => endpoint.as_ref().clone(),
@@ -526,30 +555,57 @@ pub fn handle(name: &str, arg_values: &[Value]) -> Option<Value> {
         }
 
         "http_request" => {
-            if arg_values.len() != 2 {
+            if !(1..=2).contains(&arg_values.len()) {
                 return Some(Value::Error(format!(
-                    "http_request() expects 2 arguments (url, options), got {}",
+                    "http_request() expects 1-2 arguments ((request), or (url, options)), got {}",
                     arg_values.len()
                 )));
             }
 
-            let url = match arg_values.first() {
-                Some(Value::Str(url)) => url.as_ref().clone(),
-                _ => {
-                    return Some(Value::Error(
-                        "http_request() requires a URL string as first argument".to_string(),
-                    ));
-                }
-            };
+            let (url, options): (String, DictMap) = if arg_values.len() == 1 {
+                let options = match arg_values.first().and_then(dict_like_from_value) {
+                    Some(options) => options,
+                    None => {
+                        return Some(Value::Error(
+                            "http_request() single-argument form requires a request dictionary"
+                                .to_string(),
+                        ));
+                    }
+                };
 
-            let options = match arg_values.get(1) {
-                Some(Value::Dict(options)) => options.clone(),
-                _ => {
-                    return Some(Value::Error(
-                        "http_request() requires an options dictionary as second argument"
-                            .to_string(),
-                    ));
-                }
+                let url = match options.get("url") {
+                    Some(Value::Str(url)) if !url.trim().is_empty() => url.as_ref().clone(),
+                    _ => {
+                        return Some(Value::Error(
+                            "http_request() request dictionary requires a non-empty 'url' string"
+                                .to_string(),
+                        ));
+                    }
+                };
+
+                (url, options)
+            } else {
+                let url = match arg_values.first() {
+                    Some(Value::Str(url)) => url.as_ref().clone(),
+                    _ => {
+                        return Some(Value::Error(
+                            "http_request() requires a URL string as first argument"
+                                .to_string(),
+                        ));
+                    }
+                };
+
+                let options = match arg_values.get(1).and_then(dict_like_from_value) {
+                    Some(options) => options,
+                    None => {
+                        return Some(Value::Error(
+                            "http_request() requires an options dictionary as second argument"
+                                .to_string(),
+                        ));
+                    }
+                };
+
+                (url, options)
             };
 
             let method_name = options
@@ -586,24 +642,7 @@ pub fn handle(name: &str, arg_values: &[Value]) -> Option<Value> {
             let headers: Vec<(String, String)> = options
                 .get("_headers")
                 .or_else(|| options.get("headers"))
-                .and_then(|value| {
-                    if let Value::Dict(headers) = value {
-                        Some(
-                            headers
-                                .iter()
-                                .filter_map(|(key, value)| {
-                                    if let Value::Str(header_value) = value {
-                                        Some((key.to_string(), header_value.to_string()))
-                                    } else {
-                                        None
-                                    }
-                                })
-                                .collect(),
-                        )
-                    } else {
-                        None
-                    }
-                })
+                .and_then(header_pairs_from_value)
                 .unwrap_or_default();
 
             let body = options.get("_body").or_else(|| options.get("body")).and_then(|value| {
@@ -1653,6 +1692,57 @@ mod tests {
         assert!(
             matches!(set_header_error, Value::Error(message) if message.contains("requires an HTTP response as first argument"))
         );
+
+        let request_missing_url = handle(
+            "http_request",
+            &[Value::Dict(Arc::new(DictMap::default()))],
+        )
+        .unwrap();
+        assert!(matches!(
+            request_missing_url,
+            Value::Error(message)
+                if message.contains("request dictionary requires a non-empty 'url' string")
+        ));
+    }
+
+    #[test]
+    fn test_http_request_supports_single_request_dictionary_form() {
+        let Some((endpoint, _request_rx, server_handle)) =
+            one_shot_json_server(200, "{\"ok\":true}")
+        else {
+            eprintln!(
+                "skipping test_http_request_supports_single_request_dictionary_form: local TCP bind not permitted in this environment"
+            );
+            return;
+        };
+
+        let mut headers = DictMap::default();
+        headers.insert("X-Test".into(), str_value("1"));
+
+        let request = Value::FixedDict {
+            keys: Arc::new(vec![
+                Arc::<str>::from("url"),
+                Arc::<str>::from("method"),
+                Arc::<str>::from("headers"),
+            ]),
+            values: vec![
+                str_value(&endpoint),
+                str_value("GET"),
+                Value::Dict(Arc::new(headers)),
+            ],
+        };
+
+        let result =
+            handle("http_request", &[request]).expect("http_request should return a result value");
+        server_handle.join().expect("server thread should finish");
+
+        assert!(matches!(
+            result,
+            Value::Result { is_ok: true, value }
+                if matches!(value.as_ref(), Value::Dict(dict)
+                    if matches!(dict.get("status"), Some(Value::Int(200)))
+                        && matches!(dict.get("body"), Some(Value::Str(body)) if body.contains("\"ok\":true")))
+        ));
     }
 
     #[test]

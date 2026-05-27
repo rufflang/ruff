@@ -174,9 +174,14 @@ JSON conversion contract (`parse_json` / `to_json`):
 | `random` | `random(...)` | handler-defined | dynamic (Value) | Value::Error on invalid args/types/operation; capability-denied when gated. | `random` | `result := random(...)` |
 | `random_int` | `random_int(...)` | handler-defined | dynamic (Value) | Value::Error on invalid args/types/operation; capability-denied when gated. | `random` | `result := random_int(...)` |
 | `random_choice` | `random_choice(...)` | handler-defined | dynamic (Value) | Value::Error on invalid args/types/operation; capability-denied when gated. | `random` | `result := random_choice(...)` |
+| `uuid_v4` | `uuid_v4(...)` | handler-defined | dynamic (Value) | Value::Error on invalid args/types/operation; capability-denied when gated. | `random` | `result := uuid_v4(...)` |
+| `random_id` | `random_id(...)` | handler-defined | dynamic (Value) | Value::Error on invalid args/types/operation; capability-denied when gated. | `random` | `result := random_id(...)` |
 | `set_random_seed` | `set_random_seed(...)` | handler-defined | dynamic (Value) | Value::Error on invalid args/types/operation; capability-denied when gated. | `random` | `result := set_random_seed(...)` |
 | `clear_random_seed` | `clear_random_seed(...)` | handler-defined | dynamic (Value) | Value::Error on invalid args/types/operation; capability-denied when gated. | `random` | `result := clear_random_seed(...)` |
 | `now` | `now(...)` | handler-defined | dynamic (Value) | Value::Error on invalid args/types/operation; capability-denied when gated. | `clock` | `result := now(...)` |
+| `now_utc` | `now_utc(...)` | handler-defined | dynamic (Value) | Value::Error on invalid args/types/operation; capability-denied when gated. | `clock` | `result := now_utc(...)` |
+| `now_unix` | `now_unix(...)` | handler-defined | dynamic (Value) | Value::Error on invalid args/types/operation; capability-denied when gated. | `clock` | `result := now_unix(...)` |
+| `now_utc_seconds` | `now_utc_seconds(...)` | handler-defined | dynamic (Value) | Value::Error on invalid args/types/operation; capability-denied when gated. | `clock` | `result := now_utc_seconds(...)` |
 | `current_timestamp` | `current_timestamp(...)` | handler-defined | dynamic (Value) | Value::Error on invalid args/types/operation; capability-denied when gated. | `clock` | `result := current_timestamp(...)` |
 | `time` | `time(...)` | handler-defined | dynamic (Value) | Value::Error on invalid args/types/operation; capability-denied when gated. | `clock` | `result := time(...)` |
 | `performance_now` | `performance_now(...)` | handler-defined | dynamic (Value) | Value::Error on invalid args/types/operation; capability-denied when gated. | `clock` | `result := performance_now(...)` |
@@ -192,6 +197,8 @@ JSON conversion contract (`parse_json` / `to_json`):
 | `env_float` | `env_float(...)` | handler-defined | dynamic (Value) | Value::Error on invalid args/types/operation; capability-denied when gated. | `env-read` | `result := env_float(...)` |
 | `env_bool` | `env_bool(...)` | handler-defined | dynamic (Value) | Value::Error on invalid args/types/operation; capability-denied when gated. | `env-read` | `result := env_bool(...)` |
 | `env_required` | `env_required(...)` | handler-defined | dynamic (Value) | Value::Error on invalid args/types/operation; capability-denied when gated. | `env-read` | `result := env_required(...)` |
+| `kv_set` | `kv_set(...)` | handler-defined | dynamic (Value) | Value::Error on invalid args/types/operation; capability-denied when gated. | `filesystem-write` | `result := kv_set(...)` |
+| `kv_get` | `kv_get(...)` | handler-defined | dynamic (Value) | Value::Error on invalid args/types/operation; capability-denied when gated. | `filesystem-read` | `result := kv_get(...)` |
 | `env_set` | `env_set(...)` | handler-defined | dynamic (Value) | Value::Error on invalid args/types/operation; capability-denied when gated. | `env-write` | `result := env_set(...)` |
 | `env_list` | `env_list(...)` | handler-defined | dynamic (Value) | Value::Error on invalid args/types/operation; capability-denied when gated. | `env-read` | `result := env_list(...)` |
 | `args` | `args(...)` | handler-defined | dynamic (Value) | Value::Error on invalid args/types/operation; capability-denied when gated. | `none` | `result := args(...)` |
@@ -230,10 +237,12 @@ JSON conversion contract (`parse_json` / `to_json`):
 | `parallel_http` | `parallel_http(...)` | handler-defined | dynamic (Value) | Value::Error on invalid args/types/operation; capability-denied when gated. | `network-client` | `result := parallel_http(...)` |
 | `jwt_encode` | `jwt_encode(...)` | handler-defined | dynamic (Value) | Value::Error on invalid args/types/operation; capability-denied when gated. | `none` | `result := jwt_encode(...)` |
 | `jwt_decode` | `jwt_decode(...)` | handler-defined | dynamic (Value) | Value::Error on invalid args/types/operation; capability-denied when gated. | `none` | `result := jwt_decode(...)` |
+| `jwt_verify` | `jwt_verify(...)` | handler-defined | dynamic (Value) | Value::Error on invalid args/types/operation; capability-denied when gated. | `none` | `result := jwt_verify(...)` |
 | `oauth2_auth_url` | `oauth2_auth_url(...)` | handler-defined | dynamic (Value) | Value::Error on invalid args/types/operation; capability-denied when gated. | `none` | `result := oauth2_auth_url(...)` |
 | `oauth2_get_token` | `oauth2_get_token(...)` | handler-defined | dynamic (Value) | Value::Error on invalid args/types/operation; capability-denied when gated. | `network-client` | `result := oauth2_get_token(...)` |
 | `http_get_stream` | `http_get_stream(...)` | handler-defined | dynamic (Value) | Value::Error on invalid args/types/operation; capability-denied when gated. | `network-client` | `result := http_get_stream(...)` |
 | `http_server` | `http_server(...)` | handler-defined | dynamic (Value) | Value::Error on invalid args/types/operation; capability-denied when gated. | `none` | `result := http_server(...)` |
+| `http_listen` | `http_listen(...)` | handler-defined | dynamic (Value) | Value::Error on invalid args/types/operation; capability-denied when gated. | `network-server` | `result := http_listen(...)` |
 | `http_response` | `http_response(...)` | handler-defined | dynamic (Value) | Value::Error on invalid args/types/operation; capability-denied when gated. | `none` | `result := http_response(...)` |
 | `json_response` | `json_response(...)` | handler-defined | dynamic (Value) | Value::Error on invalid args/types/operation; capability-denied when gated. | `none` | `result := json_response(...)` |
 | `html_response` | `html_response(...)` | handler-defined | dynamic (Value) | Value::Error on invalid args/types/operation; capability-denied when gated. | `none` | `result := html_response(...)` |

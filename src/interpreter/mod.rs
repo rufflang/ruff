@@ -669,6 +669,8 @@ impl Interpreter {
             "env_float",
             "env_bool",
             "env_required",
+            "kv_set",
+            "kv_get",
             "env_set",
             "env_list",
             "args",
@@ -721,6 +723,7 @@ impl Interpreter {
             "http_get_stream",
             // HTTP server functions
             "http_server",
+            "http_listen",
             "http_response",
             "json_response",
             "html_response",
@@ -1163,6 +1166,8 @@ impl Interpreter {
         self.env.define("env_bool".to_string(), Value::NativeFunction("env_bool".to_string()));
         self.env
             .define("env_required".to_string(), Value::NativeFunction("env_required".to_string()));
+        self.env.define("kv_set".to_string(), Value::NativeFunction("kv_set".to_string()));
+        self.env.define("kv_get".to_string(), Value::NativeFunction("kv_get".to_string()));
         self.env.define("env_set".to_string(), Value::NativeFunction("env_set".to_string()));
         self.env.define("env_list".to_string(), Value::NativeFunction("env_list".to_string()));
         self.env.define("args".to_string(), Value::NativeFunction("args".to_string()));

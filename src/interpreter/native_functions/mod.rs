@@ -559,6 +559,8 @@ mod tests {
             "env_float",
             "env_bool",
             "env_required",
+            "kv_set",
+            "kv_get",
             "env_set",
             "env_list",
             "args",

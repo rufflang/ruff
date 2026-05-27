@@ -97,7 +97,7 @@ pub fn capability_for_native_function(name: &str) -> Option<NativeCapability> {
         | "path_exists" | "path_is_dir" | "path_is_file" | "path_extension" | "path_absolute"
         | "dirname" | "basename" | "join_path" | "path_join" | "os_getcwd" | "os_environ"
         | "io_read_bytes" | "io_read_at" | "io_seek_read" | "io_file_metadata" | "load_image"
-        | "md5_file" | "async_read_file" | "async_read_files" => {
+        | "md5_file" | "async_read_file" | "async_read_files" | "kv_get" => {
             Some(NativeCapability::FilesystemRead)
         }
 
@@ -125,7 +125,8 @@ pub fn capability_for_native_function(name: &str) -> Option<NativeCapability> {
         | "async_write_file"
         | "async_write_files"
         | "ssg_render_and_write_pages"
-        | "ssg_read_render_and_write_pages" => Some(NativeCapability::FilesystemWrite),
+        | "ssg_read_render_and_write_pages"
+        | "kv_set" => Some(NativeCapability::FilesystemWrite),
 
         // Filesystem delete
         "delete_file" | "os_rmdir" => Some(NativeCapability::FilesystemDelete),
@@ -148,7 +149,9 @@ pub fn capability_for_native_function(name: &str) -> Option<NativeCapability> {
         | "ai_chat" | "ai_stream_chat" | "ai_embedding" | "ai_tool_loop" | "tcp_connect"
         | "tcp_send" | "tcp_receive" | "udp_send_to" | "udp_receive_from" | "async_http_get"
         | "async_http_post" => Some(NativeCapability::NetworkClient),
-        "tcp_listen" | "tcp_accept" | "udp_bind" => Some(NativeCapability::NetworkServer),
+        "tcp_listen" | "tcp_accept" | "udp_bind" | "http_listen" => {
+            Some(NativeCapability::NetworkServer)
+        }
 
         // Database
         "db_connect" | "db_execute" | "db_query" | "db_close" | "db_pool" | "db_pool_acquire"

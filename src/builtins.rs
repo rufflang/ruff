@@ -15,6 +15,7 @@ use regex::Regex;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::env;
+use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::sync::{Arc, Mutex};
@@ -1166,6 +1167,66 @@ pub fn parse_date(date_str: &str, format: &str) -> Result<f64, String> {
     let dt: DateTime<Utc> = DateTime::from_naive_utc_and_offset(naive_datetime, Utc);
 
     Ok(dt.timestamp() as f64)
+}
+
+fn kv_store_path() -> Result<PathBuf, String> {
+    if let Ok(path) = env::var("RUFF_KV_PATH") {
+        let trimmed = path.trim();
+        if !trimmed.is_empty() {
+            return Ok(PathBuf::from(trimmed));
+        }
+    }
+
+    let cwd = env::current_dir().map_err(|error| {
+        format!("Failed to determine current directory for kv store: {}", error)
+    })?;
+    Ok(cwd.join(".ruff_kv.json"))
+}
+
+fn load_kv_store(path: &Path) -> Result<HashMap<String, String>, String> {
+    if !path.exists() {
+        return Ok(HashMap::new());
+    }
+
+    let contents = fs::read_to_string(path)
+        .map_err(|error| format!("Failed to read kv store '{}': {}", path.display(), error))?;
+
+    if contents.trim().is_empty() {
+        return Ok(HashMap::new());
+    }
+
+    serde_json::from_str::<HashMap<String, String>>(&contents).map_err(|error| {
+        format!("Failed to parse kv store '{}': {}", path.display(), error)
+    })
+}
+
+fn save_kv_store(path: &Path, data: &HashMap<String, String>) -> Result<(), String> {
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent).map_err(|error| {
+            format!("Failed to prepare kv store directory '{}': {}", parent.display(), error)
+        })?;
+    }
+
+    let encoded = serde_json::to_string_pretty(data)
+        .map_err(|error| format!("Failed to encode kv store: {}", error))?;
+    fs::write(path, encoded)
+        .map_err(|error| format!("Failed to write kv store '{}': {}", path.display(), error))
+}
+
+/// Persist a key/value pair in a lightweight local JSON store.
+pub fn kv_set(key: &str, value: &str) -> Result<bool, String> {
+    let path = kv_store_path()?;
+    let mut data = load_kv_store(&path)?;
+    data.insert(key.to_string(), value.to_string());
+    save_kv_store(&path, &data)?;
+    Ok(true)
+}
+
+/// Retrieve a value by key from the lightweight local JSON store.
+pub fn kv_get(key: &str) -> Result<Option<String>, String> {
+    let path = kv_store_path()?;
+    let data = load_kv_store(&path)?;
+    Ok(data.get(key).cloned())
 }
 
 /// System operation functions
