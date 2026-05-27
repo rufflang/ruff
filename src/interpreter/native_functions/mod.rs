@@ -387,6 +387,7 @@ mod tests {
             "oauth2_get_token",
             "http_get_stream",
             "http_server",
+            "http_listen",
             "http_response",
             "json_response",
             "html_response",

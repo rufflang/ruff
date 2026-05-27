@@ -1108,9 +1108,39 @@ pub fn handle(name: &str, arg_values: &[Value]) -> Option<Value> {
             }
 
             if let Some(Value::Int(port)) = arg_values.first() {
-                Value::HttpServer { port: *port as u16, routes: Vec::new() }
+                Value::HttpServer {
+                    host: "0.0.0.0".to_string(),
+                    port: *port as u16,
+                    routes: Vec::new(),
+                }
             } else {
                 Value::Error("http_server requires a port number".to_string())
+            }
+        }
+
+        "http_listen" => {
+            if arg_values.len() != 2 {
+                return Some(Value::Error(format!(
+                    "http_listen() expects 2 arguments (host, port), got {}",
+                    arg_values.len()
+                )));
+            }
+
+            if let (Some(Value::Str(host)), Some(Value::Int(port))) =
+                (arg_values.first(), arg_values.get(1))
+            {
+                let host = host.trim();
+                if host.is_empty() {
+                    Value::Error("http_listen requires a non-empty host string".to_string())
+                } else {
+                    Value::HttpServer {
+                        host: host.to_string(),
+                        port: *port as u16,
+                        routes: Vec::new(),
+                    }
+                }
+            } else {
+                Value::Error("http_listen requires host string and port number".to_string())
             }
         }
 
@@ -1576,7 +1606,11 @@ mod tests {
         );
 
         let server = handle("http_server", &[Value::Int(8080)]).unwrap();
-        assert!(matches!(server, Value::HttpServer { port, .. } if port == 8080));
+        assert!(matches!(server, Value::HttpServer { host, port, .. } if host == "0.0.0.0" && port == 8080));
+
+        let listen_server =
+            handle("http_listen", &[str_value("127.0.0.1"), Value::Int(9191)]).unwrap();
+        assert!(matches!(listen_server, Value::HttpServer { host, port, .. } if host == "127.0.0.1" && port == 9191));
     }
 
     #[test]

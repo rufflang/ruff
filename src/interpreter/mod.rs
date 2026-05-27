@@ -1253,6 +1253,8 @@ impl Interpreter {
         // HTTP server functions
         self.env
             .define("http_server".to_string(), Value::NativeFunction("http_server".to_string()));
+        self.env
+            .define("http_listen".to_string(), Value::NativeFunction("http_listen".to_string()));
         self.env.define(
             "http_response".to_string(),
             Value::NativeFunction("http_response".to_string()),
@@ -1865,7 +1867,12 @@ impl Interpreter {
     }
 
     /// Starts an HTTP server with registered routes
-    fn start_http_server(&mut self, port: u16, routes: Vec<(String, String, Value)>) -> Value {
+    fn start_http_server(
+        &mut self,
+        host: &str,
+        port: u16,
+        routes: Vec<(String, String, Value)>,
+    ) -> Value {
         use tiny_http::{Response, Server};
         if let Err(error) =
             self.require_capability(NativeCapability::NetworkServer, "http_server.listen")
@@ -1873,14 +1880,14 @@ impl Interpreter {
             return error;
         }
 
-        println!("Starting HTTP server on port {}...", port);
+        println!("Starting HTTP server on {}:{}...", host, port);
 
-        let server = match Server::http(format!("0.0.0.0:{}", port)) {
+        let server = match Server::http(format!("{}:{}", host, port)) {
             Ok(s) => s,
             Err(e) => return Value::Error(format!("Failed to start server: {}", e)),
         };
 
-        println!("Server listening on http://localhost:{}", port);
+        println!("Server listening on http://{}:{}", host, port);
         println!("Press Ctrl+C to stop");
 
         // Main server loop
@@ -3924,7 +3931,7 @@ impl Interpreter {
                     }
 
                     // Handle HttpServer methods
-                    if let Value::HttpServer { port, routes } = &obj_val {
+                    if let Value::HttpServer { host, port, routes } = &obj_val {
                         match field.as_str() {
                             "route" => {
                                 // server.route(method, path, handler)
@@ -3946,6 +3953,7 @@ impl Interpreter {
                                             handler_val,
                                         ));
                                         return Value::HttpServer {
+                                            host: host.clone(),
                                             port: *port,
                                             routes: new_routes,
                                         };
@@ -3955,10 +3963,11 @@ impl Interpreter {
                                     "route() requires (method, path, handler_function)".to_string(),
                                 );
                             }
-                            "listen" => {
+                            "listen" | "start" => {
                                 if !args.is_empty() {
                                     return Value::Error(format!(
-                                        "HttpServer.listen expects 0 arguments, got {}",
+                                        "HttpServer.{} expects 0 arguments, got {}",
+                                        field,
                                         args.len()
                                     ));
                                 }
@@ -3968,8 +3977,8 @@ impl Interpreter {
                                 ) {
                                     return error;
                                 }
-                                // server.listen() - start the HTTP server
-                                return self.start_http_server(*port, routes.clone());
+                                // server.listen() / server.start() - start the HTTP server
+                                return self.start_http_server(host, *port, routes.clone());
                             }
                             _ => {}
                         }
@@ -5368,7 +5377,7 @@ impl Interpreter {
             return result;
         }
 
-        if let Value::HttpServer { port, routes } = &obj {
+        if let Value::HttpServer { host, port, routes } = &obj {
             return match method {
                 "route" => {
                     if args.len() != 3 {
@@ -5385,7 +5394,11 @@ impl Interpreter {
                                 path.as_ref().clone(),
                                 handler.clone(),
                             ));
-                            Value::HttpServer { port: *port, routes: new_routes }
+                            Value::HttpServer {
+                                host: host.clone(),
+                                port: *port,
+                                routes: new_routes,
+                            }
                         } else {
                             Value::Error(
                                 "route() requires (method, path, handler_function)".to_string(),
@@ -5397,10 +5410,11 @@ impl Interpreter {
                         )
                     }
                 }
-                "listen" => {
+                "listen" | "start" => {
                     if !args.is_empty() {
                         Value::Error(format!(
-                            "HttpServer.listen expects 0 arguments, got {}",
+                            "HttpServer.{} expects 0 arguments, got {}",
+                            method,
                             args.len()
                         ))
                     } else if let Err(error) = self
@@ -5408,7 +5422,7 @@ impl Interpreter {
                     {
                         error
                     } else {
-                        self.start_http_server(*port, routes.clone())
+                        self.start_http_server(host, *port, routes.clone())
                     }
                 }
                 _ => Value::Error(format!("Unknown method: {}", method)),

@@ -607,6 +607,7 @@ pub enum Value {
     Channel(Arc<Mutex<(std::sync::mpsc::Sender<Value>, std::sync::mpsc::Receiver<Value>)>>),
     /// HTTP server with routes
     HttpServer {
+        host: String,
         port: u16,
         routes: Vec<(String, String, Value)>, // (method, path, handler)
     },
@@ -830,8 +831,8 @@ impl std::fmt::Debug for Value {
             Value::Queue(queue) => write!(f, "Queue({} items)", queue.len()),
             Value::Stack(stack) => write!(f, "Stack({} items)", stack.len()),
             Value::Channel(_) => write!(f, "Channel"),
-            Value::HttpServer { port, routes } => {
-                write!(f, "HttpServer(port={}, {} routes)", port, routes.len())
+            Value::HttpServer { host, port, routes } => {
+                write!(f, "HttpServer(host={}, port={}, {} routes)", host, port, routes.len())
             }
             Value::HttpResponse { status, body, .. } => {
                 write!(f, "HttpResponse(status={}, body_len={})", status, body.len())

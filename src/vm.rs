@@ -4373,7 +4373,7 @@ impl VM {
                             Value::NativeFunction(format!("__image_method_{}", field))
                         }
                         Value::HttpServer { .. } => match field.as_str() {
-                            "route" | "listen" => {
+                            "route" | "listen" | "start" => {
                                 // Mirror method marker behavior used by channel/image dispatch.
                                 self.stack.push(object.clone());
                                 Value::NativeFunction(format!("__http_server_method_{}", field))
@@ -5619,6 +5619,7 @@ impl VM {
 
     fn start_http_server_vm(
         &mut self,
+        host: String,
         port: u16,
         routes: Vec<(String, String, Value)>,
     ) -> Result<Value, String> {
@@ -5633,11 +5634,11 @@ impl VM {
             return Err("Capability denied for http_server.listen".to_string());
         }
 
-        println!("Starting HTTP server on port {}...", port);
-        let server = Server::http(format!("0.0.0.0:{}", port))
+        println!("Starting HTTP server on {}:{}...", host, port);
+        let server = Server::http(format!("{}:{}", host, port))
             .map_err(|e| format!("Failed to start server: {}", e))?;
 
-        println!("Server listening on http://localhost:{}", port);
+        println!("Server listening on http://{}:{}", host, port);
         println!("Press Ctrl+C to stop");
 
         for mut request in server.incoming_requests() {
@@ -5860,7 +5861,7 @@ impl VM {
 
                 let server = self.stack.pop().ok_or("Stack underflow getting HTTP server")?;
 
-                if let Value::HttpServer { port, routes } = server {
+                if let Value::HttpServer { host, port, routes } = server {
                     return match method_name {
                         "route" => {
                             if args.len() != 3 {
@@ -5878,17 +5879,22 @@ impl VM {
                                             path.as_ref().clone(),
                                             args[2].clone(),
                                         ));
-                                        Ok(Value::HttpServer { port, routes: new_routes })
+                                        Ok(Value::HttpServer {
+                                            host,
+                                            port,
+                                            routes: new_routes,
+                                        })
                                     }
                                     _ => Err("route() requires (method, path, handler_function)"
                                         .to_string()),
                                 }
                             }
                         }
-                        "listen" => {
+                        "listen" | "start" => {
                             if !args.is_empty() {
                                 Err(format!(
-                                    "HttpServer.listen expects 0 arguments, got {}",
+                                    "HttpServer.{} expects 0 arguments, got {}",
+                                    method_name,
                                     args.len()
                                 ))
                             } else {
@@ -5903,7 +5909,7 @@ impl VM {
                                         "Capability denied for http_server.listen".to_string()
                                     );
                                 }
-                                self.start_http_server_vm(port, routes)
+                                self.start_http_server_vm(host, port, routes)
                             }
                         }
                         _ => Err(format!("HttpServer has no method '{}'", method_name)),
@@ -8742,7 +8748,8 @@ mod tests {
         "#;
 
         match run_vm_code_with_natives(code, &["http_server", "http_response"]) {
-            Ok(Value::HttpServer { port, routes }) => {
+            Ok(Value::HttpServer { host, port, routes }) => {
+                assert_eq!(host, "0.0.0.0");
                 assert_eq!(port, 4123);
                 assert_eq!(routes.len(), 1);
                 assert_eq!(routes[0].0, "GET");

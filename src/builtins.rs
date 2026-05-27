@@ -1938,7 +1938,9 @@ pub fn format_debug_value(value: &Value) -> String {
         Value::ErrorObject { message, .. } => format!("ErrorObject(\"{}\")", message),
         Value::Enum(name) => format!("Enum({})", name),
         Value::Channel(_) => "Channel".to_string(),
-        Value::HttpServer { port, .. } => format!("HttpServer(port: {})", port),
+        Value::HttpServer { host, port, .. } => {
+            format!("HttpServer(host: {}, port: {})", host, port)
+        }
         Value::HttpResponse { status, .. } => format!("HttpResponse(status: {})", status),
         Value::Database { db_type, .. } => format!("Database(type: {})", db_type),
         Value::DatabasePool { .. } => "DatabasePool".to_string(),

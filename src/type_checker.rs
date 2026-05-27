@@ -1153,6 +1153,14 @@ impl TypeChecker {
         );
 
         self.functions.insert(
+            "http_listen".to_string(),
+            FunctionSignature {
+                param_types: vec![Some(TypeAnnotation::String), Some(TypeAnnotation::Int)],
+                return_type: None, // Returns HttpServer object
+            },
+        );
+
+        self.functions.insert(
             "http_response".to_string(),
             FunctionSignature {
                 param_types: vec![Some(TypeAnnotation::Int), Some(TypeAnnotation::String)],
