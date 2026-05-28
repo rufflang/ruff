@@ -17,11 +17,11 @@ Capability key:
 - `none`: no capability gate
 - other values map to `NativeCapability::as_str()` and require explicit allow flags in restricted mode
 
-JSON conversion contract (`parse_json` / `to_json`):
+JSON conversion contract (`parse_json` / `to_json` / `to_json_pretty`):
 
 - `parse_json` enforces a maximum input size of `1,048,576` bytes and a maximum nesting depth of `64`.
 - Invalid JSON returns a `Value::Error` message including parse-location details from `serde_json`.
-- `to_json` rejects non-finite floats (`NaN`, `+/-inf`) with a `Value::Error` instead of silently coercing values.
+- `to_json` and `to_json_pretty` reject non-finite floats (`NaN`, `+/-inf`) with a `Value::Error` instead of silently coercing values.
 - Dictionary-like values are serialized with deterministic key ordering (lexicographic for string keys, ascending for integer keys).
 
 | Function | Signature | Arity | Return Type | Errors | Capability | Example |
@@ -163,6 +163,7 @@ JSON conversion contract (`parse_json` / `to_json`):
 | `io_copy_range` | `io_copy_range(...)` | handler-defined | dynamic (Value) | Value::Error on invalid args/types/operation; capability-denied when gated. | `filesystem-write` | `result := io_copy_range(...)` |
 | `parse_json` | `parse_json(json_string)` | handler-defined | dynamic (Value) | Value::Error on invalid args/types/operation, oversized input (>1,048,576 bytes), excessive nesting (>64), invalid JSON parse, or capability-denied when gated. | `none` | `result := parse_json("{\"ok\":true}")` |
 | `to_json` | `to_json(value)` | handler-defined | dynamic (Value) | Value::Error on invalid args/types/operation, unsupported value conversion, non-finite float serialization, or capability-denied when gated. | `none` | `result := to_json({"ok": true})` |
+| `to_json_pretty` | `to_json_pretty(value)` | handler-defined | dynamic (Value) | Value::Error on invalid args/types/operation, unsupported value conversion, non-finite float serialization, or capability-denied when gated. | `none` | `result := to_json_pretty({"ok": true})` |
 | `parse_toml` | `parse_toml(...)` | handler-defined | dynamic (Value) | Value::Error on invalid args/types/operation; capability-denied when gated. | `none` | `result := parse_toml(...)` |
 | `to_toml` | `to_toml(...)` | handler-defined | dynamic (Value) | Value::Error on invalid args/types/operation; capability-denied when gated. | `none` | `result := to_toml(...)` |
 | `parse_yaml` | `parse_yaml(...)` | handler-defined | dynamic (Value) | Value::Error on invalid args/types/operation; capability-denied when gated. | `none` | `result := parse_yaml(...)` |

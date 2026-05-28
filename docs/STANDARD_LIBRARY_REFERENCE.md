@@ -88,6 +88,7 @@ Source of truth:
 | `invert` | preview | `m := invert({"a": 1, "b": 2})` |
 | `parse_json` | stable | `obj := parse_json("{\"a\":1}")` |
 | `to_json` | stable | `txt := to_json({"a": 1})` |
+| `to_json_pretty` | stable | `txt := to_json_pretty({"a": 1})` |
 | `parse_toml` | preview | `cfg := parse_toml("x = 1")` |
 | `to_toml` | preview | `txt := to_toml({"x": 1})` |
 | `parse_yaml` | preview | `cfg := parse_yaml("x: 1")` |

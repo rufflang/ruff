@@ -38,6 +38,21 @@ pub fn handle(name: &str, arg_values: &[Value]) -> Option<Value> {
             }
         }
 
+        "to_json_pretty" => {
+            if arg_values.len() != 1 {
+                return Some(Value::Error("to_json_pretty requires a value argument".to_string()));
+            }
+
+            if let Some(value) = arg_values.first() {
+                match builtins::to_json_pretty(value) {
+                    Ok(json_str) => Value::Str(Arc::new(json_str)),
+                    Err(error) => Value::Error(error),
+                }
+            } else {
+                Value::Error("to_json_pretty requires a value argument".to_string())
+            }
+        }
+
         "parse_toml" => {
             if arg_values.len() != 1 {
                 return Some(Value::Error("parse_toml requires a string argument".to_string()));
@@ -194,6 +209,18 @@ mod tests {
             Value::Str(json) => assert!(json.contains("\"ok\":true")),
             other => panic!("Expected Value::Str from to_json, got {:?}", other),
         }
+
+        let mut pretty_dict = DictMap::default();
+        pretty_dict.insert(Arc::<str>::from("ok"), Value::Bool(true));
+        let to_json_pretty_result =
+            handle("to_json_pretty", &[Value::Dict(Arc::new(pretty_dict))]).unwrap();
+        match to_json_pretty_result {
+            Value::Str(json) => {
+                assert!(json.contains("\"ok\": true"));
+                assert!(json.contains("\n"));
+            }
+            other => panic!("Expected Value::Str from to_json_pretty, got {:?}", other),
+        }
     }
 
     #[test]
@@ -299,6 +326,12 @@ mod tests {
         let to_json_extra = handle("to_json", &[Value::Bool(true), Value::Int(1)]).unwrap();
         assert!(
             matches!(to_json_extra, Value::Error(message) if message.contains("to_json requires a value argument"))
+        );
+
+        let to_json_pretty_extra =
+            handle("to_json_pretty", &[Value::Bool(true), Value::Int(1)]).unwrap();
+        assert!(
+            matches!(to_json_pretty_extra, Value::Error(message) if message.contains("to_json_pretty requires a value argument"))
         );
 
         let parse_toml_extra =

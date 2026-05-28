@@ -2222,6 +2222,7 @@ impl Parser {
         test_dir: &Path,
         update_snapshots: bool,
         runtime_strategy: TestRuntimeStrategy,
+        verbose: bool,
     ) {
         let Ok(entries) = fs::read_dir(test_dir) else {
             eprintln!("[!] Failed to read test directory: {}", test_dir.display());
@@ -2237,6 +2238,9 @@ impl Parser {
         for entry in entries.flatten() {
             let path = entry.path();
             if path.extension().map(|e| e == "ruff").unwrap_or(false) {
+                if verbose {
+                    println!("[i] Running fixture: {}", path.display());
+                }
                 total += 1;
                 let content = fs::read_to_string(&path).unwrap_or_default();
                 let expected_path = path.with_extension("out");
@@ -2322,6 +2326,9 @@ impl Parser {
                     };
                     fs::write(&expected_path, &snapshot_output).ok();
                     println!("[✓] {} ({:.2?})", path.display(), start.elapsed());
+                    if verbose {
+                        println!("    snapshot: {}", expected_path.display());
+                    }
                     passed += 1;
                     continue;
                 }
@@ -2410,6 +2417,9 @@ impl Parser {
                         );
                     } else {
                         println!("[✓] {} ({:.2?})", path.display(), start.elapsed());
+                    }
+                    if verbose {
+                        println!("    snapshot: {}", expected_path.display());
                     }
                     passed += 1;
                 } else {

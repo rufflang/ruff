@@ -264,6 +264,10 @@ enum Commands {
         /// Runtime path strategy for fixture execution.
         #[arg(long, value_enum, default_value_t = TestRuntimeMode::Dual)]
         runtime: TestRuntimeMode,
+
+        /// Print additional fixture-level diagnostics.
+        #[arg(short, long, default_value_t = false)]
+        verbose: bool,
     },
 
     /// Run tests defined with the test framework
@@ -816,10 +820,7 @@ fn apply_untrusted_network_destination_policy_defaults(args: &CapabilityArgs) {
     }
 
     if std::env::var(crate::network_policy::OUTBOUND_DESTINATION_POLICY_ENV).is_err() {
-        std::env::set_var(
-            crate::network_policy::OUTBOUND_DESTINATION_POLICY_ENV,
-            "deny_private",
-        );
+        std::env::set_var(crate::network_policy::OUTBOUND_DESTINATION_POLICY_ENV, "deny_private");
     }
 }
 
@@ -1305,14 +1306,14 @@ async fn main() {
             }
         },
 
-        Commands::Test { update, runtime } => {
+        Commands::Test { update, runtime, verbose } => {
             use std::path::Path;
             let runtime_strategy = match runtime {
                 TestRuntimeMode::Interpreter => parser::TestRuntimeStrategy::Interpreter,
                 TestRuntimeMode::Vm => parser::TestRuntimeStrategy::Vm,
                 TestRuntimeMode::Dual => parser::TestRuntimeStrategy::Dual,
             };
-            parser::Parser::run_all_tests(Path::new("tests"), update, runtime_strategy);
+            parser::Parser::run_all_tests(Path::new("tests"), update, runtime_strategy, verbose);
         }
 
         Commands::TestRun { file, verbose, capabilities } => {
@@ -2620,7 +2621,9 @@ mod tests {
         let _guard = ENV_LOCK.lock().expect("environment lock poisoned");
 
         match value {
-            Some(raw) => std::env::set_var(crate::network_policy::OUTBOUND_DESTINATION_POLICY_ENV, raw),
+            Some(raw) => {
+                std::env::set_var(crate::network_policy::OUTBOUND_DESTINATION_POLICY_ENV, raw)
+            }
             None => std::env::remove_var(crate::network_policy::OUTBOUND_DESTINATION_POLICY_ENV),
         }
 

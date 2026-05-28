@@ -685,6 +685,14 @@ impl TypeChecker {
             },
         );
 
+        self.functions.insert(
+            "to_json_pretty".to_string(),
+            FunctionSignature {
+                param_types: vec![None], // Accepts any value
+                return_type: Some(TypeAnnotation::String),
+            },
+        );
+
         // TOML functions
         self.functions.insert(
             "parse_toml".to_string(),
@@ -2841,9 +2849,7 @@ impl TypeChecker {
                 "to_upper" | "upper" | "to_lower" | "lower" | "capitalize" | "trim"
                 | "trim_start" | "trim_end" | "char_at" | "substring" | "replace"
                 | "replace_str" => Some(TypeAnnotation::String),
-                "starts_with" | "ends_with" | "contains" | "is_empty" => {
-                    Some(TypeAnnotation::Bool)
-                }
+                "starts_with" | "ends_with" | "contains" | "is_empty" => Some(TypeAnnotation::Bool),
                 "split" => Some(TypeAnnotation::Array(Box::new(TypeAnnotation::String))),
                 _ => None,
             },

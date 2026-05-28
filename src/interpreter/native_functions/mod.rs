@@ -522,6 +522,7 @@ mod tests {
             "format",
             "parse_json",
             "to_json",
+            "to_json_pretty",
             "parse_toml",
             "to_toml",
             "parse_yaml",
@@ -1876,17 +1877,19 @@ mod tests {
         let uuid_value = call_native_function(&mut interpreter, "uuid_v4", &[]);
         assert!(matches!(uuid_value, Value::Str(value) if value.len() == 36));
 
-        let random_id_value = call_native_function(&mut interpreter, "random_id", &[Value::Int(10)]);
+        let random_id_value =
+            call_native_function(&mut interpreter, "random_id", &[Value::Int(10)]);
         assert!(matches!(random_id_value, Value::Str(value) if value.len() == 10));
 
         let now_utc_value = call_native_function(&mut interpreter, "now_utc", &[]);
-        assert!(matches!(now_utc_value, Value::Str(value) if value.ends_with('Z') && value.contains('T')));
+        assert!(
+            matches!(now_utc_value, Value::Str(value) if value.ends_with('Z') && value.contains('T'))
+        );
 
         let now_unix_value = call_native_function(&mut interpreter, "now_unix", &[]);
         assert!(matches!(now_unix_value, Value::Int(value) if value > 0));
 
-        let now_utc_seconds_value =
-            call_native_function(&mut interpreter, "now_utc_seconds", &[]);
+        let now_utc_seconds_value = call_native_function(&mut interpreter, "now_utc_seconds", &[]);
         assert!(matches!(now_utc_seconds_value, Value::Int(value) if value > 0));
 
         let set_seed_missing = call_native_function(&mut interpreter, "set_random_seed", &[]);
@@ -2593,6 +2596,17 @@ mod tests {
         );
         assert!(matches!(to_json_ok, Value::Str(result) if result.contains("\"ok\":true")));
 
+        let mut pretty_dict = crate::interpreter::DictMap::default();
+        pretty_dict.insert("ok".into(), Value::Bool(true));
+        let to_json_pretty_ok = call_native_function(
+            &mut interpreter,
+            "to_json_pretty",
+            &[Value::Dict(Arc::new(pretty_dict))],
+        );
+        assert!(
+            matches!(to_json_pretty_ok, Value::Str(result) if result.contains("\"ok\": true") && result.contains('\n'))
+        );
+
         let parse_toml_ok = call_native_function(
             &mut interpreter,
             "parse_toml",
@@ -2670,6 +2684,15 @@ mod tests {
             call_native_function(&mut interpreter, "to_json", &[Value::Bool(true), Value::Int(1)]);
         assert!(
             matches!(to_json_extra, Value::Error(message) if message.contains("to_json requires a value argument"))
+        );
+
+        let to_json_pretty_extra = call_native_function(
+            &mut interpreter,
+            "to_json_pretty",
+            &[Value::Bool(true), Value::Int(1)],
+        );
+        assert!(
+            matches!(to_json_pretty_extra, Value::Error(message) if message.contains("to_json_pretty requires a value argument"))
         );
 
         let parse_toml_extra = call_native_function(
@@ -6002,7 +6025,8 @@ mod tests {
     fn test_vm_for_iterable_normalization_contracts() {
         let mut interpreter = Interpreter::new();
 
-        let int_iterable = call_native_function(&mut interpreter, "__vm_for_iterable", &[Value::Int(3)]);
+        let int_iterable =
+            call_native_function(&mut interpreter, "__vm_for_iterable", &[Value::Int(3)]);
         assert!(matches!(int_iterable, Value::Array(values) if values.len() == 3
             && matches!(&values[0], Value::Int(0))
             && matches!(&values[1], Value::Int(1))
@@ -6016,8 +6040,11 @@ mod tests {
 
         let mut dict = std::collections::HashMap::default();
         dict.insert(std::sync::Arc::<str>::from("a"), Value::Int(1));
-        let dict_iterable =
-            call_native_function(&mut interpreter, "__vm_for_iterable", &[Value::Dict(Arc::new(dict))]);
+        let dict_iterable = call_native_function(
+            &mut interpreter,
+            "__vm_for_iterable",
+            &[Value::Dict(Arc::new(dict))],
+        );
         assert!(matches!(dict_iterable, Value::Array(values) if values.len() == 1
             && matches!(&values[0], Value::Str(value) if value.as_ref() == "a")));
 

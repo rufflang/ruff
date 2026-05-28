@@ -628,6 +628,7 @@ impl Interpreter {
             // JSON functions
             "parse_json",
             "to_json",
+            "to_json_pretty",
             // TOML functions
             "parse_toml",
             "to_toml",
@@ -1091,6 +1092,10 @@ impl Interpreter {
         // JSON functions
         self.env.define("parse_json".to_string(), Value::NativeFunction("parse_json".to_string()));
         self.env.define("to_json".to_string(), Value::NativeFunction("to_json".to_string()));
+        self.env.define(
+            "to_json_pretty".to_string(),
+            Value::NativeFunction("to_json_pretty".to_string()),
+        );
 
         // TOML functions
         self.env.define("parse_toml".to_string(), Value::NativeFunction("parse_toml".to_string()));

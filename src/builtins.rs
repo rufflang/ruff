@@ -609,6 +609,16 @@ pub fn to_json(value: &Value) -> Result<String, String> {
     }
 }
 
+/// Convert a Ruff value to a pretty-printed JSON string
+#[allow(dead_code)]
+pub fn to_json_pretty(value: &Value) -> Result<String, String> {
+    let json_value = ruff_value_to_json(value)?;
+    match serde_json::to_string_pretty(&json_value) {
+        Ok(s) => Ok(s),
+        Err(e) => Err(format!("JSON serialization error: {}", e)),
+    }
+}
+
 /// Convert serde_json::Value to Ruff Value
 fn json_to_ruff_value(json: serde_json::Value) -> Value {
     match json {
@@ -1195,9 +1205,8 @@ fn load_kv_store(path: &Path) -> Result<HashMap<String, String>, String> {
         return Ok(HashMap::new());
     }
 
-    serde_json::from_str::<HashMap<String, String>>(&contents).map_err(|error| {
-        format!("Failed to parse kv store '{}': {}", path.display(), error)
-    })
+    serde_json::from_str::<HashMap<String, String>>(&contents)
+        .map_err(|error| format!("Failed to parse kv store '{}': {}", path.display(), error))
 }
 
 fn save_kv_store(path: &Path, data: &HashMap<String, String>) -> Result<(), String> {
@@ -2346,6 +2355,19 @@ mod tests {
         assert_eq!(items[0], serde_json::Value::Number(1.into()));
         assert_eq!(items[1], serde_json::Value::Number(2.into()));
         assert_eq!(items[2], serde_json::Value::Number(3.into()));
+    }
+
+    #[test]
+    fn test_to_json_pretty_includes_newlines_and_indentation() {
+        let value = Value::Array(Arc::new(vec![Value::Int(1), Value::Int(2)]));
+
+        let encoded = to_json_pretty(&value).expect("Array should serialize to pretty JSON");
+        assert!(encoded.contains('\n'));
+        assert!(encoded.contains("  1"));
+
+        let decoded: serde_json::Value =
+            serde_json::from_str(&encoded).expect("Pretty JSON should parse");
+        assert_eq!(decoded, serde_json::json!([1, 2]));
     }
 
     #[test]
