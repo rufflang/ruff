@@ -9,8 +9,16 @@ trap 'rm -f "$TMP_MATCHES" "$TMP_ROWS"' EXIT
 
 cd "$ROOT"
 
-rg -n -- "--interpreter" src tests docs README.md ROADMAP.md examples notes .github \
-    | rg -v '^docs/INTERPRETER_FLAG_DEPENDENCY_MAP.md:' >"$TMP_MATCHES"
+SEARCH_COMMAND=""
+if command -v rg >/dev/null 2>&1; then
+    SEARCH_COMMAND='rg -n -- "--interpreter" src tests docs README.md ROADMAP.md examples notes .github'
+    rg -n -- "--interpreter" src tests docs README.md ROADMAP.md examples notes .github \
+        | rg -v '^docs/INTERPRETER_FLAG_DEPENDENCY_MAP.md:' >"$TMP_MATCHES"
+else
+    SEARCH_COMMAND='grep -RIn -- "--interpreter" src tests docs README.md ROADMAP.md examples notes .github'
+    grep -RIn -- "--interpreter" src tests docs README.md ROADMAP.md examples notes .github 2>/dev/null \
+        | grep -v '^docs/INTERPRETER_FLAG_DEPENDENCY_MAP.md:' >"$TMP_MATCHES"
+fi
 
 if [[ ! -s "$TMP_MATCHES" ]]; then
     echo "error: no --interpreter references found in expected search targets" >&2
@@ -83,7 +91,7 @@ mkdir -p "$(dirname "$OUTPUT_PATH")"
     echo "# Interpreter Flag Dependency Map"
     echo
     echo "- Generated: $(date '+%Y-%m-%d %H:%M:%S %Z')"
-    echo "- Command: \`rg -n -- \"--interpreter\" src tests docs README.md ROADMAP.md examples notes .github\`"
+    echo "- Command: \`${SEARCH_COMMAND}\`"
     echo
     echo "Reason tags:"
     echo "- \`harness-legacy\`: Existing harness behavior still forces interpreter mode."

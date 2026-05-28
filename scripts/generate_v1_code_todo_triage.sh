@@ -49,12 +49,11 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-if ! command -v rg >/dev/null 2>&1; then
-  echo "error: ripgrep (rg) is required" >&2
-  exit 1
+if command -v rg >/dev/null 2>&1; then
+  matches=$(rg -n --no-heading "TODO|FIXME|HACK" "$SOURCE_ROOT" -g '*.rs' | sort || true)
+else
+  matches=$(grep -RIn --include='*.rs' -E "TODO|FIXME|HACK" "$SOURCE_ROOT" | sort || true)
 fi
-
-matches=$(rg -n --no-heading "TODO|FIXME|HACK" "$SOURCE_ROOT" -g '*.rs' | sort || true)
 
 mkdir -p "$(dirname "$OUTPUT_MD")"
 mkdir -p "$(dirname "$OUTPUT_CSV")"

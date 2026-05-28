@@ -74,11 +74,6 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-if ! command -v rg >/dev/null 2>&1; then
-  echo "error: ripgrep (rg) is required" >&2
-  exit 1
-fi
-
 if [[ ! -d "$ROOT/$TESTS_DIR" ]]; then
   echo "error: tests directory not found: $TESTS_DIR" >&2
   exit 1
@@ -175,7 +170,11 @@ classify_mismatch_cause() {
   echo "runtime-parity-bug|runtime-owner|P0|both runtimes diverge from snapshot and from each other, indicating runtime-path parity drift rather than stale fixture expectations"
 }
 
-fixtures=$(cd "$ROOT" && rg --files "$TESTS_DIR" -g '*.ruff' | sort)
+if command -v rg >/dev/null 2>&1; then
+  fixtures=$(cd "$ROOT" && rg --files "$TESTS_DIR" -g '*.ruff' | sort)
+else
+  fixtures=$(cd "$ROOT" && find "$TESTS_DIR" -type f -name '*.ruff' | sort)
+fi
 if [[ -n "$MAX_FIXTURES" ]]; then
   fixtures=$(printf '%s\n' "$fixtures" | head -n "$MAX_FIXTURES")
 fi

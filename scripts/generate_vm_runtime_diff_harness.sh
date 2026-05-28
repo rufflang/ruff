@@ -74,11 +74,6 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-if ! command -v rg >/dev/null 2>&1; then
-  echo "error: ripgrep (rg) is required" >&2
-  exit 1
-fi
-
 normalize_output() {
   local input_path="$1"
   sed -E \
@@ -164,7 +159,11 @@ run_fixture() {
   fi
 }
 
-fixtures=$(cd "$ROOT" && rg --files "$TESTS_DIR" -g '*.ruff' | sort)
+if command -v rg >/dev/null 2>&1; then
+  fixtures=$(cd "$ROOT" && rg --files "$TESTS_DIR" -g '*.ruff' | sort)
+else
+  fixtures=$(cd "$ROOT" && find "$TESTS_DIR" -type f -name '*.ruff' | sort)
+fi
 if [[ -n "$MAX_FIXTURES" ]]; then
   fixtures=$(printf '%s\n' "$fixtures" | head -n "$MAX_FIXTURES")
 fi
