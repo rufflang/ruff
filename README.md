@@ -11,6 +11,7 @@ Ruff is VM-first (`ruff run`), with a tree-walking interpreter available as an e
 - VM runtime parity for modular workflows has been significantly hardened.
 - Dotted module import workflows are supported on the default VM path.
 - Native capability controls are available for trusted and untrusted execution modes.
+- Ruff is pre-1.0 and not yet universally production-ready for all enterprise workloads.
 
 ## Why Ruff
 
@@ -34,6 +35,24 @@ Ruff is VM-first (`ruff run`), with a tree-walking interpreter available as an e
 - `ruff run` and `ruff test-run` default to trusted mode.
 - For untrusted code, start with `--untrusted` and add only required `--allow-*` flags.
 - Review [docs/NATIVE_API_SECURITY_POSTURE.md](docs/NATIVE_API_SECURITY_POSTURE.md) before running untrusted scripts in shared or sensitive environments.
+
+### Enterprise Hardening Quickstart
+
+For untrusted scripts, use capability-minimal execution and explicit network intent:
+
+```bash
+ruff run --untrusted --allow-fs-read --allow-net-client script.ruff
+```
+
+When `--untrusted` and outbound network client access are enabled, Ruff now defaults the outbound destination policy to `deny_private` (unless `RUFF_NET_DESTINATION_POLICY` is already set). This helps reduce accidental private-network access in untrusted runs.
+
+To allow private/local destinations in trusted environments:
+
+```bash
+export RUFF_NET_DESTINATION_POLICY=allow_all
+# or keep strict mode and permit local/private overrides per execution
+export RUFF_ALLOW_PRIVATE_NETWORK_DESTINATIONS=1
+```
 
 ## Core Reference Links
 
@@ -125,6 +144,16 @@ Machine-readable contracts and diagnostics behavior are documented in [docs/CLI_
 - `docs/`: language spec, security posture, roadmap, release process, and readiness checklists.
 - `examples/`: runnable scripts and integration fixtures.
 - `scripts/`: release gates and generation/verification utilities.
+
+## Repository Hygiene
+
+- Canonical tracked root files are intentionally minimal (`README`, manifests, policy docs).
+- Most generated artifacts and local backups are ignored and should not be committed.
+- Use the hygiene audit script before publishing release branches:
+
+```bash
+bash scripts/repo_hygiene_audit.sh
+```
 
 ## Language Snapshot
 

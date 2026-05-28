@@ -14,7 +14,6 @@ rust-toolchain.toml
 
 # Cargo specific
 /.cargo/
-/Cargo.lock
 /.rustfmt.toml
 
 # === TEST SNAPSHOTS ===
@@ -67,6 +66,9 @@ Icon?
 *.gz
 *.tar
 *.7z
+
+# Keep lockfile tracked for reproducible binary releases
+!/Cargo.lock
 
 # === BY PRODUCTS ===
 *.dSYM/
