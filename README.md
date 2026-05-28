@@ -93,9 +93,9 @@ Create `hello.ruff`:
 
 ```ruff
 func total(values) {
-    let sum := 0
+    mut sum := 0
     for value in values {
-        sum := sum + value
+        sum = sum + value
     }
     return sum
 }
@@ -114,6 +114,12 @@ Run it:
 
 ```bash
 ruff run hello.ruff
+```
+
+Need a project skeleton?
+
+```bash
+ruff run /path/to/ruff-kennel/kennel.ruff --interpreter -- new my-tool
 ```
 
 ## Runtime Mode Recommendations

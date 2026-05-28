@@ -53,6 +53,11 @@ Source of truth:
 | `to_snake_case` | preview | `v := to_snake_case("helloWorld")` |
 | `to_kebab_case` | preview | `v := to_kebab_case("helloWorld")` |
 
+Predicate semantics note:
+
+- `contains`, `starts_with`, `ends_with`, and `has_key` currently return `1`/`0`.
+- Prefer explicit comparisons in control paths (for example `contains(text, "x") == 1`).
+
 ## Arrays and Collection Helpers
 
 | Function | Tier | Example |
@@ -72,6 +77,11 @@ Source of truth:
 | `flatten` | preview | `out := flatten([[1], [2, 3]])` |
 | `zip` | preview | `out := zip([1, 2], ["a", "b"])` |
 | `range` | stable | `nums := range(0, 5)` |
+
+Collection update semantics:
+
+- Helpers like `push`, `insert`, `remove_at`, `concat`, and `map` return updated values.
+- Reassign the result when building arrays iteratively (`items = push(items, value)`).
 
 ## Dicts and Structured Data
 
@@ -95,6 +105,11 @@ Source of truth:
 | `to_yaml` | preview | `txt := to_yaml({"x": 1})` |
 | `parse_csv` | preview | `rows := parse_csv("name\nruff")` |
 | `to_csv` | preview | `txt := to_csv([["name"], ["ruff"]])` |
+
+Access semantics:
+
+- Dictionary/map-like values use bracket access (`obj["key"]`).
+- Runtime structs (for example `ProcessResult`) use dot fields (`result.exitcode`).
 
 ## Math, Time, and Random
 

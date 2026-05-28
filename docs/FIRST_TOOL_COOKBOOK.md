@@ -21,22 +21,22 @@ Build a small CLI quality-gate tool that:
 Create `quality_gate.ruff`:
 
 ```ruff
-let argv := args()
+argv := args()
 if len(argv) < 1 {
   print("usage: ruff run quality_gate.ruff <policy.json>")
   exit(2)
 }
 
-let policy_path := argv[0]
-let raw := read_file(policy_path)
-let parsed := parse_json(raw)
+policy_path := argv[0]
+raw := read_file(policy_path)
+parsed := parse_json(raw)
 
 if type(parsed) == "Error" {
   print("policy parse failure")
   exit(4)
 }
 
-if !has_key(parsed, "name") || !has_key(parsed, "rules") {
+if has_key(parsed, "name") != 1 || has_key(parsed, "rules") != 1 {
   print("invalid policy: required keys are missing")
   exit(1)
 }
@@ -50,6 +50,16 @@ print("quality gate ok: " + parsed["name"])
 ```
 
 Note: `args()` contains only user arguments after the script path.
+
+Semantics notes:
+
+- Use `mut` for values you reassign (for example counters or accumulators).
+- Predicate helpers like `contains`, `starts_with`, and `has_key` return `1`/`0`; compare explicitly when needed.
+- Collection helpers like `push` return a new array value; reassign (`items = push(items, x)`) to keep the update.
+
+Module export note:
+
+- Imported functions must be declared with `export func` in the source module.
 
 ### 2) Create a policy input
 
@@ -91,6 +101,16 @@ quality gate ok: enterprise-default
   - trusted mode for local dev
   - `--untrusted --allow-net-client` in controlled automation
 - Wrap in CI as a single command gate.
+
+## Scaffold A New Ruff Tool Project
+
+If you want a project skeleton instead of creating every file manually, use Kennel:
+
+```bash
+ruff run /path/to/ruff-kennel/kennel.ruff --interpreter -- new my-tool
+```
+
+Then adapt the generated `kennel.toml`, entrypoint, and scripts to your tool.
 
 ## Verification
 
