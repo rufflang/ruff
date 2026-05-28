@@ -138,7 +138,7 @@ Source of truth:
 | --- | --- | --- |
 | `env` | stable | `home := env("HOME")` |
 | `env_or` | stable | `mode := env_or("MODE", "dev")` |
-| `args` | stable | `argv := args()` |
+| `args` | stable | `argv := args()  # user args only; script name excluded` |
 | `sleep` | stable | `sleep(100)` |
 | `execute` | preview | `out := execute("echo hi", {"timeout_ms": 1000})` |
 | `execute_status` | preview | `r := execute_status("echo hi")` |
@@ -156,6 +156,12 @@ Process result contracts:
 
 - `execute_status` and `spawn_process` return `ProcessResult` fields: `exitcode`, `stdout`, `stderr`, `success`, `timed_out`, `stdout_truncated`, `stderr_truncated`
 - `execute` returns a stdout string on success and raises a deterministic error object on timeout, output-limit overflow, or non-zero exit
+
+CLI/Process semantics notes:
+
+- `args()` returns only user-provided arguments after the script path. Example: `ruff run tool.ruff summarize --format json` becomes `args() == ["summarize", "--format", "json"]`.
+- `execute(...)` accepts a single shell command string (not an argv array).
+- Use `execute_status(...)` when you need exit code and stderr without exception-style control flow.
 
 ## Network, HTTP, and Auth
 

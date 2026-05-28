@@ -22,12 +22,12 @@ Create `quality_gate.ruff`:
 
 ```ruff
 let argv := args()
-if len(argv) < 2 {
+if len(argv) < 1 {
   print("usage: ruff run quality_gate.ruff <policy.json>")
   exit(2)
 }
 
-let policy_path := argv[1]
+let policy_path := argv[0]
 let raw := read_file(policy_path)
 let parsed := parse_json(raw)
 
@@ -48,6 +48,8 @@ if len(parsed["rules"]) == 0 {
 
 print("quality gate ok: " + parsed["name"])
 ```
+
+Note: `args()` contains only user arguments after the script path.
 
 ### 2) Create a policy input
 
