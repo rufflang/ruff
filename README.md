@@ -34,7 +34,18 @@ Ruff is VM-first (`ruff run`), with a tree-walking interpreter available as an e
 - Ruff is not a sandbox.
 - `ruff run` and `ruff test-run` default to trusted mode.
 - For untrusted code, start with `--untrusted` and add only required `--allow-*` flags.
+- When explicit `--allow-*` flags are present, execution is restricted to the listed capabilities.
 - Review [docs/NATIVE_API_SECURITY_POSTURE.md](docs/NATIVE_API_SECURITY_POSTURE.md) before running untrusted scripts in shared or sensitive environments.
+
+### Script Argument Separator
+
+When passing script-level flags that may overlap with Ruff CLI flags (for example `--help`), use `--` to separate Ruff options from script arguments.
+
+```bash
+# Ruff options first, then "--", then script args
+ruff run tool.ruff -- --help
+ruff run tool.ruff -- summarize --format json
+```
 
 ### Enterprise Hardening Quickstart
 

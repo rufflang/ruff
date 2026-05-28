@@ -68,6 +68,14 @@ struct Local {
 
 #[allow(dead_code)] // Compiler not yet integrated into execution path
 impl Compiler {
+    fn is_hoistable_top_level_function(stmt: &Stmt) -> bool {
+        match stmt {
+            Stmt::FuncDef { .. } => true,
+            Stmt::Export { stmt } => matches!(stmt.as_ref(), Stmt::FuncDef { .. }),
+            _ => false,
+        }
+    }
+
     pub fn new() -> Self {
         Self {
             chunk: BytecodeChunk::new(),
@@ -99,7 +107,17 @@ impl Compiler {
     ) -> Result<BytecodeChunk, String> {
         self.used_locals = Self::collect_used_variables(statements);
 
+        // Hoist top-level function declarations so calls can appear earlier in the file.
         for stmt in statements {
+            if Self::is_hoistable_top_level_function(stmt) {
+                self.compile_stmt(stmt)?;
+            }
+        }
+
+        for stmt in statements {
+            if Self::is_hoistable_top_level_function(stmt) {
+                continue;
+            }
             self.compile_stmt(stmt)?;
         }
 

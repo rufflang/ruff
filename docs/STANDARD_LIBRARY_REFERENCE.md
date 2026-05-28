@@ -148,6 +148,12 @@ Access semantics:
 | `path_is_dir` | stable | `ok := path_is_dir(".")` |
 | `path_is_file` | stable | `ok := path_is_file("a.txt")` |
 
+Write-file overwrite contract:
+
+- `write_file(path, content)` errors if `path` already exists.
+- To replace an existing file, pass options with overwrite enabled:
+	- `write_file(path, content, {"overwrite": true})`
+
 ## Environment, Process, and Concurrency
 
 | Function | Tier | Example |
@@ -175,9 +181,17 @@ Process result contracts:
 
 CLI/Process semantics notes:
 
-- `args()` returns only user-provided arguments after the script path. Example: `ruff run tool.ruff summarize --format json` becomes `args() == ["summarize", "--format", "json"]`.
+- `args()` returns only user-provided arguments after the script path. Example: `ruff run tool.ruff -- summarize --format json` becomes `args() == ["summarize", "--format", "json"]`.
 - `execute(...)` accepts a single shell command string (not an argv array).
 - Use `execute_status(...)` when you need exit code and stderr without exception-style control flow.
+
+Type taxonomy quick reference:
+
+- Scalar literals: `"int"`, `"float"`, `"string"`, `"bool"`, `"null"`
+- Containers: `"array"`, `"dict"`
+- Parsed-document containers can appear as `"list"` in some parser-backed flows.
+- Error values return `"Error"`.
+- Use tolerant checks for parsed collections when needed (for example `type(x) == "array" || type(x) == "list"`).
 
 ## Network, HTTP, and Auth
 

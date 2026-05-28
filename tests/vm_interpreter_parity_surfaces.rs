@@ -196,6 +196,21 @@ fn vm_and_interpreter_match_struct_op_add_overload_surface() {
 }
 
 #[test]
+fn vm_and_interpreter_match_top_level_function_hoisting_surface() {
+    let script = r#"
+        result := call_before(3)
+
+        func call_before(value) {
+            return value + 1
+        }
+
+        hoist_ok := result == 4
+    "#;
+
+    assert_interpreter_and_vm_bool(script, "hoist_ok");
+}
+
+#[test]
 fn vm_and_interpreter_match_spread_destructuring_surface() {
     let script = r#"
         values := [1, 2, 3, 4]

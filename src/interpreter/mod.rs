@@ -2855,6 +2855,28 @@ impl Interpreter {
     /// Evaluates a list of statements sequentially, stopping on return/error
     pub fn eval_stmts(&mut self, stmts: &[Stmt]) {
         for stmt in stmts {
+            let hoistable = match stmt {
+                Stmt::FuncDef { .. } => true,
+                Stmt::Export { stmt } => matches!(stmt.as_ref(), Stmt::FuncDef { .. }),
+                _ => false,
+            };
+            if hoistable {
+                self.eval_stmt(stmt);
+                if self.return_value.is_some() || self.control_flow != ControlFlow::None {
+                    break;
+                }
+            }
+        }
+
+        for stmt in stmts {
+            let hoistable = match stmt {
+                Stmt::FuncDef { .. } => true,
+                Stmt::Export { stmt } => matches!(stmt.as_ref(), Stmt::FuncDef { .. }),
+                _ => false,
+            };
+            if hoistable {
+                continue;
+            }
             self.eval_stmt(stmt);
             if self.return_value.is_some() || self.control_flow != ControlFlow::None {
                 break;

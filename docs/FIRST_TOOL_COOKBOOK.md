@@ -50,6 +50,12 @@ print("quality gate ok: " + parsed["name"])
 ```
 
 Note: `args()` contains only user arguments after the script path.
+If your script accepts flags that can collide with Ruff CLI flags, pass script args after `--`:
+
+```bash
+ruff run quality_gate.ruff -- policy.json
+ruff run quality_gate.ruff -- --help
+```
 
 Semantics notes:
 
@@ -75,7 +81,7 @@ Create `policy.json`:
 ### 3) Run on VM default path
 
 ```bash
-ruff run quality_gate.ruff policy.json
+ruff run quality_gate.ruff -- policy.json
 ```
 
 Expected output:
