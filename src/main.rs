@@ -805,6 +805,24 @@ fn build_runtime_capability_policy(args: &CapabilityArgs) -> RuntimeCapabilityPo
     policy
 }
 
+fn apply_untrusted_network_destination_policy_defaults(args: &CapabilityArgs) {
+    if args.allow_all || !args.untrusted {
+        return;
+    }
+
+    let network_client_enabled = args.allow_net || args.allow_net_client;
+    if !network_client_enabled {
+        return;
+    }
+
+    if std::env::var(crate::network_policy::OUTBOUND_DESTINATION_POLICY_ENV).is_err() {
+        std::env::set_var(
+            crate::network_policy::OUTBOUND_DESTINATION_POLICY_ENV,
+            "deny_private",
+        );
+    }
+}
+
 fn report_lexer_diagnostics_and_exit(
     _file_label: &str,
     diagnostics: &[lexer::LexerDiagnostic],
@@ -978,6 +996,7 @@ async fn main() {
                     report_cli_error_and_exit(error_message, CliExitCode::UsageError);
                 }
             };
+            apply_untrusted_network_destination_policy_defaults(&capabilities);
             let capability_policy = build_runtime_capability_policy(&capabilities);
 
             // Store script arguments in environment for args() function to retrieve
@@ -1297,6 +1316,7 @@ async fn main() {
         }
 
         Commands::TestRun { file, verbose, capabilities } => {
+            apply_untrusted_network_destination_policy_defaults(&capabilities);
             let (_code, _filename, stmts) = parse_ruff_program(&file);
 
             // Create base interpreter with standard library loaded
@@ -2569,7 +2589,10 @@ async fn main() {
 
 #[cfg(test)]
 mod tests {
-    use super::{cooperative_scheduler_timeout, DEFAULT_COOPERATIVE_SCHEDULER_TIMEOUT_MS};
+    use super::{
+        apply_untrusted_network_destination_policy_defaults, cooperative_scheduler_timeout,
+        CapabilityArgs, DEFAULT_COOPERATIVE_SCHEDULER_TIMEOUT_MS,
+    };
     use std::sync::Mutex;
     use std::time::Duration;
 
@@ -2588,6 +2611,21 @@ mod tests {
 
         test_fn();
         std::env::remove_var("RUFF_SCHEDULER_TIMEOUT_MS");
+    }
+
+    fn with_outbound_policy_env<F>(value: Option<&str>, test_fn: F)
+    where
+        F: FnOnce(),
+    {
+        let _guard = ENV_LOCK.lock().expect("environment lock poisoned");
+
+        match value {
+            Some(raw) => std::env::set_var(crate::network_policy::OUTBOUND_DESTINATION_POLICY_ENV, raw),
+            None => std::env::remove_var(crate::network_policy::OUTBOUND_DESTINATION_POLICY_ENV),
+        }
+
+        test_fn();
+        std::env::remove_var(crate::network_policy::OUTBOUND_DESTINATION_POLICY_ENV);
     }
 
     #[test]
@@ -2632,6 +2670,51 @@ mod tests {
             let timeout = cooperative_scheduler_timeout(None)
                 .expect("invalid env value should fall back to default");
             assert_eq!(timeout, Duration::from_millis(DEFAULT_COOPERATIVE_SCHEDULER_TIMEOUT_MS));
+        });
+    }
+
+    #[test]
+    fn untrusted_network_defaults_set_deny_private_when_unset() {
+        with_outbound_policy_env(None, || {
+            let args = CapabilityArgs {
+                untrusted: true,
+                allow_net_client: true,
+                ..CapabilityArgs::default()
+            };
+            apply_untrusted_network_destination_policy_defaults(&args);
+            assert_eq!(
+                std::env::var(crate::network_policy::OUTBOUND_DESTINATION_POLICY_ENV).ok(),
+                Some("deny_private".to_string())
+            );
+        });
+    }
+
+    #[test]
+    fn untrusted_network_defaults_do_not_override_explicit_policy() {
+        with_outbound_policy_env(Some("allow_all"), || {
+            let args = CapabilityArgs {
+                untrusted: true,
+                allow_net_client: true,
+                ..CapabilityArgs::default()
+            };
+            apply_untrusted_network_destination_policy_defaults(&args);
+            assert_eq!(
+                std::env::var(crate::network_policy::OUTBOUND_DESTINATION_POLICY_ENV).ok(),
+                Some("allow_all".to_string())
+            );
+        });
+    }
+
+    #[test]
+    fn untrusted_network_defaults_do_not_set_policy_for_trusted_mode() {
+        with_outbound_policy_env(None, || {
+            let args = CapabilityArgs {
+                untrusted: false,
+                allow_net_client: true,
+                ..CapabilityArgs::default()
+            };
+            apply_untrusted_network_destination_policy_defaults(&args);
+            assert!(std::env::var(crate::network_policy::OUTBOUND_DESTINATION_POLICY_ENV).is_err());
         });
     }
 }

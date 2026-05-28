@@ -510,7 +510,7 @@ fn network_http_get_rejects_oversized_response_body() {
     let script_source = format!("http_get(\"http://127.0.0.1:{}/payload\")\n", port);
     fs::write(&script_path, script_source).expect("failed to write oversized http script");
 
-    let output = run_ruff(
+    let output = run_ruff_with_env(
         &[
             "run",
             "--interpreter",
@@ -519,6 +519,7 @@ fn network_http_get_rejects_oversized_response_body() {
             script_path.to_str().expect("script path should be utf-8"),
         ],
         &project_root,
+        &[("RUFF_ALLOW_PRIVATE_NETWORK_DESTINATIONS", "1")],
     );
     assert_eq!(
         output.status.code(),
@@ -554,7 +555,7 @@ fn network_http_request_timeout_is_reported_deterministically() {
     );
     fs::write(&script_path, script_source).expect("failed to write timeout script");
 
-    let output = run_ruff(
+    let output = run_ruff_with_env(
         &[
             "run",
             "--interpreter",
@@ -563,6 +564,7 @@ fn network_http_request_timeout_is_reported_deterministically() {
             script_path.to_str().expect("script path should be utf-8"),
         ],
         &project_root,
+        &[("RUFF_ALLOW_PRIVATE_NETWORK_DESTINATIONS", "1")],
     );
     assert_eq!(
         output.status.code(),
