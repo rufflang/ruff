@@ -1913,8 +1913,8 @@ impl Interpreter {
         for mut request in server.incoming_requests() {
             let method = request.method().to_string();
             let request_url = request.url().to_string();
-            let (url_path, query_params, raw_query) =
-                http_request_utils::split_http_path_and_query(&request_url);
+            let (url_path, query_params, decoded_query_params, raw_query) =
+                http_request_utils::split_http_path_and_query_with_decoded(&request_url);
 
             // Read body first (before any response handling)
             let body_content = {
@@ -1976,6 +1976,14 @@ impl Interpreter {
                     query_dict.insert(Arc::from(key.as_str()), Value::Str(Arc::new(value.clone())));
                 }
                 req_fields.insert("query".into(), Value::Dict(Arc::new(query_dict)));
+
+                let mut decoded_query_dict = DictMap::default();
+                for (key, value) in &decoded_query_params {
+                    decoded_query_dict
+                        .insert(Arc::from(key.as_str()), Value::Str(Arc::new(value.clone())));
+                }
+                req_fields
+                    .insert("query_decoded".into(), Value::Dict(Arc::new(decoded_query_dict)));
                 req_fields.insert("query_string".into(), Value::Str(Arc::new(raw_query.clone())));
 
                 // Extract headers from request

@@ -6,15 +6,31 @@ use std::collections::HashMap;
 /// - no URL decoding
 /// - empty key pairs are ignored
 /// - `key` without `=` maps to empty-string value
+#[allow(dead_code)] // Kept for compatibility with callers that expect raw lexical query parsing.
 pub fn split_http_path_and_query(url: &str) -> (String, HashMap<String, String>, String) {
+    let (path, query_params, _decoded_query_params, raw_query) =
+        split_http_path_and_query_with_decoded(url);
+    (path, query_params, raw_query)
+}
+
+/// Split a request URL into a path, parsed query parameters, decoded query parameters,
+/// and raw query string.
+///
+/// `query_params` preserves lexical values (no URL decoding) for backward compatibility.
+/// `decoded_query_params` applies single-pass percent-decoding and `+` -> space normalization.
+pub fn split_http_path_and_query_with_decoded(
+    url: &str,
+) -> (String, HashMap<String, String>, HashMap<String, String>, String) {
     if let Some((path, raw_query)) = url.split_once('?') {
-        (path.to_string(), parse_http_query_params(raw_query), raw_query.to_string())
+        let query_params = parse_http_query_params(raw_query, false);
+        let decoded_query_params = parse_http_query_params(raw_query, true);
+        (path.to_string(), query_params, decoded_query_params, raw_query.to_string())
     } else {
-        (url.to_string(), HashMap::new(), String::new())
+        (url.to_string(), HashMap::new(), HashMap::new(), String::new())
     }
 }
 
-fn parse_http_query_params(raw_query: &str) -> HashMap<String, String> {
+fn parse_http_query_params(raw_query: &str, decode_values: bool) -> HashMap<String, String> {
     let mut query_params = HashMap::new();
 
     for pair in raw_query.split('&') {
@@ -22,19 +38,68 @@ fn parse_http_query_params(raw_query: &str) -> HashMap<String, String> {
             continue;
         }
 
-        let (key, value) = match pair.split_once('=') {
+        let (raw_key, raw_value) = match pair.split_once('=') {
             Some((k, v)) => (k, v),
             None => (pair, ""),
         };
 
-        if key.is_empty() {
+        if raw_key.is_empty() {
             continue;
         }
 
-        query_params.insert(key.to_string(), value.to_string());
+        let (key, value) = if decode_values {
+            let decoded_key = decode_query_component(raw_key).unwrap_or_else(|| raw_key.to_string());
+            let decoded_value =
+                decode_query_component(raw_value).unwrap_or_else(|| raw_value.to_string());
+            (decoded_key, decoded_value)
+        } else {
+            (raw_key.to_string(), raw_value.to_string())
+        };
+
+        query_params.insert(key, value);
     }
 
     query_params
+}
+
+fn decode_query_component(component: &str) -> Option<String> {
+    let bytes = component.as_bytes();
+    let mut decoded = Vec::with_capacity(bytes.len());
+    let mut index = 0;
+
+    while index < bytes.len() {
+        match bytes[index] {
+            b'+' => {
+                decoded.push(b' ');
+                index += 1;
+            }
+            b'%' => {
+                if index + 2 >= bytes.len() {
+                    return None;
+                }
+
+                let hi = decode_hex_nibble(bytes[index + 1])?;
+                let lo = decode_hex_nibble(bytes[index + 2])?;
+                decoded.push((hi << 4) | lo);
+                index += 3;
+            }
+            other => {
+                decoded.push(other);
+                index += 1;
+            }
+        }
+    }
+
+    String::from_utf8(decoded).ok()
+}
+
+fn decode_hex_nibble(byte: u8) -> Option<u8> {
+    match byte {
+        b'0'..=b'9' => Some(byte - b'0'),
+        b'a'..=b'f' => Some(byte - b'a' + 10),
+        b'A'..=b'F' => Some(byte - b'A' + 10),
+        _ => None,
+    }
 }
 
 #[cfg(test)]
@@ -70,5 +135,26 @@ mod tests {
         assert_eq!(query_map.get("name").map(String::as_str), Some("ruff"));
         assert_eq!(query_map.get("empty").map(String::as_str), Some(""));
         assert!(!query_map.contains_key(""));
+    }
+
+    #[test]
+    fn split_http_path_and_query_with_decoded_parses_percent_and_plus_components() {
+        let (_, raw_query_map, decoded_query_map, raw_query) =
+            super::split_http_path_and_query_with_decoded(
+                "/search?q=ruff%20lang&tag=enterprise+ready",
+            );
+
+        assert_eq!(raw_query, "q=ruff%20lang&tag=enterprise+ready");
+        assert_eq!(raw_query_map.get("q").map(String::as_str), Some("ruff%20lang"));
+        assert_eq!(decoded_query_map.get("q").map(String::as_str), Some("ruff lang"));
+        assert_eq!(decoded_query_map.get("tag").map(String::as_str), Some("enterprise ready"));
+    }
+
+    #[test]
+    fn split_http_path_and_query_with_decoded_falls_back_to_raw_on_invalid_encoding() {
+        let (_, _raw_query_map, decoded_query_map, _raw_query) =
+            super::split_http_path_and_query_with_decoded("/x?bad=%2");
+
+        assert_eq!(decoded_query_map.get("bad").map(String::as_str), Some("%2"));
     }
 }
