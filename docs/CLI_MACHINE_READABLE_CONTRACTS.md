@@ -2,7 +2,7 @@
 
 Status: v1.0.0 baseline draft (active)
 Contract version: `1.0.0-draft`
-Last updated: 2026-05-16
+Last updated: 2026-05-31
 
 This document defines automation-facing contracts for Ruff CLI JSON outputs and exit behavior.
 
@@ -189,6 +189,19 @@ Coverage is locked in `tests/cli_contracts.rs`:
 - `cli_test_discovers_and_runs_expected_fixtures`
 - `cli_test_runtime_dual_mode_keeps_vm_primary_for_vm_drift_fixture`
 - `cli_test_runtime_vm_mode_executes_vm_drift_fixture_without_snapshot_mismatch`
+
+## Dual-Mode Inventory And Human Render Expectations
+
+- Canonical dual-mode command inventory and stability classification:
+  - `docs/CLI_DUAL_MODE_OUTPUT_INVENTORY.md`
+- Human-render helper migration status and intentionally low-level residual call sites:
+  - `docs/OUTPUT_HELPER_MIGRATION_NOTE.md`
+
+Human-render determinism policy:
+
+- Snapshot-style tests should use deterministic, no-color render paths where available.
+- For operator-facing colorized paths, `NO_COLOR=1` should route to deterministic plain-text output when supported.
+- Snapshot/test updates for human text must only happen when output intent changes are deliberate and documented in the same change.
 
 ## Contract Change Rules
 

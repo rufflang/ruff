@@ -19,6 +19,22 @@ Recommended implementation order:
 3. Documentation and example refresh.
 4. Regression and compatibility validation.
 
+## Closure status (2026-05-31)
+
+Implementation checklist status:
+
+- Completed items: 19
+- Remaining items: 0
+
+Closure evidence (high level):
+
+- Shared output helpers and LSP JSON emission consolidation are in place (`src/cli_output.rs`, `src/main.rs`).
+- Human-render deterministic coverage now includes workflow pack, benchmark reporter, profiler report text renderer, and REPL banner/help text.
+- LSP CLI plain/json mode and stderr-routing contract tests were added in `tests/cli_contracts.rs`.
+- Dual-mode output inventory and migration notes are documented in:
+  - `docs/CLI_DUAL_MODE_OUTPUT_INVENTORY.md`
+  - `docs/OUTPUT_HELPER_MIGRATION_NOTE.md`
+
 ## Highest-priority opportunities
 
 ### 1) Consolidate Rust CLI output emission paths
