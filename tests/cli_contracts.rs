@@ -447,3 +447,40 @@ fn cli_pack_run_rejects_reserved_namespace() {
     let stderr = String::from_utf8(output.stderr).expect("stderr should be utf-8");
     assert!(stderr.contains("Namespace 'ruff' is reserved"));
 }
+
+#[test]
+fn cli_doctor_json_contract_is_stable() {
+    let workspace = unique_temp_dir("cli_doctor_json_contract");
+    let output = run_ruff_in_dir(&["doctor", "--json"], &workspace);
+    assert_eq!(output.status.code(), Some(0));
+    assert!(output.stderr.is_empty(), "doctor --json should not write stderr on success");
+
+    let stdout = String::from_utf8(output.stdout).expect("stdout should be utf-8");
+    let parsed: Value = serde_json::from_str(&stdout).expect("doctor --json must emit valid JSON");
+    assert_eq!(parsed["tool"], "ruff-doctor");
+    assert_eq!(parsed["command"], "doctor");
+    assert_eq!(parsed["profile"], "generic");
+    assert_eq!(parsed["schema_version"], "0.1.0");
+    assert!(parsed["checks"].is_array());
+    assert!(parsed["summary"].is_object());
+}
+
+#[test]
+fn cli_doctor_lists_profiles() {
+    let workspace = unique_temp_dir("cli_doctor_profiles");
+    let output = run_ruff_in_dir(&["doctor", "--list-profiles"], &workspace);
+    assert_eq!(output.status.code(), Some(0));
+    assert!(output.stderr.is_empty(), "doctor --list-profiles should not write stderr");
+    let stdout = String::from_utf8(output.stdout).expect("stdout should be utf-8");
+    assert!(stdout.contains("generic"), "expected default doctor profile listing");
+}
+
+#[test]
+fn cli_doctor_rejects_unknown_profile() {
+    let workspace = unique_temp_dir("cli_doctor_unknown_profile");
+    let output = run_ruff_in_dir(&["doctor", "unknown-profile"], &workspace);
+    assert_eq!(output.status.code(), Some(EXIT_USAGE_ERROR));
+    assert!(output.stdout.is_empty());
+    let stderr = String::from_utf8(output.stderr).expect("stderr should be utf-8");
+    assert!(stderr.contains("Unknown doctor profile"));
+}

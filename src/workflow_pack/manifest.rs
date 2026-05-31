@@ -310,11 +310,11 @@ mod tests {
     use super::*;
 
     fn valid_manifest_yaml() -> String {
-        r#"id: team-updraft
-namespace: tud
-name: Team Updraft
+        r#"id: acme-tools
+namespace: acme
+name: Acme Tools
 version: 0.1.0
-description: Workflow commands for Team Updraft.
+description: Workflow commands for Acme teams.
 
 commands:
   - name: doctor
@@ -331,9 +331,9 @@ commands:
     #[test]
     fn parse_valid_manifest() {
         let manifest = parse_manifest(&valid_manifest_yaml()).expect("valid manifest should parse");
-        assert_eq!(manifest.id, "team-updraft");
-        assert_eq!(manifest.namespace, "tud");
-        assert_eq!(manifest.name, "Team Updraft");
+        assert_eq!(manifest.id, "acme-tools");
+        assert_eq!(manifest.namespace, "acme");
+        assert_eq!(manifest.name, "Acme Tools");
         assert_eq!(manifest.version, "0.1.0");
         assert_eq!(manifest.commands.len(), 1);
         assert_eq!(manifest.commands[0].name, "doctor");
@@ -341,42 +341,42 @@ commands:
 
     #[test]
     fn reject_empty_id() {
-        let yaml = valid_manifest_yaml().replace("id: team-updraft", "id: ''");
+        let yaml = valid_manifest_yaml().replace("id: acme-tools", "id: ''");
         let err = parse_manifest(&yaml).expect_err("empty id should fail");
         assert!(err.message.contains("id"));
     }
 
     #[test]
     fn reject_empty_namespace() {
-        let yaml = valid_manifest_yaml().replace("namespace: tud", "namespace: ''");
+        let yaml = valid_manifest_yaml().replace("namespace: acme", "namespace: ''");
         let err = parse_manifest(&yaml).expect_err("empty namespace should fail");
         assert!(err.message.contains("namespace"));
     }
 
     #[test]
     fn reject_invalid_namespace() {
-        let yaml = valid_manifest_yaml().replace("namespace: tud", "namespace: TeamUpdraft");
+        let yaml = valid_manifest_yaml().replace("namespace: acme", "namespace: TeamUpdraft");
         let err = parse_manifest(&yaml).expect_err("camelCase namespace should fail");
         assert!(err.message.contains("CLI-safe"));
     }
 
     #[test]
     fn reject_namespace_with_underscore() {
-        let yaml = valid_manifest_yaml().replace("namespace: tud", "namespace: team_updraft");
+        let yaml = valid_manifest_yaml().replace("namespace: acme", "namespace: team_updraft");
         let err = parse_manifest(&yaml).expect_err("namespace with underscore should fail");
         assert!(err.message.contains("CLI-safe"));
     }
 
     #[test]
     fn reject_namespace_starting_with_digit() {
-        let yaml = valid_manifest_yaml().replace("namespace: tud", "namespace: 2team");
+        let yaml = valid_manifest_yaml().replace("namespace: acme", "namespace: 2team");
         let err = parse_manifest(&yaml).expect_err("namespace starting with digit should fail");
         assert!(err.message.contains("CLI-safe"));
     }
 
     #[test]
     fn accept_namespace_with_hyphens() {
-        let yaml = valid_manifest_yaml().replace("namespace: tud", "namespace: my-team");
+        let yaml = valid_manifest_yaml().replace("namespace: acme", "namespace: my-team");
         let manifest = parse_manifest(&yaml).expect("hyphenated namespace should parse");
         assert_eq!(manifest.namespace, "my-team");
     }
@@ -465,7 +465,7 @@ commands:
 
     #[test]
     fn reject_reserved_namespace_for_third_party_pack() {
-        let yaml = valid_manifest_yaml().replace("namespace: tud", "namespace: ruff");
+        let yaml = valid_manifest_yaml().replace("namespace: acme", "namespace: ruff");
         let err =
             parse_manifest(&yaml).expect_err("reserved namespace should fail for third-party");
         assert!(err.message.contains("reserved"));
@@ -475,7 +475,7 @@ commands:
     fn reject_core_and_first_party_namespaces_for_third_party_pack() {
         for namespace in ["run", "build", "doctor", "eval", "spec", "ruff", "std", "kennel"] {
             let yaml = valid_manifest_yaml()
-                .replace("namespace: tud", &format!("namespace: {}", namespace));
+                .replace("namespace: acme", &format!("namespace: {}", namespace));
             let err = parse_manifest(&yaml)
                 .expect_err("reserved namespaces should fail for third-party packs");
             assert!(
@@ -489,7 +489,7 @@ commands:
 
     #[test]
     fn allow_reserved_namespace_for_first_party_pack() {
-        let yaml = valid_manifest_yaml().replace("namespace: tud", "namespace: ruff");
+        let yaml = valid_manifest_yaml().replace("namespace: acme", "namespace: ruff");
         let manifest = parse_manifest_with_trust(&yaml, WorkflowPackTrust::FirstParty)
             .expect("first-party manifests can use reserved namespaces");
         assert_eq!(manifest.namespace, "ruff");

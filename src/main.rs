@@ -402,6 +402,28 @@ enum Commands {
         command: PackCommands,
     },
 
+    /// Run the first-party Ruff Doctor workflow extension
+    Doctor {
+        /// Render Doctor output as JSON
+        #[arg(long, default_value_t = false)]
+        json: bool,
+
+        /// Enable deeper project checks
+        #[arg(long, default_value_t = false)]
+        deep: bool,
+
+        /// List available doctor profiles
+        #[arg(long, default_value_t = false)]
+        list_profiles: bool,
+
+        /// Explicit doctor profile name
+        #[arg(long)]
+        profile: Option<String>,
+
+        /// Positional doctor profile name (`ruff doctor <profile>`)
+        profile_name: Option<String>,
+    },
+
     /// Generate universal documentation from source code
     Docgen {
         /// Path to a file or directory to document
@@ -1034,6 +1056,7 @@ fn is_known_cli_subcommand(name: &str) -> bool {
             | "package-install"
             | "package-publish"
             | "pack"
+            | "doctor"
             | "docgen"
             | "bench-cross"
             | "bench-ssg"
@@ -1066,7 +1089,7 @@ async fn main() {
     let cli = Cli::parse();
 
     // Handle workflow pack commands via external subcommand routing.
-    // When the user runs `ruff tud doctor`, clap sees "tud" as an unknown
+    // When the user runs `ruff acme doctor`, clap sees "acme" as an unknown
     // subcommand and leaves `command` as None (allow_external_subcommands = true).
     if cli.command.is_none() {
         let raw_args: Vec<String> = std::env::args().collect();
@@ -1859,6 +1882,125 @@ async fn main() {
                 }
             }
         },
+
+        Commands::Doctor { json, deep, list_profiles, profile, profile_name } => {
+            if let (Some(explicit), Some(positional)) = (&profile, &profile_name) {
+                if explicit != positional {
+                    report_cli_error_and_exit(
+                        format!(
+                            "Conflicting doctor profile values: --profile '{}' and positional '{}'.",
+                            explicit, positional
+                        ),
+                        CliExitCode::UsageError,
+                    );
+                }
+            }
+
+            let cwd = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
+            let (registry, warnings) = workflow_pack::initialize_registry(&cwd);
+            for warning in &warnings {
+                eprintln!("Warning: {}", warning);
+            }
+
+            let mut available_profiles: Vec<String> = registry
+                .list_doctor_profiles()
+                .iter()
+                .map(|profile| profile.profile_name.clone())
+                .collect();
+            available_profiles
+                .push(workflow_pack::builtins::doctor::GENERIC_PROFILE_NAME.to_string());
+            available_profiles.sort();
+            available_profiles.dedup();
+
+            if list_profiles {
+                if json {
+                    let payload = serde_json::json!({
+                        "command": "doctor",
+                        "tool": "ruff-doctor",
+                        "profiles": available_profiles,
+                        "default_profile": workflow_pack::builtins::doctor::GENERIC_PROFILE_NAME,
+                    });
+                    emit_json_or_internal_error(&payload, "doctor profile list");
+                } else {
+                    println!("Available doctor profiles:");
+                    for profile_name in &available_profiles {
+                        if profile_name == workflow_pack::builtins::doctor::GENERIC_PROFILE_NAME {
+                            println!("- {} (default)", profile_name);
+                        } else {
+                            println!("- {}", profile_name);
+                        }
+                    }
+                }
+                return;
+            }
+
+            let selected_profile = profile.or(profile_name).unwrap_or_else(|| {
+                workflow_pack::builtins::doctor::GENERIC_PROFILE_NAME.to_string()
+            });
+
+            if !available_profiles.iter().any(|candidate| candidate == &selected_profile) {
+                report_cli_error_and_exit(
+                    format!(
+                        "Unknown doctor profile '{}'. Use `ruff doctor --list-profiles` to inspect available profiles.",
+                        selected_profile
+                    ),
+                    CliExitCode::UsageError,
+                );
+            }
+
+            let mut ctx_args = Vec::new();
+            if deep {
+                ctx_args.push("--deep".to_string());
+            }
+            let ctx = workflow_pack::types::CommandContext {
+                cwd: cwd.clone(),
+                json_output: json,
+                args: ctx_args,
+                env_vars: std::collections::HashMap::new(),
+            };
+
+            let mut generic_report = match registry.execute(
+                workflow_pack::builtins::doctor::DOCTOR_NAMESPACE,
+                workflow_pack::builtins::doctor::DOCTOR_COMMAND,
+                &ctx,
+            ) {
+                Ok(report) => report,
+                Err(message) => report_cli_error_and_exit(message, CliExitCode::RuntimeError),
+            };
+            workflow_pack::builtins::doctor::decorate_report_metadata(
+                &mut generic_report,
+                workflow_pack::builtins::doctor::GENERIC_PROFILE_NAME,
+            );
+
+            let mut report = if selected_profile
+                == workflow_pack::builtins::doctor::GENERIC_PROFILE_NAME
+            {
+                generic_report
+            } else {
+                let profile_report = match registry.execute_doctor_profile(&selected_profile, &ctx)
+                {
+                    Ok(report) => report,
+                    Err(message) => report_cli_error_and_exit(message, CliExitCode::RuntimeError),
+                };
+                workflow_pack::builtins::doctor::merge_reports(
+                    &generic_report,
+                    &profile_report,
+                    &selected_profile,
+                )
+            };
+
+            report.cwd = Some(cwd.to_string_lossy().to_string());
+
+            if json {
+                emit_json_or_internal_error(&report, "doctor report");
+            } else {
+                workflow_pack::renderer::render_human(&report);
+            }
+
+            if report.status == "fail" {
+                std::process::exit(1);
+            }
+        }
 
         Commands::Docgen {
             path,
@@ -2866,6 +3008,7 @@ mod tests {
     fn known_cli_subcommand_list_includes_pack_and_run() {
         assert!(is_known_cli_subcommand("run"));
         assert!(is_known_cli_subcommand("pack"));
+        assert!(is_known_cli_subcommand("doctor"));
     }
 
     #[test]
@@ -2873,6 +3016,6 @@ mod tests {
         assert!(reserved_external_alias_error("run").is_some());
         assert!(reserved_external_alias_error("doctor").is_some());
         assert!(reserved_external_alias_error("ruff").is_some());
-        assert!(reserved_external_alias_error("team-updraft").is_none());
+        assert!(reserved_external_alias_error("acme-tools").is_none());
     }
 }

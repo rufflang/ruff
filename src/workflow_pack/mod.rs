@@ -68,7 +68,7 @@ pub fn initialize_registry(current_dir: &Path) -> (WorkflowRegistry, Vec<String>
 
 /// Handle a workflow command from CLI external subcommand arguments.
 ///
-/// Takes the external subcommand args (e.g., `["tud", "doctor", "--json"]`)
+/// Takes the external subcommand args (e.g., `["acme", "doctor", "--json"]`)
 /// and routes to the appropriate workflow command.
 pub fn handle_workflow_command(args: &[String], current_dir: &Path) -> Result<(), String> {
     if args.is_empty() {

@@ -293,6 +293,44 @@ impl WorkflowRegistry {
         self.doctor_profiles.values().collect()
     }
 
+    pub fn execute_doctor_profile(
+        &self,
+        profile_name: &str,
+        ctx: &CommandContext,
+    ) -> Result<DoctorReport, String> {
+        let profile = self.resolve_doctor_profile(profile_name).ok_or_else(|| {
+            format!(
+                "Unknown doctor profile '{}'. Use `ruff doctor --list-profiles` to inspect available profiles.",
+                profile_name
+            )
+        })?;
+
+        if profile.entry == "builtin" {
+            return Err(format!(
+                "Doctor profile '{}' is builtin-managed and cannot be executed as an external profile entry.",
+                profile_name
+            ));
+        }
+
+        let synthetic = RegisteredCommand {
+            namespace: "doctor".to_string(),
+            command_name: profile_name.to_string(),
+            pack_id: profile.pack_id.clone(),
+            pack_source: profile.pack_source.clone(),
+            summary: if profile.summary.trim().is_empty() {
+                format!("Doctor profile '{}'", profile_name)
+            } else {
+                profile.summary.clone()
+            },
+            is_builtin: profile.pack_source == PackSource::Builtin,
+            pack_dir: profile.pack_dir.clone(),
+            entry: profile.entry.clone(),
+            handler: None,
+        };
+
+        self.execute_external(&synthetic, ctx)
+    }
+
     pub fn list_commands(&self, namespace: &str) -> Vec<&RegisteredCommand> {
         self.commands.iter().filter(|((ns, _), _)| ns == namespace).map(|(_, cmd)| cmd).collect()
     }
@@ -468,9 +506,11 @@ mod tests {
 
     fn dummy_handler(_ctx: &CommandContext) -> DoctorReport {
         DoctorReport {
+            tool: None,
             pack: "test".to_string(),
             namespace: "test".to_string(),
             command: "test".to_string(),
+            profile: None,
             schema_version: None,
             cwd: None,
             status: "pass".to_string(),
@@ -705,5 +745,46 @@ mod tests {
         r.register_builtin_pack(&builtin, handlers)
             .expect("builtin packs should register reserved doctor profile names");
         assert!(r.resolve_doctor_profile("default").is_some());
+    }
+
+    #[test]
+    fn execute_doctor_profile_errors_for_unknown_profile() {
+        let r = WorkflowRegistry::new();
+        let err = r
+            .execute_doctor_profile("missing", &test_ctx())
+            .expect_err("unknown profiles should return clear errors");
+        assert!(err.contains("Unknown doctor profile"));
+    }
+
+    #[test]
+    fn execute_doctor_profile_rejects_builtin_entry() {
+        let mut r = WorkflowRegistry::new();
+        let mut builtin = make_pack(
+            "ruff-doctor",
+            "doctor",
+            vec![CommandDef {
+                name: "status".to_string(),
+                summary: "s".to_string(),
+                entry: "builtin".to_string(),
+                safe: true,
+                writes_files: false,
+                runs_processes: false,
+                requires_network: false,
+            }],
+            PackSource::Builtin,
+        );
+        builtin.manifest.contributes.doctor_profiles.push(DoctorProfileDef {
+            name: "generic".to_string(),
+            entry: "builtin".to_string(),
+            summary: "Generic profile".to_string(),
+        });
+        let mut handlers = BTreeMap::new();
+        handlers.insert("status".to_string(), dummy_handler as CommandHandler);
+        r.register_builtin_pack(&builtin, handlers).expect("builtin profile should register");
+
+        let err = r
+            .execute_doctor_profile("generic", &test_ctx())
+            .expect_err("builtin profile entries should not execute as external scripts");
+        assert!(err.contains("builtin-managed"));
     }
 }

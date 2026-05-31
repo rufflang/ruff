@@ -19,18 +19,17 @@
 use crate::workflow_pack::discovery::DiscoveredPack;
 use crate::workflow_pack::registry::WorkflowRegistry;
 
+pub mod doctor;
+
 /// Register all built-in workflow packs into the registry.
 pub fn register_all(registry: &mut WorkflowRegistry) -> Result<(), String> {
-	// No built-in packs are registered by default.
-	// Teams should create external workflow packs in .ruff/packs/,
-	// ~/.ruff/packs/, or via RUFF_PACK_PATH.
-	let _ = registry;
-	Ok(())
+    let pack = doctor::discovered_pack()?;
+    let handlers = doctor::handlers();
+    registry.register_builtin_pack(&pack, handlers)?;
+    Ok(())
 }
 
 /// Build the list of built-in packs for discovery priority tracking.
 pub fn builtin_packs_list() -> Vec<DiscoveredPack> {
-	// No built-in packs currently ship with Ruff.
-	Vec::new()
+    doctor::discovered_pack().map(|pack| vec![pack]).unwrap_or_default()
 }
-
