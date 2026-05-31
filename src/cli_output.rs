@@ -24,7 +24,12 @@ pub fn format_kv(label: &str, value: impl std::fmt::Display) -> String {
 
 /// Render a bullet line.
 pub fn format_list_item(item: impl std::fmt::Display) -> String {
-    format!("  - {}", item)
+    format_list_item_with_prefix("-", item)
+}
+
+/// Render a list item line with a custom bullet prefix.
+pub fn format_list_item_with_prefix(prefix: &str, item: impl std::fmt::Display) -> String {
+    format!("  {} {}", prefix, item)
 }
 
 #[cfg(test)]
@@ -63,5 +68,6 @@ mod tests {
         assert_eq!(format_section("Summary"), "Summary");
         assert_eq!(format_kv("files", 12), "  files: 12");
         assert_eq!(format_list_item("hint"), "  - hint");
+        assert_eq!(format_list_item_with_prefix("•", "hint"), "  • hint");
     }
 }

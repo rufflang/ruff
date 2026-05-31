@@ -2082,8 +2082,20 @@ async fn main() {
             if profile_async {
                 if let Some(ruff_profile) = summary.ruff_stage_profile.as_ref() {
                     println!("Ruff stage breakdown (median):");
-                    println!("  read stage: {:.3} ms", ruff_profile.read_ms.median);
-                    println!("  render/write stage: {:.3} ms", ruff_profile.render_write_ms.median);
+                    println!(
+                        "{}",
+                        cli_output::format_kv(
+                            "read stage",
+                            format!("{:.3} ms", ruff_profile.read_ms.median),
+                        )
+                    );
+                    println!(
+                        "{}",
+                        cli_output::format_kv(
+                            "render/write stage",
+                            format!("{:.3} ms", ruff_profile.render_write_ms.median),
+                        )
+                    );
                     let profile = SsgStageProfile {
                         read_ms: ruff_profile.read_ms.median,
                         render_write_ms: ruff_profile.render_write_ms.median,
@@ -2140,10 +2152,19 @@ async fn main() {
                 if profile_async {
                     if let Some(python_profile) = summary.python_stage_profile.as_ref() {
                         println!("Python stage breakdown (median):");
-                        println!("  read stage: {:.3} ms", python_profile.read_ms.median);
                         println!(
-                            "  render/write stage: {:.3} ms",
-                            python_profile.render_write_ms.median
+                            "{}",
+                            cli_output::format_kv(
+                                "read stage",
+                                format!("{:.3} ms", python_profile.read_ms.median),
+                            )
+                        );
+                        println!(
+                            "{}",
+                            cli_output::format_kv(
+                                "render/write stage",
+                                format!("{:.3} ms", python_profile.render_write_ms.median),
+                            )
                         );
                         let profile = SsgStageProfile {
                             read_ms: python_profile.read_ms.median,
@@ -2238,10 +2259,10 @@ async fn main() {
                 if !trend_warnings.is_empty() {
                     println!("{}", format_ssg_trend_warning_header(warning_thresholds));
                     for warning in trend_warnings {
-                        println!("  - {}", warning);
+                        println!("{}", cli_output::format_list_item(warning));
                     }
                     for hint in collect_ssg_warning_operator_hints(warning_thresholds) {
-                        println!("  - hint: {}", hint);
+                        println!("{}", cli_output::format_list_item(format!("hint: {}", hint)));
                     }
                 }
             }
@@ -2264,16 +2285,16 @@ async fn main() {
             {
                 println!("{}", format_ssg_measurement_warning_header(warning_thresholds));
                 for warning in variability_warnings {
-                    println!("  - {}", warning);
+                    println!("{}", cli_output::format_list_item(warning));
                 }
                 for warning in mean_median_drift_warnings {
-                    println!("  - {}", warning);
+                    println!("{}", cli_output::format_list_item(warning));
                 }
                 for warning in range_spread_warnings {
-                    println!("  - {}", warning);
+                    println!("{}", cli_output::format_list_item(warning));
                 }
                 for hint in collect_ssg_warning_operator_hints(warning_thresholds) {
-                    println!("  - hint: {}", hint);
+                    println!("{}", cli_output::format_list_item(format!("hint: {}", hint)));
                 }
             }
 

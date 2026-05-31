@@ -3,18 +3,19 @@
 // Output renderers for workflow command results.
 // Supports human-readable terminal output and machine-readable JSON.
 
+use crate::cli_output::{format_kv, format_list_item_with_prefix, format_section};
 use crate::workflow_pack::types::{CheckResult, CheckStatus, DoctorReport};
 use colored::Colorize;
 
 /// Render a DoctorReport as human-readable terminal output.
 pub fn render_human(report: &DoctorReport) {
-	let pack_label = format!("{} {}", report.namespace.to_uppercase(), report.command);
+    let pack_label = format!("{} {}", report.namespace.to_uppercase(), report.command);
 
-	println!("{}", pack_label.bold().underline());
-	if let Some(ref cwd) = report.cwd {
-		println!("  cwd: {}", cwd.dimmed());
-	}
-	println!();
+    println!("{}", pack_label.bold().underline());
+    if let Some(ref cwd) = report.cwd {
+        println!("{}", format_kv("cwd", cwd.dimmed()));
+    }
+    println!();
 
 	// Group checks by their implicit category based on ID prefix.
 	let groups = group_checks(&report.checks);
@@ -23,15 +24,15 @@ pub fn render_human(report: &DoctorReport) {
 		if checks.is_empty() {
 			continue;
 		}
-		println!("{}", group_name.bold());
-		for check in checks {
-			render_check_human(check);
-		}
+            println!("{}", format_section(group_name).bold());
+            for check in checks {
+                render_check_human(check);
+            }
 		println!();
 	}
 
 	// Summary line.
-	println!("{}", "Summary".bold());
+    println!("{}", format_section("Summary").bold());
 	println!(
 		"  {} passed, {} warnings, {} failed, {} skipped",
 		report.summary.pass.to_string().green(),
@@ -48,12 +49,12 @@ pub fn render_human(report: &DoctorReport) {
 	if let Some(ref actions) = report.recommended_next_actions {
 		if !actions.is_empty() {
 			println!();
-			println!("{}", "Recommended next actions".bold());
-			for action in actions {
-				println!("  • {}", action);
-			}
-		}
-	}
+                println!("{}", format_section("Recommended next actions").bold());
+                for action in actions {
+                    println!("{}", format_list_item_with_prefix("•", action));
+                }
+            }
+        }
 }
 
 /// Render a single check result in human format.
@@ -219,6 +220,84 @@ pub fn render_markdown(report: &DoctorReport) -> String {
 	md
 }
 
+/// Render a DoctorReport as plain, deterministic human-readable text.
+/// This format intentionally avoids terminal color codes and is suitable for snapshot tests.
+#[allow(dead_code)]
+pub fn render_human_text(report: &DoctorReport) -> String {
+    let mut lines = Vec::new();
+    lines.push(format!("{} {}", report.namespace.to_uppercase(), report.command));
+
+    if let Some(ref cwd) = report.cwd {
+        lines.push(format_kv("cwd", cwd));
+    }
+    lines.push(String::new());
+
+    let groups = group_checks(&report.checks);
+    for (group_name, checks) in &groups {
+        if checks.is_empty() {
+            continue;
+        }
+        lines.push(format_section(group_name));
+        for check in checks {
+            lines.extend(render_check_human_text(check));
+        }
+        lines.push(String::new());
+    }
+
+    lines.push(format_section("Summary"));
+    lines.push(format!(
+        "  {} passed, {} warnings, {} failed, {} skipped",
+        report.summary.pass, report.summary.warn, report.summary.fail, report.summary.skip
+    ));
+    if report.summary.info > 0 {
+        lines.push(format!("  {} info", report.summary.info));
+    }
+
+    if let Some(ref actions) = report.recommended_next_actions {
+        if !actions.is_empty() {
+            lines.push(String::new());
+            lines.push(format_section("Recommended next actions"));
+            for action in actions {
+                lines.push(format_list_item_with_prefix("•", action));
+            }
+        }
+    }
+
+    lines.join("\n")
+}
+
+#[allow(dead_code)]
+fn render_check_human_text(check: &CheckResult) -> Vec<String> {
+    let mut lines = Vec::new();
+    let status_str = match check.status {
+        CheckStatus::Pass => "PASS",
+        CheckStatus::Warn => "WARN",
+        CheckStatus::Fail => "FAIL",
+        CheckStatus::Skip => "SKIP",
+        CheckStatus::Info => "INFO",
+    };
+
+    let observed = match &check.observed {
+        Some(val) => format!(": {}", val),
+        None => String::new(),
+    };
+
+    lines.push(format!("  {} {}{}", status_str, check.label, observed));
+
+    if let Some(message) = &check.message {
+        match check.status {
+            CheckStatus::Warn | CheckStatus::Fail => lines.push(format!("        {}", message)),
+            _ => {}
+        }
+    }
+
+    if let Some(fix) = &check.suggested_fix {
+        lines.push(format!("        Suggested fix: {}", fix));
+    }
+
+    lines
+}
+
 /// Render a DoctorReport as JSON to stdout.
 pub fn render_json(report: &DoctorReport) {
 	match serde_json::to_string_pretty(report) {
@@ -235,7 +314,7 @@ mod tests {
 	use crate::workflow_pack::types::{CheckResult, CheckSeverity, CheckStatus};
 
 	#[test]
-	fn group_checks_by_prefix() {
+    fn group_checks_by_prefix() {
 		let checks = vec![
 			CheckResult {
 				id: "env.git".to_string(),
@@ -261,7 +340,117 @@ mod tests {
 
 		let groups = group_checks(&checks);
 		assert_eq!(groups.len(), 2);
-		assert_eq!(groups[0].0, "Environment");
-		assert_eq!(groups[1].0, "Repository");
-	}
+        assert_eq!(groups[0].0, "Environment");
+        assert_eq!(groups[1].0, "Repository");
+    }
+
+    #[test]
+    fn render_human_text_is_deterministic() {
+        let report = DoctorReport {
+            pack: "acme-tools".to_string(),
+            namespace: "acme".to_string(),
+            command: "doctor".to_string(),
+            schema_version: None,
+            cwd: Some("/tmp/acme".to_string()),
+            status: "warn".to_string(),
+            summary: crate::workflow_pack::types::CheckSummary {
+                pass: 1,
+                warn: 1,
+                fail: 0,
+                skip: 0,
+                info: 0,
+            },
+            checks: vec![
+                CheckResult {
+                    id: "env.git".to_string(),
+                    label: "Git".to_string(),
+                    status: CheckStatus::Pass,
+                    severity: CheckSeverity::Info,
+                    observed: Some("git version 2.42.0".to_string()),
+                    expected: None,
+                    message: None,
+                    suggested_fix: None,
+                    reason: None,
+                    category: None,
+                    observed_major: None,
+                    minimum_major: None,
+                },
+                CheckResult {
+                    id: "env.node".to_string(),
+                    label: "Node".to_string(),
+                    status: CheckStatus::Warn,
+                    severity: CheckSeverity::Medium,
+                    observed: None,
+                    expected: None,
+                    message: Some("Node not found.".to_string()),
+                    suggested_fix: Some("Install Node.js.".to_string()),
+                    reason: None,
+                    category: None,
+                    observed_major: None,
+                    minimum_major: None,
+                },
+            ],
+            recommended_next_actions: Some(vec!["Install Node.js".to_string()]),
+        };
+
+        let output = render_human_text(&report);
+        let expected = [
+            "ACME doctor",
+            "  cwd: /tmp/acme",
+            "",
+            "Environment",
+            "  PASS Git: git version 2.42.0",
+            "  WARN Node",
+            "        Node not found.",
+            "        Suggested fix: Install Node.js.",
+            "",
+            "Summary",
+            "  1 passed, 1 warnings, 0 failed, 0 skipped",
+            "",
+            "Recommended next actions",
+            "  • Install Node.js",
+        ]
+        .join("\n");
+        assert_eq!(output, expected);
+    }
+
+    #[test]
+    fn render_markdown_includes_summary_table_and_actions() {
+        let report = DoctorReport {
+            pack: "pack".to_string(),
+            namespace: "acme".to_string(),
+            command: "doctor".to_string(),
+            schema_version: Some("doctor-report/v1".to_string()),
+            cwd: Some("/tmp/acme".to_string()),
+            status: "pass".to_string(),
+            summary: crate::workflow_pack::types::CheckSummary {
+                pass: 1,
+                warn: 0,
+                fail: 0,
+                skip: 0,
+                info: 0,
+            },
+            checks: vec![CheckResult {
+                id: "env.git".to_string(),
+                label: "Git".to_string(),
+                status: CheckStatus::Pass,
+                severity: CheckSeverity::Info,
+                observed: Some("ok".to_string()),
+                expected: None,
+                message: None,
+                suggested_fix: None,
+                reason: None,
+                category: None,
+                observed_major: None,
+                minimum_major: None,
+            }],
+            recommended_next_actions: Some(vec!["Do thing".to_string()]),
+        };
+
+        let output = render_markdown(&report);
+        assert!(output.contains("# ACME Doctor Report"));
+        assert!(output.contains("| PASS | 1 |"));
+        assert!(output.contains("## Recommended Next Actions"));
+        assert!(output.contains("- Do thing"));
+    }
 }
