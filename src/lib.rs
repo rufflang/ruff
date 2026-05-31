@@ -9,6 +9,7 @@ pub mod benchmarks;
 pub mod builtins;
 pub mod bytecode;
 pub mod compiler;
+pub mod cli_output;
 pub mod doc_generator;
 pub mod docgen;
 pub mod errors;

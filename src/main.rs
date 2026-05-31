@@ -9,6 +9,7 @@ mod ast;
 mod benchmarks;
 mod builtins;
 mod bytecode;
+mod cli_output;
 mod compiler;
 mod doc_generator;
 mod docgen;
@@ -872,15 +873,21 @@ fn report_json_internal_error_and_exit(error_message: String, code: CliExitCode)
 }
 
 fn emit_json_payload_and_exit(payload: &serde_json::Value, code: CliExitCode) -> ! {
-    match serde_json::to_string_pretty(payload) {
-        Ok(serialized) => {
-            println!("{}", serialized);
-            std::process::exit(code.code());
-        }
+    match cli_output::emit_pretty_json(payload) {
+        Ok(()) => std::process::exit(code.code()),
         Err(error) => report_json_internal_error_and_exit(
             format!("Failed to serialize runtime diagnostics JSON: {}", error),
             CliExitCode::InternalError,
         ),
+    }
+}
+
+fn emit_json_or_internal_error<T: serde::Serialize>(value: &T, context: &str) {
+    if let Err(error) = cli_output::emit_pretty_json(value) {
+        report_json_internal_error_and_exit(
+            format!("Failed to serialize {}: {}", context, error),
+            CliExitCode::InternalError,
+        );
     }
 }
 
@@ -2361,13 +2368,7 @@ async fn main() {
                     })
                     .collect();
 
-                match serde_json::to_string_pretty(&json_items) {
-                    Ok(output) => println!("{}", output),
-                    Err(e) => {
-                        eprintln!("Failed to serialize completion results: {}", e);
-                        std::process::exit(CliExitCode::InternalError.code());
-                    }
-                }
+                emit_json_or_internal_error(&json_items, "completion results");
             } else {
                 for item in completion_items {
                     println!("{}\t{}", item.label, item.kind.as_str());
@@ -2390,13 +2391,7 @@ async fn main() {
                     None => serde_json::Value::Null,
                 };
 
-                match serde_json::to_string_pretty(&output) {
-                    Ok(serialized) => println!("{}", serialized),
-                    Err(e) => {
-                        eprintln!("Failed to serialize definition result: {}", e);
-                        std::process::exit(CliExitCode::InternalError.code());
-                    }
-                }
+                emit_json_or_internal_error(&output, "definition result");
             } else {
                 match definition {
                     Some(location) => {
@@ -2432,13 +2427,7 @@ async fn main() {
                     })
                     .collect();
 
-                match serde_json::to_string_pretty(&json_items) {
-                    Ok(serialized) => println!("{}", serialized),
-                    Err(e) => {
-                        eprintln!("Failed to serialize references result: {}", e);
-                        std::process::exit(CliExitCode::InternalError.code());
-                    }
-                }
+                emit_json_or_internal_error(&json_items, "references result");
             } else {
                 for reference in references {
                     let role = if reference.is_definition { "definition" } else { "reference" };
@@ -2470,13 +2459,7 @@ async fn main() {
                     None => serde_json::Value::Null,
                 };
 
-                match serde_json::to_string_pretty(&output) {
-                    Ok(serialized) => println!("{}", serialized),
-                    Err(e) => {
-                        eprintln!("Failed to serialize hover result: {}", e);
-                        std::process::exit(CliExitCode::InternalError.code());
-                    }
-                }
+                emit_json_or_internal_error(&output, "hover result");
             } else {
                 match hover_info {
                     Some(info) => {
@@ -2504,13 +2487,7 @@ async fn main() {
                 let json_items: Vec<serde_json::Value> =
                     diagnostics.iter().map(|diagnostic| diagnostic.to_json_value()).collect();
 
-                match serde_json::to_string_pretty(&json_items) {
-                    Ok(serialized) => println!("{}", serialized),
-                    Err(e) => {
-                        eprintln!("Failed to serialize diagnostics result: {}", e);
-                        std::process::exit(CliExitCode::InternalError.code());
-                    }
-                }
+                emit_json_or_internal_error(&json_items, "diagnostics result");
             } else {
                 for diagnostic in diagnostics {
                     println!(
@@ -2557,13 +2534,7 @@ async fn main() {
                     "updated_source": rename_result.updated_source,
                 });
 
-                match serde_json::to_string_pretty(&output) {
-                    Ok(serialized) => println!("{}", serialized),
-                    Err(e) => {
-                        eprintln!("Failed to serialize rename result: {}", e);
-                        std::process::exit(CliExitCode::InternalError.code());
-                    }
-                }
+                emit_json_or_internal_error(&output, "rename result");
             } else {
                 println!("renamed\t{} edits", rename_result.edits.len());
                 for edit in rename_result.edits.iter() {
@@ -2598,13 +2569,7 @@ async fn main() {
                     })
                     .collect();
 
-                match serde_json::to_string_pretty(&json_items) {
-                    Ok(serialized) => println!("{}", serialized),
-                    Err(e) => {
-                        eprintln!("Failed to serialize code actions result: {}", e);
-                        std::process::exit(CliExitCode::InternalError.code());
-                    }
-                }
+                emit_json_or_internal_error(&json_items, "code actions result");
             } else {
                 for action in actions.iter() {
                     println!(
