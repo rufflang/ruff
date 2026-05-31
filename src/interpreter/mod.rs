@@ -2854,27 +2854,29 @@ impl Interpreter {
 
     /// Evaluates a list of statements sequentially, stopping on return/error
     pub fn eval_stmts(&mut self, stmts: &[Stmt]) {
-        for stmt in stmts {
-            let hoistable = match stmt {
-                Stmt::FuncDef { .. } => true,
-                Stmt::Export { stmt } => matches!(stmt.as_ref(), Stmt::FuncDef { .. }),
-                _ => false,
-            };
-            if hoistable {
-                self.eval_stmt(stmt);
-                if self.return_value.is_some() || self.control_flow != ControlFlow::None {
-                    break;
+        let is_hoistable = |stmt: &Stmt| match stmt {
+            Stmt::FuncDef { .. } => true,
+            Stmt::Export { stmt } => matches!(stmt.as_ref(), Stmt::FuncDef { .. }),
+            _ => false,
+        };
+
+        // Only hoist at module scope. Nested-scope hoisting captures lexical state
+        // too early (before local bindings exist) and breaks closure behavior.
+        let should_hoist = self.env.scopes.len() == 1;
+
+        if should_hoist {
+            for stmt in stmts {
+                if is_hoistable(stmt) {
+                    self.eval_stmt(stmt);
+                    if self.return_value.is_some() || self.control_flow != ControlFlow::None {
+                        break;
+                    }
                 }
             }
         }
 
         for stmt in stmts {
-            let hoistable = match stmt {
-                Stmt::FuncDef { .. } => true,
-                Stmt::Export { stmt } => matches!(stmt.as_ref(), Stmt::FuncDef { .. }),
-                _ => false,
-            };
-            if hoistable {
+            if should_hoist && is_hoistable(stmt) {
                 continue;
             }
             self.eval_stmt(stmt);
