@@ -6,15 +6,17 @@ Workflow packs are modular, project-specific command namespaces for the Ruff CLI
 
 ```bash
 # Run a workflow pack command via environment variable discovery
-RUFF_PACK_PATH=/path/to/some-pack ruff <namespace> <command>
+RUFF_PACK_PATH=/path/to/some-pack ruff pack run <namespace> <command>
 
 # Machine-readable JSON output
-RUFF_PACK_PATH=/path/to/some-pack ruff <namespace> <command> --json
+RUFF_PACK_PATH=/path/to/some-pack ruff pack run <namespace> <command> --json
 
 # Or install as a project-local pack and run directly
 mkdir -p .ruff/packs && cp -r /path/to/some-pack .ruff/packs/
-ruff <namespace> <command>
+ruff pack run <namespace> <command>
 ```
+
+Alias form (`ruff <namespace> <command>`) remains available for non-reserved namespaces.
 
 ## What Are Workflow Packs?
 
@@ -363,6 +365,8 @@ RUFF_PACK_PATH=/path/to/my-pack ruff myteam doctor
 - **Built-in packs** always win; external packs cannot override built-in namespaces or commands
 - **Duplicate namespaces** between external packs produce a clear error
 - **Duplicate command names** within the same manifest produce a validation error
+- **Reserved namespaces** are rejected for third-party packs
+- **Reserved top-level alias tokens** are rejected before alias-based workflow routing
 
 ## Creating Built-in Packs (For Ruff Contributors)
 
