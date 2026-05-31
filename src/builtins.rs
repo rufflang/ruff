@@ -1143,7 +1143,16 @@ pub fn elapsed(start: f64, end: f64) -> f64 {
 /// Format a Unix timestamp to a date string
 /// Supports basic format: "YYYY-MM-DD HH:mm:ss"
 pub fn format_date(timestamp: f64, format_str: &str) -> String {
-    let dt: DateTime<Utc> = Utc.timestamp_opt(timestamp as i64, 0).unwrap();
+    if !timestamp.is_finite() {
+        return "Invalid timestamp: value must be a finite number".to_string();
+    }
+    if timestamp < i64::MIN as f64 || timestamp > i64::MAX as f64 {
+        return "Invalid timestamp: value is out of supported range".to_string();
+    }
+
+    let Some(dt) = Utc.timestamp_opt(timestamp as i64, 0).single() else {
+        return "Invalid timestamp: value is out of supported range".to_string();
+    };
 
     // Simple format string replacement
     let result = format_str
@@ -2383,5 +2392,17 @@ mod tests {
         assert_eq!(items.len(), 2);
         assert_eq!(items[0]["id"], serde_json::Value::Number(1.into()));
         assert_eq!(items[1]["id"], serde_json::Value::Number(2.into()));
+    }
+
+    #[test]
+    fn test_format_date_rejects_non_finite_timestamp_without_panicking() {
+        let formatted = format_date(f64::NAN, "YYYY-MM-DD");
+        assert_eq!(formatted, "Invalid timestamp: value must be a finite number");
+    }
+
+    #[test]
+    fn test_format_date_rejects_out_of_range_timestamp_without_panicking() {
+        let formatted = format_date(i64::MAX as f64, "YYYY-MM-DD");
+        assert_eq!(formatted, "Invalid timestamp: value is out of supported range");
     }
 }
