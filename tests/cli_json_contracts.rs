@@ -569,6 +569,13 @@ fn cli_json_negative_paths_have_stable_failure_signals() {
     let malformed_stderr =
         String::from_utf8(malformed_line.stderr).expect("stderr should be valid utf-8");
     assert!(malformed_stderr.contains("invalid value 'nope'"));
+}
+
+#[test]
+fn lsp_rename_json_failure_contract_is_stable() {
+    let dir = unique_temp_dir("lsp_rename_json_failure_contract");
+    let file = dir.join("rename_failure.ruff");
+    write_fixture(&file, "func greet(name) {\n    return name\n}\nlet value := greet(\"ruff\")\n");
 
     let unknown_symbol = run_ruff(&[
         "lsp-rename",
@@ -581,11 +588,21 @@ fn cli_json_negative_paths_have_stable_failure_signals() {
         "renamed",
         "--json",
     ]);
+
     assert_eq!(unknown_symbol.status.code(), Some(4));
-    assert!(unknown_symbol.stdout.is_empty());
-    let unknown_symbol_stderr =
-        String::from_utf8(unknown_symbol.stderr).expect("stderr should be valid utf-8");
-    assert!(unknown_symbol_stderr.contains("No identifier found at cursor location"));
+    assert!(
+        unknown_symbol.stderr.is_empty(),
+        "lsp-rename --json failure should emit JSON payload on stdout only"
+    );
+
+    let body = parse_stdout_json(&unknown_symbol);
+    assert_eq!(body["command"], "lsp-rename");
+    assert_eq!(body["status"], "error");
+    assert_eq!(body["kind"], "runtime_error");
+    assert_eq!(body["contract_version"], "1.0.0-draft");
+    assert_eq!(body["exit_code"], 4);
+    let message = body["message"].as_str().expect("message should be a string");
+    assert!(message.contains("No identifier found at cursor location"));
 }
 
 #[test]

@@ -38,9 +38,16 @@ Exception for `ruff run --json-runtime-diagnostics`:
 - `stderr` is suppressed for those JSON-mode runtime failures
 - non-zero exit code remains authoritative (`4` for runtime failures, `6` for internal failures in JSON serialization/panic paths)
 
+Exception for `ruff lsp-rename --json`:
+
+- runtime rename failures emit a machine-readable JSON error payload on `stdout`
+- `stderr` is suppressed for those JSON-mode rename failures
+- non-zero exit code remains authoritative (`4` for runtime failures, `6` for internal failures in JSON serialization/panic paths)
+
 Automation recommendation:
 
 - Read JSON only from `stdout` on zero exit.
+- For documented JSON-mode failure envelopes (`run --json-runtime-diagnostics`, `lsp-rename --json`), read JSON from `stdout` even on non-zero exit.
 - Treat non-zero exit as authoritative failure signal.
 - Capture `stderr` for troubleshooting and classification.
 
@@ -174,6 +181,15 @@ Each command has a stable top-level payload kind (array/object/null as applicabl
 - `file` (string or null)
 - `help` (string or null)
 
+`ruff lsp-rename --json` failure payload fields:
+
+- `command` (string, constant `"lsp-rename"`)
+- `status` (string, constant `"error"`)
+- `kind` (string, currently `"runtime_error"`)
+- `contract_version` (string, currently `"1.0.0-draft"`)
+- `exit_code` (number, currently `4` for runtime rename failures)
+- `message` (string)
+
 ## Deterministic Human-Readable Test Summary Contracts
 
 `ruff test` is intentionally human-readable, but these summary fields are contract-tested for operator tooling:
@@ -217,4 +233,4 @@ Any payload-affecting change to the documented JSON shapes requires all of the f
 
 - missing input files for JSON-mode `format`/`lint` exit with code `5`, emit no JSON payload on `stdout`, and report a deterministic read-failure message on `stderr`
 - malformed CLI parameters (for example non-numeric `--line`) exit with code `2`, emit no JSON payload on `stdout`, and return Clap usage diagnostics on `stderr`
-- unknown-symbol rename requests exit with code `4`, emit no JSON payload on `stdout`, and emit deterministic symbol-resolution failure text on `stderr`
+- unknown-symbol `lsp-rename --json` requests exit with code `4`, emit deterministic JSON error payloads on `stdout`, and keep `stderr` empty

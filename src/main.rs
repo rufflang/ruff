@@ -935,6 +935,23 @@ fn emit_json_payload_and_exit(payload: &serde_json::Value, code: CliExitCode) ->
     }
 }
 
+fn report_json_command_error_and_exit(
+    command: &str,
+    kind: &str,
+    message: impl Into<String>,
+    code: CliExitCode,
+) -> ! {
+    let payload = serde_json::json!({
+        "command": command,
+        "status": "error",
+        "kind": kind,
+        "contract_version": "1.0.0-draft",
+        "exit_code": code.code(),
+        "message": message.into(),
+    });
+    emit_json_payload_and_exit(&payload, code);
+}
+
 fn emit_json_or_internal_error<T: serde::Serialize>(value: &T, context: &str) {
     if let Err(error) = cli_output::emit_pretty_json(value) {
         report_json_internal_error_and_exit(
@@ -2783,6 +2800,14 @@ async fn main() {
             let rename_result = match lsp_rename::rename_symbol(&code, line, column, &new_name) {
                 Ok(result) => result,
                 Err(message) => {
+                    if json {
+                        report_json_command_error_and_exit(
+                            "lsp-rename",
+                            "runtime_error",
+                            message,
+                            CliExitCode::RuntimeError,
+                        );
+                    }
                     eprintln!("{}", message);
                     std::process::exit(CliExitCode::RuntimeError.code());
                 }
