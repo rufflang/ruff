@@ -355,7 +355,7 @@ commands:
 
     #[test]
     fn reject_invalid_namespace() {
-        let yaml = valid_manifest_yaml().replace("namespace: acme", "namespace: TeamUpdraft");
+        let yaml = valid_manifest_yaml().replace("namespace: acme", "namespace: AcmeTeam");
         let err = parse_manifest(&yaml).expect_err("camelCase namespace should fail");
         assert!(err.message.contains("CLI-safe"));
     }
