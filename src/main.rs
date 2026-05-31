@@ -39,6 +39,7 @@ mod package_workflow;
 mod parser;
 mod path_security;
 mod repl;
+mod reserved_names;
 mod runtime_limits;
 mod serve_http;
 mod type_checker;
@@ -395,6 +396,12 @@ enum Commands {
         publish: bool,
     },
 
+    /// Execute workflow-pack commands through the canonical pack-local path
+    Pack {
+        #[command(subcommand)]
+        command: PackCommands,
+    },
+
     /// Generate universal documentation from source code
     Docgen {
         /// Path to a file or directory to document
@@ -735,6 +742,30 @@ enum Commands {
     },
 }
 
+#[derive(Subcommand)]
+enum PackCommands {
+    /// Run a pack-local command: `ruff pack run <namespace> <command>`
+    Run {
+        /// Workflow pack namespace
+        namespace: String,
+
+        /// Command name inside the namespace
+        command: String,
+
+        /// Render command output as JSON
+        #[arg(long, default_value_t = false)]
+        json: bool,
+
+        /// Save doctor output into the pack .reports directory when supported
+        #[arg(long, default_value_t = false)]
+        save: bool,
+
+        /// Additional command arguments passed to the pack command
+        #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
+        command_args: Vec<String>,
+    },
+}
+
 const DEFAULT_COOPERATIVE_SCHEDULER_TIMEOUT_MS: u64 = 120_000;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -986,6 +1017,50 @@ fn entry_script_search_paths(entry_file: &Path) -> Vec<PathBuf> {
     search_paths
 }
 
+fn is_known_cli_subcommand(name: &str) -> bool {
+    matches!(
+        name,
+        "run"
+            | "check"
+            | "serve"
+            | "repl"
+            | "test"
+            | "test-run"
+            | "bench"
+            | "format"
+            | "lint"
+            | "init"
+            | "package-add"
+            | "package-install"
+            | "package-publish"
+            | "pack"
+            | "docgen"
+            | "bench-cross"
+            | "bench-ssg"
+            | "profile"
+            | "lsp-complete"
+            | "lsp-definition"
+            | "lsp-references"
+            | "lsp-hover"
+            | "lsp-diagnostics"
+            | "lsp-rename"
+            | "lsp-code-actions"
+            | "lsp"
+    )
+}
+
+fn reserved_external_alias_error(name: &str) -> Option<String> {
+    if reserved_names::reservation_for_top_level_command(name).is_some() {
+        return Some(reserved_names::external_reserved_command_error(name));
+    }
+
+    if let Some(reservation) = reserved_names::reservation_for_namespace(name) {
+        return Some(reserved_names::external_reserved_namespace_error(name, reservation));
+    }
+
+    None
+}
+
 #[tokio::main]
 async fn main() {
     let cli = Cli::parse();
@@ -998,23 +1073,20 @@ async fn main() {
         // raw_args[0] is the binary name; skip it.
         if raw_args.len() > 1 {
             let external_args: Vec<String> = raw_args[1..].to_vec();
-            let is_known_command = matches!(
-                external_args.first().map(String::as_str),
-                Some("run" | "check" | "serve" | "repl" | "test" | "test-run"
-                    | "bench" | "format" | "lint" | "init" | "package-add"
-                    | "package-install" | "package-publish" | "docgen"
-                    | "bench-cross" | "bench-ssg" | "profile"
-                    | "lsp-complete" | "lsp-definition" | "lsp-references"
-                    | "lsp-hover" | "lsp-diagnostics" | "lsp-rename"
-                    | "lsp-code-actions" | "lsp")
-            );
-            if !is_known_command {
-                let cwd = std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("."));
-                match workflow_pack::handle_workflow_command(&external_args, &cwd) {
-                    Ok(()) => return,
-                    Err(message) => {
-                        eprintln!("Error: {}", message);
-                        std::process::exit(1);
+            if let Some(first_arg) = external_args.first().map(String::as_str) {
+                if !first_arg.starts_with('-') && !is_known_cli_subcommand(first_arg) {
+                    if let Some(message) = reserved_external_alias_error(first_arg) {
+                        report_cli_error_and_exit(message, CliExitCode::UsageError);
+                    }
+
+                    let cwd =
+                        std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("."));
+                    match workflow_pack::handle_workflow_command(&external_args, &cwd) {
+                        Ok(()) => return,
+                        Err(message) => {
+                            eprintln!("Error: {}", message);
+                            std::process::exit(1);
+                        }
                     }
                 }
             }
@@ -1597,6 +1669,17 @@ async fn main() {
                     .to_string(),
             };
 
+            if let Some(reservation) = reserved_names::reservation_for_package_name(&package_name) {
+                report_cli_error_and_exit(
+                    format!(
+                        "Package name '{}' is reserved by Ruff (category: {}). Choose a different project/package name.",
+                        package_name,
+                        reservation.category_label()
+                    ),
+                    CliExitCode::UsageError,
+                );
+            }
+
             let src_dir = project_dir.join("src");
             if let Err(err) = std::fs::create_dir_all(&src_dir) {
                 eprintln!("Failed to create src directory '{}': {}", src_dir.display(), err);
@@ -1748,6 +1831,34 @@ async fn main() {
                 );
             }
         }
+
+        Commands::Pack { command } => match command {
+            PackCommands::Run { namespace, command, json, save, command_args } => {
+                if let Some(reservation) = reserved_names::reservation_for_namespace(&namespace) {
+                    report_cli_error_and_exit(
+                        reserved_names::external_reserved_namespace_error(&namespace, reservation),
+                        CliExitCode::UsageError,
+                    );
+                }
+
+                let mut external_args = vec![namespace, command];
+                external_args.extend(command_args);
+                if json {
+                    external_args.push("--json".to_string());
+                }
+                if save {
+                    external_args.push("--save".to_string());
+                }
+
+                let cwd = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
+                match workflow_pack::handle_workflow_command(&external_args, &cwd) {
+                    Ok(()) => {}
+                    Err(message) => {
+                        report_cli_error_and_exit(message, CliExitCode::RuntimeError);
+                    }
+                }
+            }
+        },
 
         Commands::Docgen {
             path,
@@ -2621,7 +2732,8 @@ async fn main() {
 mod tests {
     use super::{
         apply_untrusted_network_destination_policy_defaults, cooperative_scheduler_timeout,
-        CapabilityArgs, DEFAULT_COOPERATIVE_SCHEDULER_TIMEOUT_MS,
+        is_known_cli_subcommand, reserved_external_alias_error, CapabilityArgs,
+        DEFAULT_COOPERATIVE_SCHEDULER_TIMEOUT_MS,
     };
     use std::sync::Mutex;
     use std::time::Duration;
@@ -2748,5 +2860,19 @@ mod tests {
             apply_untrusted_network_destination_policy_defaults(&args);
             assert!(std::env::var(crate::network_policy::OUTBOUND_DESTINATION_POLICY_ENV).is_err());
         });
+    }
+
+    #[test]
+    fn known_cli_subcommand_list_includes_pack_and_run() {
+        assert!(is_known_cli_subcommand("run"));
+        assert!(is_known_cli_subcommand("pack"));
+    }
+
+    #[test]
+    fn reserved_aliases_are_rejected_before_workflow_routing() {
+        assert!(reserved_external_alias_error("run").is_some());
+        assert!(reserved_external_alias_error("doctor").is_some());
+        assert!(reserved_external_alias_error("ruff").is_some());
+        assert!(reserved_external_alias_error("team-updraft").is_none());
     }
 }

@@ -1,3 +1,4 @@
+use crate::reserved_names;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
@@ -25,6 +26,13 @@ pub struct RuffLockfile {
     pub dependencies: BTreeMap<String, String>,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[allow(dead_code)]
+pub enum PackageTrust {
+    FirstParty,
+    ThirdParty,
+}
+
 pub fn default_manifest(package_name: &str) -> String {
     let manifest = RuffManifest {
         package: PackageMetadata { name: package_name.to_string(), version: "0.1.0".to_string() },
@@ -35,7 +43,17 @@ pub fn default_manifest(package_name: &str) -> String {
 }
 
 pub fn parse_manifest(content: &str) -> Result<RuffManifest, String> {
-    toml::from_str::<RuffManifest>(content).map_err(|error| format!("Invalid ruff.toml: {}", error))
+    parse_manifest_with_trust(content, PackageTrust::ThirdParty)
+}
+
+pub fn parse_manifest_with_trust(
+    content: &str,
+    trust: PackageTrust,
+) -> Result<RuffManifest, String> {
+    let manifest = toml::from_str::<RuffManifest>(content)
+        .map_err(|error| format!("Invalid ruff.toml: {}", error))?;
+    validate_manifest(&manifest, trust)?;
+    Ok(manifest)
 }
 
 pub fn parse_lockfile(content: &str) -> Result<RuffLockfile, String> {
@@ -102,11 +120,34 @@ pub fn add_dependency(content: &str, name: &str, version: &str) -> Result<String
         .map_err(|error| format!("Failed to serialize ruff.toml: {}", error))
 }
 
+fn validate_manifest(manifest: &RuffManifest, trust: PackageTrust) -> Result<(), String> {
+    let package_name = manifest.package.name.trim();
+    if package_name.is_empty() {
+        return Err("Invalid ruff.toml: [package].name must not be empty".to_string());
+    }
+    if manifest.package.version.trim().is_empty() {
+        return Err("Invalid ruff.toml: [package].version must not be empty".to_string());
+    }
+
+    if trust == PackageTrust::ThirdParty {
+        if let Some(reservation) = reserved_names::reservation_for_package_name(package_name) {
+            return Err(format!(
+                "Package name '{}' is reserved by Ruff (category: {}). External packages cannot claim reserved package names.",
+                package_name,
+                reservation.category_label(),
+            ));
+        }
+    }
+
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::{
         add_dependency, default_lockfile_path, default_manifest, lockfile_from_manifest,
-        parse_lockfile, parse_manifest, serialize_lockfile, verify_lockfile_matches_manifest,
+        parse_lockfile, parse_manifest, parse_manifest_with_trust, serialize_lockfile,
+        verify_lockfile_matches_manifest, PackageTrust,
     };
     use std::path::Path;
 
@@ -161,5 +202,28 @@ mod tests {
     fn default_lockfile_path_follows_manifest_directory() {
         let lockfile = default_lockfile_path(Path::new("/tmp/project/ruff.toml"));
         assert_eq!(lockfile, Path::new("/tmp/project/ruff.lock"));
+    }
+
+    #[test]
+    fn parse_manifest_rejects_reserved_package_name_for_third_party() {
+        let content = r#"
+[package]
+name = "ruff-kennel"
+version = "0.1.0"
+"#;
+        let error = parse_manifest(content).expect_err("reserved package names should be rejected");
+        assert!(error.contains("reserved by Ruff"));
+    }
+
+    #[test]
+    fn parse_manifest_allows_reserved_package_name_for_first_party() {
+        let content = r#"
+[package]
+name = "ruff-kennel"
+version = "0.1.0"
+"#;
+        let parsed = parse_manifest_with_trust(content, PackageTrust::FirstParty)
+            .expect("first-party manifests can use reserved package names");
+        assert_eq!(parsed.package.name, "ruff-kennel");
     }
 }

@@ -393,3 +393,57 @@ fn cli_check_json_success_is_valid_json() {
     assert!(parsed["statement_count"].is_u64());
     assert!(parsed["bytecode_instruction_count"].is_u64());
 }
+
+#[test]
+fn cli_pack_run_executes_pack_local_command_and_supports_json() {
+    let workspace = unique_temp_dir("cli_pack_run_json");
+    let pack_dir = workspace.join(".ruff").join("packs").join("acme-tools");
+    let commands_dir = pack_dir.join("commands");
+    fs::create_dir_all(&commands_dir).expect("failed to create pack command directory");
+
+    write_fixture(
+        &pack_dir.join("ruff-pack.yaml"),
+        r#"id: acme-tools
+namespace: acme
+name: Acme Tools
+version: 0.1.0
+commands:
+  - name: status
+    summary: Status check.
+    entry: commands/status.ruff
+"#,
+    );
+    write_fixture(
+        &commands_dir.join("status.ruff"),
+        "print(\"{\\\"pack\\\":\\\"acme-tools\\\",\\\"namespace\\\":\\\"acme\\\",\\\"command\\\":\\\"status\\\",\\\"status\\\":\\\"pass\\\",\\\"summary\\\":{\\\"pass\\\":1,\\\"warn\\\":0,\\\"fail\\\":0,\\\"skip\\\":0,\\\"info\\\":0},\\\"checks\\\":[]}\")\n",
+    );
+
+    let output = run_ruff_in_dir(&["pack", "run", "acme", "status", "--json"], &workspace);
+    assert_eq!(output.status.code(), Some(0));
+    assert!(output.stderr.is_empty(), "pack run --json success should not write stderr");
+
+    let stdout = String::from_utf8(output.stdout).expect("stdout should be utf-8");
+    let parsed: Value =
+        serde_json::from_str(&stdout).expect("pack run --json output should be JSON");
+    assert_eq!(parsed["namespace"], "acme");
+    assert_eq!(parsed["command"], "status");
+    assert_eq!(parsed["status"], "pass");
+}
+
+#[test]
+fn cli_reserved_alias_name_is_rejected_before_workflow_routing() {
+    let output = run_ruff(&["doctor"]);
+    assert_eq!(output.status.code(), Some(EXIT_USAGE_ERROR));
+    assert!(output.stdout.is_empty(), "reserved alias rejection should not write stdout");
+    let stderr = String::from_utf8(output.stderr).expect("stderr should be utf-8");
+    assert!(stderr.contains("reserved"), "expected reserved-name rejection, got: {}", stderr);
+}
+
+#[test]
+fn cli_pack_run_rejects_reserved_namespace() {
+    let output = run_ruff(&["pack", "run", "ruff", "status"]);
+    assert_eq!(output.status.code(), Some(EXIT_USAGE_ERROR));
+    assert!(output.stdout.is_empty(), "reserved namespace rejection should not write stdout");
+    let stderr = String::from_utf8(output.stderr).expect("stderr should be utf-8");
+    assert!(stderr.contains("Namespace 'ruff' is reserved"));
+}
