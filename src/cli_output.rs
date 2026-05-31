@@ -58,8 +58,8 @@ mod tests {
 
     #[test]
     fn to_pretty_json_surfaces_serialization_errors() {
-        let error =
-            to_pretty_json(&AlwaysFailSerialize).expect_err("serialization should fail intentionally");
+        let error = to_pretty_json(&AlwaysFailSerialize)
+            .expect_err("serialization should fail intentionally");
         assert!(error.to_string().contains("forced serialization failure"));
     }
 

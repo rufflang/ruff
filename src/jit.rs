@@ -2884,10 +2884,7 @@ pub extern "C" fn jit_make_dict_with_keys(
             values[index] = value_val;
         }
 
-        stack.push(Value::FixedDict {
-            keys: Arc::clone(keys),
-            values,
-        });
+        stack.push(Value::FixedDict { keys: Arc::clone(keys), values });
         1
     })
     .unwrap_or(0)
@@ -8169,22 +8166,22 @@ impl Default for JitCompiler {
 mod tests {
     use super::*;
 
-// SAFETY:
-// - Preconditions: dummy_compiled_fn is invoked from JIT-compiled code using the C ABI, and `ctx` points to a live
-//   `VMContext` whose nested pointers (`stack_ptr`, `locals_ptr`, `globals_ptr`, etc.) satisfy this
-//   function's null/shape checks for the full call duration with no concurrent mutable aliasing.
-// - Postconditions: all reads/writes stay within VM-owned structures reachable from validated pointers,
-//   and invalid inputs are handled via sentinel returns/early exits without transferring ownership.
+    // SAFETY:
+    // - Preconditions: dummy_compiled_fn is invoked from JIT-compiled code using the C ABI, and `ctx` points to a live
+    //   `VMContext` whose nested pointers (`stack_ptr`, `locals_ptr`, `globals_ptr`, etc.) satisfy this
+    //   function's null/shape checks for the full call duration with no concurrent mutable aliasing.
+    // - Postconditions: all reads/writes stay within VM-owned structures reachable from validated pointers,
+    //   and invalid inputs are handled via sentinel returns/early exits without transferring ownership.
     unsafe extern "C" fn dummy_compiled_fn(_ctx: *mut VMContext) -> i64 {
         0
     }
 
-// SAFETY:
-// - Preconditions: dummy_compiled_fn_with_arg is invoked from JIT-compiled code using the C ABI, and `ctx` points to a live
-//   `VMContext` whose nested pointers (`stack_ptr`, `locals_ptr`, `globals_ptr`, etc.) satisfy this
-//   function's null/shape checks for the full call duration with no concurrent mutable aliasing.
-// - Postconditions: all reads/writes stay within VM-owned structures reachable from validated pointers,
-//   and invalid inputs are handled via sentinel returns/early exits without transferring ownership.
+    // SAFETY:
+    // - Preconditions: dummy_compiled_fn_with_arg is invoked from JIT-compiled code using the C ABI, and `ctx` points to a live
+    //   `VMContext` whose nested pointers (`stack_ptr`, `locals_ptr`, `globals_ptr`, etc.) satisfy this
+    //   function's null/shape checks for the full call duration with no concurrent mutable aliasing.
+    // - Postconditions: all reads/writes stay within VM-owned structures reachable from validated pointers,
+    //   and invalid inputs are handled via sentinel returns/early exits without transferring ownership.
     unsafe extern "C" fn dummy_compiled_fn_with_arg(_ctx: *mut VMContext, arg: i64) -> i64 {
         arg + 7
     }

@@ -8,7 +8,8 @@ fn repo_root() -> PathBuf {
 #[test]
 fn stdlib_reference_defines_v1_tier_guarantee_policy() {
     let path = repo_root().join("docs").join("STANDARD_LIBRARY_REFERENCE.md");
-    let content = fs::read_to_string(path).expect("failed to read docs/STANDARD_LIBRARY_REFERENCE.md");
+    let content =
+        fs::read_to_string(path).expect("failed to read docs/STANDARD_LIBRARY_REFERENCE.md");
 
     for marker in [
         "v1 contract policy for tiers:",

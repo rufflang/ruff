@@ -65,26 +65,20 @@ fn terminate_child(mut child: Child) -> Output {
     if child.try_wait().ok().flatten().is_none() {
         let _ = child.kill();
     }
-    child
-        .wait_with_output()
-        .expect("failed to collect interpreter output")
+    child.wait_with_output().expect("failed to collect interpreter output")
 }
 
 fn send_http_get(port: u16, path: &str) -> std::io::Result<(u16, String)> {
     let mut stream = TcpStream::connect_timeout(
-        &format!("127.0.0.1:{}", port)
-            .parse()
-            .expect("socket addr should parse"),
+        &format!("127.0.0.1:{}", port).parse().expect("socket addr should parse"),
         Duration::from_millis(80),
     )?;
 
     stream.set_read_timeout(Some(Duration::from_millis(250)))?;
     stream.set_write_timeout(Some(Duration::from_millis(250)))?;
 
-    let request = format!(
-        "GET {} HTTP/1.1\r\nHost: 127.0.0.1:{}\r\nConnection: close\r\n\r\n",
-        path, port
-    );
+    let request =
+        format!("GET {} HTTP/1.1\r\nHost: 127.0.0.1:{}\r\nConnection: close\r\n\r\n", path, port);
     stream.write_all(request.as_bytes())?;
 
     let mut response = Vec::new();
@@ -114,10 +108,7 @@ fn send_http_get(port: u16, path: &str) -> std::io::Result<(u16, String)> {
     }
 
     if response.is_empty() {
-        return Err(std::io::Error::new(
-            std::io::ErrorKind::UnexpectedEof,
-            "empty HTTP response",
-        ));
+        return Err(std::io::Error::new(std::io::ErrorKind::UnexpectedEof, "empty HTTP response"));
     }
 
     parse_http_response(&response)
@@ -211,12 +202,7 @@ fn http_route_callback_resolves_module_local_helper() {
         Ok(response) => response,
         Err(message) => {
             let output = terminate_child(child);
-            panic!(
-                "{}; stdout={}; stderr={}",
-                message,
-                stdout_text(&output),
-                stderr_text(&output)
-            );
+            panic!("{}; stdout={}; stderr={}", message, stdout_text(&output), stderr_text(&output));
         }
     };
 
@@ -265,12 +251,7 @@ fn http_route_callback_resolves_module_helper_chaining_to_import() {
         Ok(response) => response,
         Err(message) => {
             let output = terminate_child(child);
-            panic!(
-                "{}; stdout={}; stderr={}",
-                message,
-                stdout_text(&output),
-                stderr_text(&output)
-            );
+            panic!("{}; stdout={}; stderr={}", message, stdout_text(&output), stderr_text(&output));
         }
     };
 

@@ -48,7 +48,8 @@ fn parse_http_query_params(raw_query: &str, decode_values: bool) -> HashMap<Stri
         }
 
         let (key, value) = if decode_values {
-            let decoded_key = decode_query_component(raw_key).unwrap_or_else(|| raw_key.to_string());
+            let decoded_key =
+                decode_query_component(raw_key).unwrap_or_else(|| raw_key.to_string());
             let decoded_value =
                 decode_query_component(raw_value).unwrap_or_else(|| raw_value.to_string());
             (decoded_key, decoded_value)
@@ -117,7 +118,8 @@ mod tests {
 
     #[test]
     fn split_http_path_and_query_parses_pairs_without_decoding() {
-        let (path, query_map, raw_query) = split_http_path_and_query("/search?q=ruff%20lang&limit=10");
+        let (path, query_map, raw_query) =
+            split_http_path_and_query("/search?q=ruff%20lang&limit=10");
         assert_eq!(path, "/search");
         assert_eq!(raw_query, "q=ruff%20lang&limit=10");
 
@@ -129,7 +131,8 @@ mod tests {
 
     #[test]
     fn split_http_path_and_query_ignores_empty_keys_and_accepts_missing_values() {
-        let (_, query_map, raw_query) = split_http_path_and_query("/x?=skip&flag&name=ruff&&empty=");
+        let (_, query_map, raw_query) =
+            split_http_path_and_query("/x?=skip&flag&name=ruff&&empty=");
         assert_eq!(raw_query, "=skip&flag&name=ruff&&empty=");
         assert_eq!(query_map.get("flag").map(String::as_str), Some(""));
         assert_eq!(query_map.get("name").map(String::as_str), Some("ruff"));

@@ -1366,13 +1366,17 @@ mod tests {
     #[test]
     fn test_uuid_random_id_and_time_helpers() {
         let uuid = handle("uuid_v4", &[]).unwrap();
-        assert!(matches!(uuid, Value::Str(value) if value.len() == 36 && value.chars().nth(14) == Some('4')));
+        assert!(
+            matches!(uuid, Value::Str(value) if value.len() == 36 && value.chars().nth(14) == Some('4'))
+        );
 
         let random_id = handle("random_id", &[Value::Int(12)]).unwrap();
         assert!(matches!(random_id, Value::Str(value) if value.len() == 12));
 
         let now_utc = handle("now_utc", &[]).unwrap();
-        assert!(matches!(now_utc, Value::Str(value) if value.ends_with('Z') && value.contains('T')));
+        assert!(
+            matches!(now_utc, Value::Str(value) if value.ends_with('Z') && value.contains('T'))
+        );
 
         let now_unix = handle("now_unix", &[]).unwrap();
         assert!(matches!(now_unix, Value::Int(value) if value > 0));

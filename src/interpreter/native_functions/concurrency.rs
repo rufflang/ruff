@@ -17,9 +17,7 @@ fn lock_or_concurrency_error<'a, T>(
     mutex: &'a Mutex<T>,
     context: &str,
 ) -> Result<MutexGuard<'a, T>, Value> {
-    mutex
-        .lock()
-        .map_err(|_| Value::Error(format!("{}: shared state lock poisoned", context)))
+    mutex.lock().map_err(|_| Value::Error(format!("{}: shared state lock poisoned", context)))
 }
 
 pub fn handle(_interp: &mut Interpreter, name: &str, _arg_values: &[Value]) -> Option<Value> {

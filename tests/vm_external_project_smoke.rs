@@ -59,10 +59,8 @@ fn vm_external_project_smoke_from_import_symbol_call() {
     )
     .expect("failed to write from-import script");
 
-    let output = run_ruff(
-        &["run", script_path.to_str().expect("path should be utf-8")],
-        &project_root,
-    );
+    let output =
+        run_ruff(&["run", script_path.to_str().expect("path should be utf-8")], &project_root);
 
     assert!(
         output.status.success(),
@@ -90,10 +88,8 @@ fn vm_external_project_smoke_import_module_symbol_call() {
     )
     .expect("failed to write module-symbol script");
 
-    let output = run_ruff(
-        &["run", script_path.to_str().expect("path should be utf-8")],
-        &project_root,
-    );
+    let output =
+        run_ruff(&["run", script_path.to_str().expect("path should be utf-8")], &project_root);
 
     assert!(
         output.status.success(),

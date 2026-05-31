@@ -7,10 +7,7 @@ fn repo_root() -> PathBuf {
 
 #[test]
 fn import_heavy_cache_lookup_artifact_contains_required_markers() {
-    let path = repo_root()
-        .join("docs")
-        .join("generated")
-        .join("VM_IMPORT_HEAVY_CACHE_LOOKUP.md");
+    let path = repo_root().join("docs").join("generated").join("VM_IMPORT_HEAVY_CACHE_LOOKUP.md");
     let content = fs::read_to_string(&path)
         .expect("failed to read docs/generated/VM_IMPORT_HEAVY_CACHE_LOOKUP.md");
 

@@ -1163,20 +1163,16 @@ pub fn handle(interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Opt
                     result.insert(k, v);
                 }
                 Value::Dict(Arc::new(result))
-            } else if let (
-                Some(Value::FixedDict { keys, values }),
-                Some(Value::Dict(dict2)),
-            ) = (arg_values.first(), arg_values.get(1))
+            } else if let (Some(Value::FixedDict { keys, values }), Some(Value::Dict(dict2))) =
+                (arg_values.first(), arg_values.get(1))
             {
                 let mut result = fixed_dict_to_dict(keys.as_ref(), values.as_ref());
                 for (k, v) in dict2.iter() {
                     result.insert(k.clone(), v.clone());
                 }
                 Value::Dict(Arc::new(result))
-            } else if let (
-                Some(Value::Dict(dict1)),
-                Some(Value::FixedDict { keys, values }),
-            ) = (arg_values.first(), arg_values.get(1))
+            } else if let (Some(Value::Dict(dict1)), Some(Value::FixedDict { keys, values })) =
+                (arg_values.first(), arg_values.get(1))
             {
                 let mut result = (**dict1).clone();
                 for (k, v) in fixed_dict_to_dict(keys.as_ref(), values.as_ref()) {
@@ -1782,17 +1778,11 @@ mod tests {
             values: vec![Value::Int(99), Value::Int(3)],
         };
 
-        let merged = handle(
-            &mut interpreter,
-            "merge",
-            &[fixed_left.clone(), fixed_right.clone()],
-        )
-        .expect("merge handler should match");
-        assert!(
-            matches!(merged, Value::Dict(dict) if matches!(dict.get("a"), Some(Value::Int(1)))
+        let merged = handle(&mut interpreter, "merge", &[fixed_left.clone(), fixed_right.clone()])
+            .expect("merge handler should match");
+        assert!(matches!(merged, Value::Dict(dict) if matches!(dict.get("a"), Some(Value::Int(1)))
                 && matches!(dict.get("b"), Some(Value::Int(99)))
-                && matches!(dict.get("c"), Some(Value::Int(3))))
-        );
+                && matches!(dict.get("c"), Some(Value::Int(3)))));
 
         let cleared = handle(&mut interpreter, "clear", std::slice::from_ref(&fixed_left))
             .expect("clear handler should match");
@@ -1804,11 +1794,9 @@ mod tests {
             &[fixed_left, Value::Str(Arc::new("b".to_string()))],
         )
         .expect("remove handler should match");
-        assert!(
-            matches!(removed, Value::Array(values) if values.len() == 2
+        assert!(matches!(removed, Value::Array(values) if values.len() == 2
                 && matches!(&values[0], Value::Dict(dict) if matches!(dict.get("a"), Some(Value::Int(1))) && !dict.contains_key("b"))
-                && matches!(&values[1], Value::Int(2)))
-        );
+                && matches!(&values[1], Value::Int(2))));
     }
 
     #[test]
@@ -1842,11 +1830,7 @@ mod tests {
         let get_existing = handle(
             &mut interpreter,
             "get_default",
-            &[
-                left.clone(),
-                Value::Str(Arc::new("a".to_string())),
-                Value::Int(0),
-            ],
+            &[left.clone(), Value::Str(Arc::new("a".to_string())), Value::Int(0)],
         )
         .expect("get_default existing should match");
         assert!(matches!(get_existing, Value::Int(1)));
@@ -1854,14 +1838,9 @@ mod tests {
         let get_missing = handle(
             &mut interpreter,
             "get_default",
-            &[
-                right,
-                Value::Str(Arc::new("missing".to_string())),
-                Value::Int(123),
-            ],
+            &[right, Value::Str(Arc::new("missing".to_string())), Value::Int(123)],
         )
         .expect("get_default missing should match");
         assert!(matches!(get_missing, Value::Int(123)));
     }
-
 }

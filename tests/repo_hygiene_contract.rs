@@ -20,11 +20,7 @@ fn tracked_root_files(root: &Path) -> Vec<String> {
         .args(["ls-files"])
         .output()
         .expect("failed to run git ls-files");
-    assert!(
-        output.status.success(),
-        "git ls-files failed: {}",
-        stderr_text(&output)
-    );
+    assert!(output.status.success(), "git ls-files failed: {}", stderr_text(&output));
 
     let mut files: Vec<String> = stdout_text(&output)
         .lines()

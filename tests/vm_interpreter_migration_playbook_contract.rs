@@ -7,9 +7,7 @@ fn repo_root() -> PathBuf {
 
 #[test]
 fn vm_interpreter_migration_playbook_includes_runtime_recipes() {
-    let path = repo_root()
-        .join("docs")
-        .join("VM_INTERPRETER_MIGRATION_PLAYBOOK.md");
+    let path = repo_root().join("docs").join("VM_INTERPRETER_MIGRATION_PLAYBOOK.md");
     let content = fs::read_to_string(&path)
         .expect("failed to read docs/VM_INTERPRETER_MIGRATION_PLAYBOOK.md");
 
@@ -26,10 +24,6 @@ fn vm_interpreter_migration_playbook_includes_runtime_recipes() {
         "cargo test --test vm_interpreter_parity_surfaces",
         "cargo test --test package_module_workflow_integration",
     ] {
-        assert!(
-            content.contains(marker),
-            "migration playbook should contain marker {:?}",
-            marker
-        );
+        assert!(content.contains(marker), "migration playbook should contain marker {:?}", marker);
     }
 }

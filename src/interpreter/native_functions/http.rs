@@ -589,8 +589,7 @@ pub fn handle(name: &str, arg_values: &[Value]) -> Option<Value> {
                     Some(Value::Str(url)) => url.as_ref().clone(),
                     _ => {
                         return Some(Value::Error(
-                            "http_request() requires a URL string as first argument"
-                                .to_string(),
+                            "http_request() requires a URL string as first argument".to_string(),
                         ));
                     }
                 };
@@ -1662,11 +1661,15 @@ mod tests {
         );
 
         let server = handle("http_server", &[Value::Int(8080)]).unwrap();
-        assert!(matches!(server, Value::HttpServer { host, port, .. } if host == "0.0.0.0" && port == 8080));
+        assert!(
+            matches!(server, Value::HttpServer { host, port, .. } if host == "0.0.0.0" && port == 8080)
+        );
 
         let listen_server =
             handle("http_listen", &[str_value("127.0.0.1"), Value::Int(9191)]).unwrap();
-        assert!(matches!(listen_server, Value::HttpServer { host, port, .. } if host == "127.0.0.1" && port == 9191));
+        assert!(
+            matches!(listen_server, Value::HttpServer { host, port, .. } if host == "127.0.0.1" && port == 9191)
+        );
     }
 
     #[test]
@@ -1693,11 +1696,8 @@ mod tests {
             matches!(set_header_error, Value::Error(message) if message.contains("requires an HTTP response as first argument"))
         );
 
-        let request_missing_url = handle(
-            "http_request",
-            &[Value::Dict(Arc::new(DictMap::default()))],
-        )
-        .unwrap();
+        let request_missing_url =
+            handle("http_request", &[Value::Dict(Arc::new(DictMap::default()))]).unwrap();
         assert!(matches!(
             request_missing_url,
             Value::Error(message)
@@ -1725,11 +1725,7 @@ mod tests {
                 Arc::<str>::from("method"),
                 Arc::<str>::from("headers"),
             ]),
-            values: vec![
-                str_value(&endpoint),
-                str_value("GET"),
-                Value::Dict(Arc::new(headers)),
-            ],
+            values: vec![str_value(&endpoint), str_value("GET"), Value::Dict(Arc::new(headers))],
         };
 
         let result =

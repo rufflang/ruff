@@ -42,10 +42,7 @@ fn parse_policy_mode() -> Result<OutboundDestinationPolicy, String> {
 
 fn private_destination_override_enabled() -> bool {
     match std::env::var(ALLOW_PRIVATE_DESTINATIONS_ENV) {
-        Ok(raw) => matches!(
-            raw.trim().to_ascii_lowercase().as_str(),
-            "1" | "true" | "yes" | "on"
-        ),
+        Ok(raw) => matches!(raw.trim().to_ascii_lowercase().as_str(), "1" | "true" | "yes" | "on"),
         Err(_) => false,
     }
 }
@@ -71,10 +68,7 @@ fn is_blocked_destination(ip: IpAddr) -> bool {
 
 fn blocked_addresses_for_host_port(host: &str, port: u16) -> Result<Vec<IpAddr>, String> {
     let addresses = (host, port).to_socket_addrs().map_err(|error| {
-        format!(
-            "Failed to resolve network destination '{}:{}': {}",
-            host, port, error
-        )
+        format!("Failed to resolve network destination '{}:{}': {}", host, port, error)
     })?;
 
     let mut blocked = Vec::new();
@@ -109,11 +103,7 @@ pub fn enforce_host_port_destination_policy(
         return Ok(());
     }
 
-    let blocked_list = blocked
-        .iter()
-        .map(IpAddr::to_string)
-        .collect::<Vec<_>>()
-        .join(", ");
+    let blocked_list = blocked.iter().map(IpAddr::to_string).collect::<Vec<_>>().join(", ");
 
     Err(format!(
         "{} blocked by outbound destination policy '{}' (resolved to blocked addresses: {}). \
@@ -127,10 +117,7 @@ pub fn enforce_http_url_destination_policy(url: &str, surface: &str) -> Result<(
         .map_err(|error| format!("{} failed: invalid URL '{}': {}", surface, url, error))?;
 
     let scheme = parsed.scheme().to_ascii_lowercase();
-    if !ALLOWED_HTTP_URL_SCHEMES
-        .iter()
-        .any(|allowed| *allowed == scheme)
-    {
+    if !ALLOWED_HTTP_URL_SCHEMES.iter().any(|allowed| *allowed == scheme) {
         return Err(format!(
             "{} failed: unsupported URL scheme '{}'; expected http or https",
             surface, scheme
@@ -372,9 +359,8 @@ mod tests {
     #[test]
     fn outbound_policy_http_url_evaluation_blocks_loopback_when_strict() {
         with_policy_env(Some("deny_private"), None, || {
-            let error =
-                enforce_http_url_destination_policy("http://127.0.0.1:8080", "HTTP GET")
-                    .expect_err("strict policy should reject loopback URLs");
+            let error = enforce_http_url_destination_policy("http://127.0.0.1:8080", "HTTP GET")
+                .expect_err("strict policy should reject loopback URLs");
             assert!(error.contains("blocked by outbound destination policy"));
             assert!(error.contains("127.0.0.1"));
         });

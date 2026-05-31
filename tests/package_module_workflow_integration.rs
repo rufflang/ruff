@@ -442,19 +442,12 @@ fn package_module_workflow_nested_layout_is_runtime_mode_consistent_and_keeps_fl
     .expect("failed to write src/rag/pipeline module");
 
     let nested_workflow = project_root.join("nested_runtime_workflow.ruff");
-    fs::write(
-        &nested_workflow,
-        "from src.rag.pipeline import answer\nprint(answer)\n",
-    )
-    .expect("failed to write nested runtime workflow");
+    fs::write(&nested_workflow, "from src.rag.pipeline import answer\nprint(answer)\n")
+        .expect("failed to write nested runtime workflow");
 
     for args in [
         vec!["run", nested_workflow.to_str().expect("path should be utf-8")],
-        vec![
-            "run",
-            "--interpreter",
-            nested_workflow.to_str().expect("path should be utf-8"),
-        ],
+        vec!["run", "--interpreter", nested_workflow.to_str().expect("path should be utf-8")],
     ] {
         let output = run_ruff(&args, &project_root);
         assert!(
@@ -481,11 +474,7 @@ fn package_module_workflow_nested_layout_is_runtime_mode_consistent_and_keeps_fl
 
     for args in [
         vec!["run", flat_workflow.to_str().expect("path should be utf-8")],
-        vec![
-            "run",
-            "--interpreter",
-            flat_workflow.to_str().expect("path should be utf-8"),
-        ],
+        vec!["run", "--interpreter", flat_workflow.to_str().expect("path should be utf-8")],
     ] {
         let output = run_ruff(&args, &project_root);
         assert!(

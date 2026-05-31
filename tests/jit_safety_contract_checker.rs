@@ -26,11 +26,7 @@ fn checker_help_lists_schema_and_modes() {
     assert!(output.status.success(), "help should succeed");
     let stdout = String::from_utf8(output.stdout).expect("utf-8 stdout");
     for expected in ["Canonical schema", "--allow-missing", "Exit codes"] {
-        assert!(
-            stdout.contains(expected),
-            "help output should include {:?}",
-            expected
-        );
+        assert!(stdout.contains(expected), "help output should include {:?}", expected);
     }
 }
 
@@ -38,11 +34,7 @@ fn checker_help_lists_schema_and_modes() {
 fn checker_passes_on_valid_fixture() {
     let output = Command::new("bash")
         .current_dir(repo_root())
-        .args([
-            "scripts/check_jit_safety_contracts.sh",
-            "--file",
-            &fixture("valid_jit_like.rs"),
-        ])
+        .args(["scripts/check_jit_safety_contracts.sh", "--file", &fixture("valid_jit_like.rs")])
         .output()
         .expect("failed to run checker");
 
@@ -59,11 +51,7 @@ fn checker_passes_on_valid_fixture() {
 fn checker_fails_on_missing_contract() {
     let output = Command::new("bash")
         .current_dir(repo_root())
-        .args([
-            "scripts/check_jit_safety_contracts.sh",
-            "--file",
-            &fixture("missing_contract.rs"),
-        ])
+        .args(["scripts/check_jit_safety_contracts.sh", "--file", &fixture("missing_contract.rs")])
         .output()
         .expect("failed to run checker");
 
@@ -120,11 +108,7 @@ fn checker_fails_on_malformed_contract() {
 fn checker_fails_on_wrong_heading_spelling() {
     let output = Command::new("bash")
         .current_dir(repo_root())
-        .args([
-            "scripts/check_jit_safety_contracts.sh",
-            "--file",
-            &fixture("wrong_headings.rs"),
-        ])
+        .args(["scripts/check_jit_safety_contracts.sh", "--file", &fixture("wrong_headings.rs")])
         .output()
         .expect("failed to run checker");
 
@@ -152,11 +136,7 @@ fn checker_rejects_unknown_argument() {
 fn checker_ignores_unsafe_extern_type_aliases() {
     let output = Command::new("bash")
         .current_dir(repo_root())
-        .args([
-            "scripts/check_jit_safety_contracts.sh",
-            "--file",
-            &fixture("type_alias_only.rs"),
-        ])
+        .args(["scripts/check_jit_safety_contracts.sh", "--file", &fixture("type_alias_only.rs")])
         .output()
         .expect("failed to run checker");
 

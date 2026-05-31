@@ -177,7 +177,10 @@ pub fn reject_symlink_target_path(path: &Path, context: &str) -> Result<(), Stri
 }
 
 #[cfg(test)]
-pub(crate) fn reject_url_encoded_parent_traversal(raw_path: &str, context: &str) -> Result<(), String> {
+pub(crate) fn reject_url_encoded_parent_traversal(
+    raw_path: &str,
+    context: &str,
+) -> Result<(), String> {
     let Some(decoded_path) = decode_percent_encoded(raw_path) else {
         return Ok(());
     };

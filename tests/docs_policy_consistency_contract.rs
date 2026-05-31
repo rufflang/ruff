@@ -34,8 +34,9 @@ fn high_risk_docs_policies_remain_consistent() {
     }
 
     assert!(
-        readme
-            .contains("Developers should not need `--interpreter` for ordinary modular project layouts."),
+        readme.contains(
+            "Developers should not need `--interpreter` for ordinary modular project layouts."
+        ),
         "README should document VM-first runtime recommendation for modular workflows"
     );
     assert!(

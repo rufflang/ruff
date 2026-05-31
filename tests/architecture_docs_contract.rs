@@ -19,11 +19,7 @@ fn architecture_doc_matches_current_runtime_posture() {
         "Top-level generator iteration (`func*` + `yield`) is intentionally divergent",
         "docs/VM_INTERPRETER_PARITY_MATRIX.md",
     ] {
-        assert!(
-            content.contains(marker),
-            "architecture doc should contain marker {:?}",
-            marker
-        );
+        assert!(content.contains(marker), "architecture doc should contain marker {:?}", marker);
     }
 
     for stale in [

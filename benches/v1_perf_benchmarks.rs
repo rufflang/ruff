@@ -329,8 +329,8 @@ fn deep_dotted_module_chain_benchmark_fixture() -> &'static DeepDottedModuleChai
     })
 }
 
-fn import_heavy_nested_startup_benchmark_fixture() -> &'static ImportHeavyNestedStartupBenchmarkFixture
-{
+fn import_heavy_nested_startup_benchmark_fixture(
+) -> &'static ImportHeavyNestedStartupBenchmarkFixture {
     static FIXTURE: OnceLock<ImportHeavyNestedStartupBenchmarkFixture> = OnceLock::new();
     FIXTURE.get_or_init(|| {
         let root_dir = unique_temp_dir("v1_perf_import_heavy_nested_startup_bench");

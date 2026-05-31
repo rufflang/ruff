@@ -5125,10 +5125,7 @@ impl VM {
         for (name, value) in exports {
             module_fields.insert(name.clone(), Self::wrap_module_export_for_method_call(value));
         }
-        Value::Struct {
-            name: format!("__module_namespace_{}", module_name),
-            fields: module_fields,
-        }
+        Value::Struct { name: format!("__module_namespace_{}", module_name), fields: module_fields }
     }
 
     fn vm_import_all(&mut self, args: &[Value]) -> Result<Value, String> {
@@ -5148,12 +5145,11 @@ impl VM {
             .map_err(|err| err.message)?;
 
         let module_binding_name = Self::module_binding_name(&module_name);
-        let module_namespace_value =
-            if exports.contains_key(module_binding_name.as_str()) {
-                None
-            } else {
-                Some(Self::module_namespace_value(&module_name, &exports))
-            };
+        let module_namespace_value = if exports.contains_key(module_binding_name.as_str()) {
+            None
+        } else {
+            Some(Self::module_namespace_value(&module_name, &exports))
+        };
 
         for (name, value) in exports {
             self.define_import_binding_in_current_scope(name, value);
@@ -5887,11 +5883,7 @@ impl VM {
                                             path.as_ref().clone(),
                                             args[2].clone(),
                                         ));
-                                        Ok(Value::HttpServer {
-                                            host,
-                                            port,
-                                            routes: new_routes,
-                                        })
+                                        Ok(Value::HttpServer { host, port, routes: new_routes })
                                     }
                                     _ => Err("route() requires (method, path, handler_function)"
                                         .to_string()),

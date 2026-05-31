@@ -7,10 +7,8 @@ fn repo_root() -> PathBuf {
 
 #[test]
 fn import_heavy_perf_comparison_artifact_contains_required_markers() {
-    let path = repo_root()
-        .join("docs")
-        .join("generated")
-        .join("VM_IMPORT_HEAVY_PERF_COMPARISON.md");
+    let path =
+        repo_root().join("docs").join("generated").join("VM_IMPORT_HEAVY_PERF_COMPARISON.md");
     let content = fs::read_to_string(&path)
         .expect("failed to read docs/generated/VM_IMPORT_HEAVY_PERF_COMPARISON.md");
 

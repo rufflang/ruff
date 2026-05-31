@@ -8,7 +8,8 @@ fn unique_temp_dir(prefix: &str) -> PathBuf {
         .duration_since(UNIX_EPOCH)
         .expect("system time should be valid")
         .as_nanos();
-    let path = std::env::temp_dir().join(format!("ruff_vm_runtime_diff_harness_{}_{}", prefix, nanos));
+    let path =
+        std::env::temp_dir().join(format!("ruff_vm_runtime_diff_harness_{}_{}", prefix, nanos));
     fs::create_dir_all(&path).expect("failed to create temp directory");
     path
 }
@@ -71,19 +72,17 @@ fn runtime_diff_harness_generates_expected_columns_and_summary() {
 
     let markdown = fs::read_to_string(&output_md).expect("diff markdown should exist");
     assert!(markdown.contains("# VM Runtime Diff Harness"));
-    assert!(markdown.contains("| Fixture | VM Exit | Interpreter Exit | Raw Equal | Normalized Equal | Diff Class |"));
+    assert!(markdown.contains(
+        "| Fixture | VM Exit | Interpreter Exit | Raw Equal | Normalized Equal | Diff Class |"
+    ));
     assert!(markdown.contains("Summary: `6` fixtures compared"));
 
     let csv = fs::read_to_string(&output_csv).expect("diff csv should exist");
     assert!(csv.contains("fixture,vm_exit,interpreter_exit,raw_equal,normalized_equal,diff_class"));
-    let has_valid_class = csv
-        .lines()
-        .skip(1)
-        .filter(|line| !line.trim().is_empty())
-        .any(|line| {
-            line.ends_with(",raw_equal")
-                || line.ends_with(",normalized_noise_only")
-                || line.ends_with(",semantic_drift")
-        });
+    let has_valid_class = csv.lines().skip(1).filter(|line| !line.trim().is_empty()).any(|line| {
+        line.ends_with(",raw_equal")
+            || line.ends_with(",normalized_noise_only")
+            || line.ends_with(",semantic_drift")
+    });
     assert!(has_valid_class, "expected at least one classified diff row");
 }
