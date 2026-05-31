@@ -63,6 +63,25 @@ Semantics notes:
 - Predicate helpers like `contains`, `starts_with`, and `has_key` return `1`/`0`; compare explicitly when needed.
 - Collection helpers like `push` return a new array value; reassign (`items = push(items, x)`) to keep the update.
 
+Output style note (recommended):
+
+- Prefer small local output helpers that express intent (`section`, `kv`, `ok`, `fail`) over long `print(...)` chains.
+- Keep low-level `print` sequences for tiny scripts only.
+- For automation surfaces, keep final machine-readable payloads on stdout (`to_json(...)`) and human diagnostics concise.
+
+Example helper pattern:
+
+```ruff
+func section(title) {
+  print("")
+  print("== " + title + " ==")
+}
+
+func kv(label, value) {
+  print("  " + label + ": " + value)
+}
+```
+
 Module export note:
 
 - Imported functions must be declared with `export func` in the source module.

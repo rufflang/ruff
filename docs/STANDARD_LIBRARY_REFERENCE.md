@@ -83,6 +83,23 @@ Collection update semantics:
 - Helpers like `push`, `insert`, `remove_at`, `concat`, and `map` return updated values.
 - Reassign the result when building arrays iteratively (`items = push(items, value)`).
 
+## Output and Report Conventions
+
+Ruff currently exposes low-level output primitives (`print`) rather than a built-in report DSL.
+For scripts that emit many status lines, prefer local intent helpers to reduce repetitive mechanics:
+
+```ruff
+func section(title) { print(""); print("== " + title + " ==") }
+func kv(label, value) { print("  " + label + ": " + value) }
+func item(text) { print("  - " + text) }
+```
+
+Guideline:
+
+- Small scripts: direct `print(...)` is fine.
+- Multi-step CLI/report scripts: use local helpers for section/kv/list rendering.
+- Machine-readable contracts: emit `to_json(...)` payloads on stdout and keep extra text minimal.
+
 ## Dicts and Structured Data
 
 | Function | Tier | Example |

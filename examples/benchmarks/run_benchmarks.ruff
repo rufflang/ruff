@@ -68,11 +68,23 @@ func repeat_str(s, count) {
     return result
 }
 
-func main() {
+func section(title) {
     print(repeat_str("=", 80))
-    print("Ruff VM Performance Benchmark Suite")
+    print(title)
     print(repeat_str("=", 80))
     print("")
+}
+
+func kv(label, value) {
+    print("  " + label + ": " + value)
+}
+
+func blank() {
+    print("")
+}
+
+func main() {
+    section("Ruff VM Performance Benchmark Suite")
     
     let results := []
     
@@ -123,20 +135,17 @@ func main() {
             }
             results := push(results, result)
             
-            print("  Interpreter: " + to_string(round(interp_median * 100.0) / 100.0) + " ms")
-            print("  VM:          " + to_string(round(vm_median * 100.0) / 100.0) + " ms")
-            print("  Speedup:     " + to_string(round(speedup * 100.0) / 100.0) + "x")
-            print("")
+            kv("Interpreter", to_string(round(interp_median * 100.0) / 100.0) + " ms")
+            kv("VM", to_string(round(vm_median * 100.0) / 100.0) + " ms")
+            kv("Speedup", to_string(round(speedup * 100.0) / 100.0) + "x")
+            blank()
         }
         
         i := i + 1
     }
     
     // Summary
-    print(repeat_str("=", 80))
-    print("Summary")
-    print(repeat_str("=", 80))
-    print("")
+    section("Summary")
     
     // Header
     let name_pad := repeat_str(" ", 16)
@@ -166,10 +175,10 @@ func main() {
         i := i + 1
     }
     
-    print("")
+    blank()
     let avg_speedup := total_speedup / to_float(len(results))
-    print("Average speedup: " + to_string(round(avg_speedup * 100.0) / 100.0) + "x")
-    print("")
+    kv("Average speedup", to_string(round(avg_speedup * 100.0) / 100.0) + "x")
+    blank()
     
     if avg_speedup >= 10.0 {
         print("✅ SUCCESS: VM achieves 10x+ speedup target!")

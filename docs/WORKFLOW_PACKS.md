@@ -100,6 +100,21 @@ func command_first_line(cmd) {
     return ""
 }
 
+func compute_summary(checks) {
+    summary := {"pass": 0, "warn": 0, "fail": 0, "skip": 0, "info": 0}
+    i := 0
+    while (i < len(checks)) {
+        status := checks[i]["status"]
+        if (status == "pass") { summary["pass"] = summary["pass"] + 1 }
+        else if (status == "warn") { summary["warn"] = summary["warn"] + 1 }
+        else if (status == "fail") { summary["fail"] = summary["fail"] + 1 }
+        else if (status == "skip") { summary["skip"] = summary["skip"] + 1 }
+        else { summary["info"] = summary["info"] + 1 }
+        i = i + 1
+    }
+    return summary
+}
+
 func main() {
     checks := []
 
@@ -111,15 +126,8 @@ func main() {
         checks = push(checks, check_warn("env.git", "Git", "Git not found.", "Install Git."))
     }
 
-    # Compute summary and emit report
-    summary := {"pass": 0, "warn": 0, "fail": 0, "skip": 0, "info": 0}
-    i := 0
-    while (i < len(checks)) {
-        status := checks[i]["status"]
-        if (status == "pass") { summary["pass"] = summary["pass"] + 1 }
-        else { if (status == "warn") { summary["warn"] = summary["warn"] + 1 } }
-        i = i + 1
-    }
+    # Compute summary and emit report.
+    summary := compute_summary(checks)
 
     overall := "pass"
     if (summary["warn"] > 0) { overall = "warn" }
