@@ -96,6 +96,16 @@ fn validate_identifier(name: &str) -> Result<(), String> {
         );
     }
 
+    let lexed = lexer::tokenize(name)
+        .map_err(|_| "New symbol name must be a valid identifier".to_string())?;
+    let token_is_identifier = matches!(
+        lexed.as_slice(),
+        [Token { kind: TokenKind::Identifier(_), .. }, Token { kind: TokenKind::Eof, .. }]
+    );
+    if !token_is_identifier {
+        return Err("New symbol name must not be a reserved keyword".to_string());
+    }
+
     Ok(())
 }
 
@@ -209,6 +219,13 @@ mod tests {
         let source = "let value := 1\nprint(value)\n";
         let error = rename_symbol(source, 1, 5, "123name").expect_err("expected invalid rename");
         assert!(error.contains("start with a letter or underscore"));
+    }
+
+    #[test]
+    fn rejects_reserved_keyword_name() {
+        let source = "let value := 1\nprint(value)\n";
+        let error = rename_symbol(source, 1, 5, "if").expect_err("expected keyword rename error");
+        assert!(error.contains("must not be a reserved keyword"));
     }
 
     #[test]

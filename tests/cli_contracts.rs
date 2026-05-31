@@ -213,6 +213,31 @@ fn cli_lsp_rename_invalid_identifier_uses_runtime_error_stderr() {
 }
 
 #[test]
+fn cli_lsp_rename_keyword_identifier_uses_runtime_error_stderr() {
+    let dir = unique_temp_dir("cli_lsp_rename_keyword_identifier");
+    let file = dir.join("rename_keyword.ruff");
+    write_fixture(&file, "let value := 1\nprint(value)\n");
+
+    let output = run_ruff(&[
+        "lsp-rename",
+        file.to_str().expect("path should be utf-8"),
+        "--line",
+        "1",
+        "--column",
+        "5",
+        "--new-name",
+        "if",
+    ]);
+    assert_eq!(output.status.code(), Some(EXIT_RUNTIME_ERROR));
+    assert!(output.stdout.is_empty(), "rename validation failure should not write stdout");
+    let stderr = String::from_utf8(output.stderr).expect("stderr should be utf-8");
+    assert!(
+        stderr.contains("must not be a reserved keyword"),
+        "keyword rename validation message should be surfaced on stderr"
+    );
+}
+
+#[test]
 fn cli_lsp_diagnostics_missing_file_uses_io_error_and_stderr() {
     let dir = unique_temp_dir("cli_lsp_missing_file");
     let missing = dir.join("missing.ruff");
@@ -432,7 +457,7 @@ commands:
 
 #[test]
 fn cli_reserved_alias_name_is_rejected_before_workflow_routing() {
-    let output = run_ruff(&["doctor"]);
+    let output = run_ruff(&["dev"]);
     assert_eq!(output.status.code(), Some(EXIT_USAGE_ERROR));
     assert!(output.stdout.is_empty(), "reserved alias rejection should not write stdout");
     let stderr = String::from_utf8(output.stderr).expect("stderr should be utf-8");
