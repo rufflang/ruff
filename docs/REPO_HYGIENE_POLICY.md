@@ -17,6 +17,7 @@ Current allowed tracked root files:
 - `.gitignore`
 - `CHANGELOG.md`
 - `CONTRIBUTING.md`
+- `Cargo.lock`
 - `Cargo.toml`
 - `INSTALLATION.md`
 - `LICENSE`

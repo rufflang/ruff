@@ -45,6 +45,7 @@ fn tracked_root_surface_matches_hygiene_allowlist() {
         ".gitignore".to_string(),
         "CHANGELOG.md".to_string(),
         "CONTRIBUTING.md".to_string(),
+        "Cargo.lock".to_string(),
         "Cargo.toml".to_string(),
         "INSTALLATION.md".to_string(),
         "LICENSE".to_string(),
