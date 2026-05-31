@@ -41,3 +41,4 @@ pub mod runtime_limits;
 pub mod serve_http;
 pub mod type_checker;
 pub mod vm;
+pub mod workflow_pack;

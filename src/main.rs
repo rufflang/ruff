@@ -43,6 +43,8 @@ mod serve_http;
 mod type_checker;
 mod vm;
 
+mod workflow_pack;
+
 use crate::interpreter::RuntimeCapabilityPolicy;
 use clap::{Args, Parser as ClapParser, Subcommand, ValueEnum};
 use std::collections::BTreeSet;
@@ -55,11 +57,12 @@ use std::time::Duration;
     name = "ruff",
     about = "Ruff: A modern programming language",
     version = env!("CARGO_PKG_VERSION"),
-    long_about = None
+    long_about = None,
+    allow_external_subcommands = true
 )]
 struct Cli {
     #[command(subcommand)]
-    command: Commands,
+    command: Option<Commands>,
 }
 
 #[derive(Args, Clone, Debug, Default)]
@@ -136,7 +139,6 @@ enum TestRuntimeMode {
 }
 
 #[derive(Subcommand)]
-#[command(arg_required_else_help = true)]
 enum Commands {
     /// Run a Ruff script file
     Run {
@@ -981,7 +983,48 @@ fn entry_script_search_paths(entry_file: &Path) -> Vec<PathBuf> {
 async fn main() {
     let cli = Cli::parse();
 
-    match cli.command {
+    // Handle workflow pack commands via external subcommand routing.
+    // When the user runs `ruff tud doctor`, clap sees "tud" as an unknown
+    // subcommand and leaves `command` as None (allow_external_subcommands = true).
+    if cli.command.is_none() {
+        let raw_args: Vec<String> = std::env::args().collect();
+        // raw_args[0] is the binary name; skip it.
+        if raw_args.len() > 1 {
+            let external_args: Vec<String> = raw_args[1..].to_vec();
+            let is_known_command = matches!(
+                external_args.first().map(String::as_str),
+                Some("run" | "check" | "serve" | "repl" | "test" | "test-run"
+                    | "bench" | "format" | "lint" | "init" | "package-add"
+                    | "package-install" | "package-publish" | "docgen"
+                    | "bench-cross" | "bench-ssg" | "profile"
+                    | "lsp-complete" | "lsp-definition" | "lsp-references"
+                    | "lsp-hover" | "lsp-diagnostics" | "lsp-rename"
+                    | "lsp-code-actions" | "lsp")
+            );
+            if !is_known_command {
+                let cwd = std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("."));
+                match workflow_pack::handle_workflow_command(&external_args, &cwd) {
+                    Ok(()) => return,
+                    Err(message) => {
+                        eprintln!("Error: {}", message);
+                        std::process::exit(1);
+                    }
+                }
+            }
+        }
+
+        // If we get here, either no args were given or it was a known command
+        // that clap couldn't parse (e.g., missing required args). Print help.
+        use clap::CommandFactory;
+        let mut app = Cli::command();
+        let _ = app.print_help();
+        return;
+    }
+
+    // Unwrap the command (guaranteed Some here).
+    let command = cli.command.unwrap();
+
+    match command {
         Commands::Run {
             file,
             interpreter,
