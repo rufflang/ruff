@@ -43,6 +43,7 @@ fn tracked_root_surface_matches_hygiene_allowlist() {
         "CONTRIBUTING.md".to_string(),
         "Cargo.lock".to_string(),
         "Cargo.toml".to_string(),
+        "DOGFOOD_NOTES.md".to_string(),
         "INSTALLATION.md".to_string(),
         "LICENSE".to_string(),
         "README.md".to_string(),

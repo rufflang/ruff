@@ -19,6 +19,7 @@ Current allowed tracked root files:
 - `CONTRIBUTING.md`
 - `Cargo.lock`
 - `Cargo.toml`
+- `DOGFOOD_NOTES.md`
 - `INSTALLATION.md`
 - `LICENSE`
 - `README.md`
