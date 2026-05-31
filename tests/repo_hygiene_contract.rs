@@ -39,6 +39,7 @@ fn tracked_root_surface_matches_hygiene_allowlist() {
     let expected = vec![
         ".editorconfig".to_string(),
         ".gitignore".to_string(),
+        "BUG_HUNT_REPORT.md".to_string(),
         "CHANGELOG.md".to_string(),
         "CONTRIBUTING.md".to_string(),
         "Cargo.lock".to_string(),
@@ -66,6 +67,7 @@ fn repo_hygiene_policy_lists_current_root_contract() {
         "# Repository Hygiene Policy",
         "## Root Surface Contract",
         "## Retention And Cleanup",
+        "bash scripts/repo_hygiene_audit.sh",
         "cargo test --test repo_hygiene_contract",
     ] {
         assert!(content.contains(marker), "missing policy marker: {}", marker);

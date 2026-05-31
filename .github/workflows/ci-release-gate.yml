@@ -55,6 +55,9 @@ jobs:
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
 
+      - name: Run repo hygiene guard
+        run: bash scripts/repo_hygiene_audit.sh
+
       - name: Run VM/interpreter parity suite
         run: cargo test --test vm_interpreter_parity_surfaces
 

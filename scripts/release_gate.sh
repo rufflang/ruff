@@ -64,6 +64,7 @@ run_optional_cmd() {
 echo "Release gate mode: ${mode}"
 
 if [[ "${mode}" == "full" ]]; then
+  run_cmd bash scripts/repo_hygiene_audit.sh
   run_cmd cargo fmt --check
   run_cmd cargo clippy --all-targets --all-features -- -D warnings
   run_cmd cargo test
@@ -90,6 +91,7 @@ if [[ "${mode}" == "full" ]]; then
   run_optional_cmd cargo-audit cargo audit
   run_optional_cmd cargo-deny cargo deny check
 else
+  run_cmd bash scripts/repo_hygiene_audit.sh
   run_cmd cargo test --lib -- --test-threads=1
   run_cmd cargo test --test vm_interpreter_parity_surfaces
   run_cmd cargo run -- test --help

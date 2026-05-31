@@ -15,6 +15,7 @@ Current allowed tracked root files:
 
 - `.editorconfig`
 - `.gitignore`
+- `BUG_HUNT_REPORT.md`
 - `CHANGELOG.md`
 - `CONTRIBUTING.md`
 - `Cargo.lock`
@@ -43,5 +44,6 @@ Generated, local, and transient artifacts must not be tracked at root and should
 
 ## Enforcement
 
+- Fast guard script: `bash scripts/repo_hygiene_audit.sh`
 - Contract test: `cargo test --test repo_hygiene_contract`
 - Checklist reference: `ER-P0-005` in `docs/V1_0_ENTERPRISE_READINESS_ENHANCEMENT_CHECKLIST.md`

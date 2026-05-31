@@ -1,51 +1,50 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Reports root-level files that are not part of the canonical project surface.
-# This keeps the repository presentation clean and avoids accidental release noise.
+# Cross-check tracked root files against the canonical policy list in
+# docs/REPO_HYGIENE_POLICY.md. This is a fast guard intended to fail before
+# broader compile/test work when hygiene drifts.
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-cd "$repo_root"
+policy_file="${repo_root}/docs/REPO_HYGIENE_POLICY.md"
 
-allowed_root_files=(
-  ".editorconfig"
-  ".gitignore"
-  "CHANGELOG.md"
-  "CONTRIBUTING.md"
-  "Cargo.lock"
-  "Cargo.toml"
-  "INSTALLATION.md"
-  "LICENSE"
-  "README.md"
-  "ROADMAP.md"
-  "rustfmt.toml"
-)
+if [[ ! -f "${policy_file}" ]]; then
+  echo "Repo hygiene audit: missing policy file: ${policy_file}" >&2
+  exit 1
+fi
 
-declare -A allowmap
-for item in "${allowed_root_files[@]}"; do
-  allowmap["$item"]=1
-done
+tmp_dir="$(mktemp -d)"
+trap 'rm -rf "${tmp_dir}"' EXIT
 
-unexpected=()
-while IFS= read -r tracked; do
-  if [[ "$tracked" == */* ]]; then
-    continue
-  fi
-  if [[ -z "${allowmap[$tracked]+x}" ]]; then
-    unexpected+=("$tracked")
-  fi
-done < <(git ls-files)
+policy_root_files="${tmp_dir}/policy_root_files.txt"
+tracked_root_files="${tmp_dir}/tracked_root_files.txt"
 
-if [[ ${#unexpected[@]} -eq 0 ]]; then
-  echo "Repo hygiene audit: no unexpected tracked root files found."
+awk '
+  /Current allowed tracked root files:/ {capture=1; next}
+  capture && /^## / {exit}
+  capture && /^- `[^`]+`$/ {
+    line=$0
+    sub(/^- `/, "", line)
+    sub(/`$/, "", line)
+    print line
+  }
+' "${policy_file}" | sort > "${policy_root_files}"
+
+if [[ ! -s "${policy_root_files}" ]]; then
+  echo "Repo hygiene audit: failed to parse root file allowlist from policy." >&2
+  exit 1
+fi
+
+git -C "${repo_root}" ls-files | awk -F/ 'NF==1 {print $0}' | sort > "${tracked_root_files}"
+
+if diff -u "${policy_root_files}" "${tracked_root_files}" > "${tmp_dir}/drift.diff"; then
+  echo "Repo hygiene audit: tracked root files match docs/REPO_HYGIENE_POLICY.md."
   exit 0
 fi
 
-echo "Repo hygiene audit: unexpected tracked root files detected:"
-for item in "${unexpected[@]}"; do
-  echo "  - $item"
-done
-
+echo "Repo hygiene audit: tracked root surface drifted from docs/REPO_HYGIENE_POLICY.md."
 echo
-echo "Suggested next step: move artifacts under docs/, examples/, scripts/, notes/, or tmp/ as appropriate."
+cat "${tmp_dir}/drift.diff"
+echo
+echo "Suggested next step: update docs/REPO_HYGIENE_POLICY.md and tests/repo_hygiene_contract.rs together if the drift is intentional."
 exit 1
