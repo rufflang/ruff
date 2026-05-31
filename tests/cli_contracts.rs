@@ -149,6 +149,83 @@ fn cli_lsp_diagnostics_json_is_valid_json() {
 }
 
 #[test]
+fn cli_lsp_complete_plain_and_json_modes_are_stable() {
+    let dir = unique_temp_dir("cli_lsp_complete_modes");
+    let file = dir.join("complete.ruff");
+    write_fixture(&file, "let alpha := 1\nprint(al)\n");
+
+    let plain = run_ruff(&[
+        "lsp-complete",
+        file.to_str().expect("path should be utf-8"),
+        "--line",
+        "2",
+        "--column",
+        "8",
+    ]);
+    assert_eq!(plain.status.code(), Some(0));
+    assert!(plain.stderr.is_empty(), "plain completion should not write stderr");
+    let plain_stdout = String::from_utf8(plain.stdout).expect("stdout should be utf-8");
+    assert!(
+        plain_stdout.lines().all(|line| line.contains('\t')),
+        "plain completion lines should remain tab-delimited label/kind rows"
+    );
+
+    let json = run_ruff(&[
+        "lsp-complete",
+        file.to_str().expect("path should be utf-8"),
+        "--line",
+        "2",
+        "--column",
+        "8",
+        "--json",
+    ]);
+    assert_eq!(json.status.code(), Some(0));
+    assert!(json.stderr.is_empty(), "json completion should not write stderr");
+    let json_stdout = String::from_utf8(json.stdout).expect("stdout should be utf-8");
+    let parsed: Value =
+        serde_json::from_str(&json_stdout).expect("json completion should be valid");
+    assert!(parsed.is_array(), "json completion should be an array");
+}
+
+#[test]
+fn cli_lsp_rename_invalid_identifier_uses_runtime_error_stderr() {
+    let dir = unique_temp_dir("cli_lsp_rename_invalid_identifier");
+    let file = dir.join("rename.ruff");
+    write_fixture(&file, "let value := 1\nprint(value)\n");
+
+    let output = run_ruff(&[
+        "lsp-rename",
+        file.to_str().expect("path should be utf-8"),
+        "--line",
+        "1",
+        "--column",
+        "5",
+        "--new-name",
+        "123bad",
+    ]);
+    assert_eq!(output.status.code(), Some(EXIT_RUNTIME_ERROR));
+    assert!(output.stdout.is_empty(), "rename validation failure should not write stdout");
+    let stderr = String::from_utf8(output.stderr).expect("stderr should be utf-8");
+    assert!(
+        stderr.contains("start with a letter or underscore"),
+        "rename validation message should be surfaced on stderr"
+    );
+}
+
+#[test]
+fn cli_lsp_diagnostics_missing_file_uses_io_error_and_stderr() {
+    let dir = unique_temp_dir("cli_lsp_missing_file");
+    let missing = dir.join("missing.ruff");
+    let output =
+        run_ruff(&["lsp-diagnostics", missing.to_str().expect("path should be utf-8"), "--json"]);
+
+    assert_eq!(output.status.code(), Some(EXIT_IO_ERROR));
+    assert!(output.stdout.is_empty(), "missing-file diagnostics failure should not write stdout");
+    let stderr = String::from_utf8(output.stderr).expect("stderr should be utf-8");
+    assert!(stderr.contains("Failed to read .ruff file"));
+}
+
+#[test]
 fn cli_check_does_not_execute_script_side_effects() {
     let dir = unique_temp_dir("cli_check_no_side_effects");
     let file = dir.join("check_only.ruff");

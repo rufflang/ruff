@@ -351,8 +351,83 @@ pub fn generate_flamegraph_data(profile: &CPUProfile) -> String {
     lines.join("\n")
 }
 
+/// Render a deterministic, no-color profiling report for snapshots/tests.
+pub fn render_profile_report_text(profile: &ProfileData) -> String {
+    let mut out = String::new();
+    out.push_str("\n=== Performance Profile Report ===\n");
+
+    if profile.config.cpu_profiling {
+        out.push_str("\nCPU Profile:\n");
+        out.push_str(&format!("  Total Time: {:.3}s\n", profile.cpu.total_time.as_secs_f64()));
+        out.push_str(&format!("  Samples: {}\n", profile.cpu.sample_count));
+
+        let top_funcs = profile.cpu.top_functions(10);
+        if !top_funcs.is_empty() {
+            out.push_str("\n  Top Hot Functions:\n");
+            for (i, (name, duration, percentage)) in top_funcs.iter().enumerate() {
+                out.push_str(&format!(
+                    "    {}. {:<30} {:>8.3}s ({:>5.1}%)\n",
+                    i + 1,
+                    name.chars().take(30).collect::<String>(),
+                    duration.as_secs_f64(),
+                    percentage
+                ));
+            }
+        }
+    }
+
+    if profile.config.memory_profiling {
+        out.push_str("\nMemory Profile:\n");
+        let stats = profile.memory.stats();
+        out.push_str(&format!("  Peak Memory: {:.2} MB\n", stats.peak_mb));
+        out.push_str(&format!("  Current Memory: {:.2} MB\n", stats.current_mb));
+        out.push_str(&format!("  Total Allocations: {}\n", stats.total_allocations));
+        out.push_str(&format!("  Total Deallocations: {}\n", stats.total_deallocations));
+
+        if stats.leaked_objects > 0 {
+            out.push_str(&format!("  WARN Leaked Objects: {}\n", stats.leaked_objects));
+        }
+
+        let hotspots = profile.memory.top_hotspots(5);
+        if !hotspots.is_empty() {
+            out.push_str("\n  Top Allocation Hotspots:\n");
+            for (i, (location, count)) in hotspots.iter().enumerate() {
+                out.push_str(&format!("    {}. {:<40} {:>6} allocs\n", i + 1, location, count));
+            }
+        }
+    }
+
+    if profile.config.jit_stats {
+        out.push_str("\nJIT Statistics:\n");
+        out.push_str(&format!("  Functions Compiled: {}\n", profile.jit.functions_compiled));
+        out.push_str(&format!("  Recompilations: {}\n", profile.jit.recompilations));
+        out.push_str(&format!(
+            "  Total Compile Time: {:.3}s\n",
+            profile.jit.total_compile_time.as_secs_f64()
+        ));
+        out.push_str(&format!("  Cache Hit Rate: {:.1}%\n", profile.jit.hit_rate()));
+        out.push_str(&format!("  Guard Success Rate: {:.1}%\n", profile.jit.guard_success_rate()));
+
+        if profile.jit.guard_failures > 0 {
+            let failure_rate = 100.0 - profile.jit.guard_success_rate();
+            if failure_rate > 5.0 {
+                out.push_str(&format!("  WARN High guard failure rate: {:.1}%\n", failure_rate));
+                out.push_str("     Consider adjusting specialization thresholds\n");
+            }
+        }
+    }
+
+    out.push_str("\n===================================\n");
+    out
+}
+
 /// Print profiling report
 pub fn print_profile_report(profile: &ProfileData) {
+    if std::env::var_os("NO_COLOR").is_some() {
+        print!("{}", render_profile_report_text(profile));
+        return;
+    }
+
     use colored::Colorize;
 
     println!("\n{}", "=== Performance Profile Report ===".bold().cyan());
@@ -494,5 +569,37 @@ mod tests {
         assert_eq!(data.memory.total_allocations, 1);
         assert_eq!(data.jit.functions_compiled, 1);
         assert_eq!(data.jit.cache_hits, 1);
+    }
+
+    #[test]
+    fn render_profile_report_text_is_deterministic_and_no_color() {
+        let mut profiler = Profiler::new(ProfileConfig::default());
+        profiler.start();
+        profiler.record_function("parse".to_string(), Duration::from_millis(7));
+        profiler.record_allocation(2048, "parser.rs:10".to_string());
+        profiler.record_jit_compile(Duration::from_millis(3));
+        profiler.record_cache_hit();
+        profiler.record_guard_success();
+        profiler.stop();
+
+        let output = render_profile_report_text(profiler.data());
+        assert!(output.contains("=== Performance Profile Report ==="));
+        assert!(output.contains("CPU Profile:"));
+        assert!(output.contains("Memory Profile:"));
+        assert!(output.contains("JIT Statistics:"));
+        assert!(output.contains("parse"));
+        assert!(!output.contains("\u{1b}["), "text render should not include ANSI escapes");
+    }
+
+    #[test]
+    fn generate_flamegraph_data_is_stable_for_known_profile() {
+        let mut profile = CPUProfile::new();
+        profile.record_function("func_a".to_string(), Duration::from_micros(250));
+        profile.record_function("func_b".to_string(), Duration::from_micros(500));
+
+        let output = generate_flamegraph_data(&profile);
+        assert!(output.contains("func_a 250"));
+        assert!(output.contains("func_b 500"));
+        assert_eq!(output.lines().count(), 2);
     }
 }

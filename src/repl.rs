@@ -113,6 +113,54 @@ pub struct Repl {
 }
 
 impl Repl {
+    fn render_banner_text() -> String {
+        [
+            "╔══════════════════════════════════════════════════════╗",
+            "║          Ruff REPL v0.5.0 - Interactive Shell       ║",
+            "╚══════════════════════════════════════════════════════╝",
+            "",
+            "  Welcome! Use :help for commands or :quit",
+            "  Tip: Multi-line input: End with unclosed braces",
+            "",
+        ]
+        .join("\n")
+    }
+
+    fn render_help_text() -> String {
+        [
+            "",
+            "REPL Commands:",
+            "",
+            "  :help or :h      Display this help message",
+            "  :quit or :q      Exit the REPL",
+            "  :clear or :c     Clear the screen",
+            "  :vars or :v      Show defined variables",
+            "  :reset or :r     Reset environment",
+            "  .help <function> Show builtin docs",
+            "",
+            "Navigation:",
+            "",
+            "  ↑/↓ arrows  Navigate command history",
+            "  Ctrl+C      Interrupt current input",
+            "  Ctrl+D      Exit REPL",
+            "",
+            "Multi-line Input:",
+            "",
+            "  Leave braces, brackets, or parentheses unclosed to continue",
+            "  on the next line. Close them to execute the statement.",
+            "",
+            "Examples:",
+            "",
+            "  ruff> let x := 42",
+            "  ruff> func greet(name) {",
+            "  ....>     print(\"Hello, \" + name)",
+            "  ....> }",
+            "  ruff> greet(\"World\")",
+            "",
+        ]
+        .join("\n")
+    }
+
     /// Creates a new REPL session with a fresh interpreter
     pub fn new() -> Result<Self, Box<dyn std::error::Error>> {
         let mut editor = Editor::<ReplHelper, DefaultHistory>::new()?;
@@ -122,6 +170,11 @@ impl Repl {
 
     /// Displays the welcome banner with version and help information
     fn show_banner(&self) {
+        if std::env::var_os("NO_COLOR").is_some() {
+            println!("{}", Self::render_banner_text());
+            return;
+        }
+
         println!("{}", "╔══════════════════════════════════════════════════════╗".bright_cyan());
         println!("{}", "║          Ruff REPL v0.5.0 - Interactive Shell       ║".bright_cyan());
         println!("{}", "╚══════════════════════════════════════════════════════╝".bright_cyan());
@@ -254,6 +307,11 @@ impl Repl {
 
     /// Displays help information about available commands
     fn show_help(&self) {
+        if std::env::var_os("NO_COLOR").is_some() {
+            println!("{}", Self::render_help_text());
+            return;
+        }
+
         println!();
         println!("{}", "REPL Commands:".bright_cyan().bold());
         println!();
@@ -561,7 +619,7 @@ fn is_input_complete_text(input: &str) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use super::is_input_complete_text;
+    use super::{is_input_complete_text, Repl};
 
     #[test]
     fn multiline_validator_detects_unclosed_delimiters() {
@@ -578,5 +636,23 @@ mod tests {
     fn multiline_validator_accepts_complete_input() {
         assert!(is_input_complete_text("let x := 1\n"));
         assert!(is_input_complete_text("print(1)\n"));
+    }
+
+    #[test]
+    fn banner_text_snapshot_is_deterministic_and_no_color() {
+        let text = Repl::render_banner_text();
+        assert!(text.contains("Ruff REPL v0.5.0 - Interactive Shell"));
+        assert!(text.contains("Welcome! Use :help for commands or :quit"));
+        assert!(!text.contains("\u{1b}["), "snapshot text should not include ANSI escapes");
+    }
+
+    #[test]
+    fn help_text_snapshot_is_deterministic_and_no_color() {
+        let text = Repl::render_help_text();
+        assert!(text.contains("REPL Commands:"));
+        assert!(text.contains(":help or :h"));
+        assert!(text.contains("Multi-line Input:"));
+        assert!(text.contains("ruff> let x := 42"));
+        assert!(!text.contains("\u{1b}["), "snapshot text should not include ANSI escapes");
     }
 }
