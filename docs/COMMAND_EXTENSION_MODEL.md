@@ -42,7 +42,7 @@ Canonical pack-local execution path:
 
 Example:
 
-- `ruff pack run tud sprint-report`
+- `ruff pack run acme sprint-report`
 
 ## Optional alias model
 
@@ -65,6 +65,5 @@ Alias routing rejects collisions with reserved top-level names and reserved name
   - Reserved core family (future/first-party handling surface).
 - `ruff doctor wordpress`:
   - Intended profile execution shape from contributed doctor profiles.
-- `ruff pack run tud sprint-report`:
+- `ruff pack run acme sprint-report`:
   - Safe canonical pack-local command execution path.
-
