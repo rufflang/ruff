@@ -2,464 +2,558 @@
 
 ## Executive summary
 
-Ruff already has strong machine-readable JSON contracts and a clear diagnostics model, but human-readable output and script-level reporting patterns are still highly repetitive and mostly ad hoc.
+Ruff already has solid foundations for AI-friendly workflows: stable JSON contracts, deterministic text renderers in several subsystems, and a small shared output helper module in src/cli_output.rs.
 
-The biggest near-term opportunities are:
+The biggest remaining opportunities are targeted consistency and compression improvements:
 
-1. Add a small shared output/report rendering primitive set (Rust-side first, Ruff-script-facing second).
-2. Reduce duplicated JSON/human output branching in `src/main.rs` command handlers.
-3. Add snapshot/golden coverage for human-readable renderers (not just JSON contracts).
-4. Update docs/examples to teach intent-first output patterns (instead of manual `print` + alignment mechanics).
-5. Burn down expected-fail docs/example debt so agent context is cleaner and more trustworthy.
+1. Unify remaining output mechanics in high-churn CLI/report surfaces.
+2. Reduce repeated line-building/string-assembly logic in renderers.
+3. Improve Ruff script examples so they teach intent-first output patterns.
+4. Expand human-output contract tests where rendering is currently weakly asserted.
+5. Reduce example debt that makes agent context less trustworthy.
 
 Recommended implementation order:
 
-1. Output/render helper foundations + tests.
-2. Refactor high-churn CLI/render call sites.
-3. Documentation and example refresh.
-4. Regression and compatibility validation.
-
-## Closure status (2026-05-31)
-
-Implementation checklist status:
-
-- Completed items: 19
-- Remaining items: 0
-
-Closure evidence (high level):
-
-- Shared output helpers and LSP JSON emission consolidation are in place (`src/cli_output.rs`, `src/main.rs`).
-- Human-render deterministic coverage now includes workflow pack, benchmark reporter, profiler report text renderer, and REPL banner/help text.
-- LSP CLI plain/json mode and stderr-routing contract tests were added in `tests/cli_contracts.rs`.
-- Dual-mode output inventory and migration notes are documented in:
-  - `docs/CLI_DUAL_MODE_OUTPUT_INVENTORY.md`
-  - `docs/OUTPUT_HELPER_MIGRATION_NOTE.md`
+1. Lock down current behavior with stronger tests.
+2. Add minimal shared helpers (Rust-side first, then Ruff-script conventions).
+3. Refactor highest-value call sites with no behavior changes.
+4. Update docs/examples to codify preferred style.
+5. Run regression and contract checks before broader migration.
 
 ## Highest-priority opportunities
 
-### 1) Consolidate Rust CLI output emission paths
+### 1) Consolidate dual-mode CLI output shaping
 
 - Problem
-  - Many command handlers hand-roll near-identical `if json { serialize } else { println! }` logic with repeated serialization error handling and repeated line formatting.
+  - LSP command handlers still repeat the same branch shape: collect result, map JSON fields, map plain rows, print.
 - Evidence from the codebase
-  - `src/main.rs:2349-2620` (`LspComplete`, `LspDefinition`, `LspReferences`, `LspHover`, `LspDiagnostics`, `LspRename`, `LspCodeActions`) duplicates JSON serialization + plain-text rendering patterns.
-  - `src/main.rs:2365-2369`, `2394-2398`, `2436-2440`, `2474-2478`, `2508-2512`, `2561-2565`, `2602-2606` repeat the same serialization-failure flow.
-  - `src/main.rs:2031-2270` SSG benchmark output includes a long sequence of manually formatted sections/warnings/hints.
+  - Shared JSON serialization helper exists at src/main.rs:955, but output shaping remains duplicated across src/main.rs:2647, src/main.rs:2670, src/main.rs:2704, src/main.rs:2737, src/main.rs:2773, src/main.rs:2798, src/main.rs:2852.
+  - SSG benchmark output also has long manual output sequences at src/main.rs:2308-2567.
 - Why it matters
-  - High drift risk between commands.
-  - Harder for agents to safely edit one command without missing cross-command conventions.
-  - Higher token and diff noise for any output-contract-related change.
+  - Human readability and maintainability suffer.
+  - Agents are likely to edit one branch and miss sibling branches.
+  - Token-heavy repetitive code increases diff noise.
 - Recommended direction
-  - Introduce a minimal Rust-side `CliOut` helper (or `output::emit`) with:
-    - `emit_json<T: Serialize>(value, context)`
-    - `line`, `blank`, `section`, `kv`, `list_item`
-    - optional `warn`/`error` wrappers for consistent stderr style.
+  - Add a tiny internal output-emitter layer for row/record emission and JSON mapping wrappers.
 - Risks
-  - Could accidentally change exact human output shape.
-  - Could unintentionally alter stderr/stdout routing.
+  - Plain-output formatting regressions.
+  - stdout/stderr routing regressions.
 - Suggested implementation checklist
-  - Add helper module with unit tests for JSON emission failure behavior and plain line composition.
-  - Migrate one small command family first (LSP helpers), preserving existing output text.
-  - Add contract tests for migrated commands before broad rollout.
+  - Add baseline plain/json output tests for every LSP command.
+  - Introduce helper primitives: emit_json_rows, emit_plain_rows, emit_optional_record.
+  - Migrate one LSP command at a time and run contracts after each step.
 
-### 2) Introduce a standard report/output DSL for Ruff scripts and examples
+### 2) Reduce renderer duplication across workflow, benchmark, and docgen paths
 
 - Problem
-  - Script-facing patterns are verbose and mechanical (`print` storms, manual padding, `push` reassignment loops).
+  - Multiple renderers manually append lines via push_str and format sequences.
 - Evidence from the codebase
-  - `examples/benchmarks/run_benchmarks.ruff:72-178` manually builds headers, paddings, aligned columns, and repeated status lines.
-  - `examples/expense_tracker.ruff:16-24`, `53-55`, `74-111` repeatedly prints banners, sections, and list items manually.
-  - `docs/WORKFLOW_PACKS.md:103-131` sample command manually pushes checks and computes summary counters.
-  - `docs/FIRST_TOOL_COOKBOOK.md:64` explicitly teaches reassignment-based `push` update semantics.
+  - Workflow markdown renderer: src/workflow_pack/renderer.rs:143-212.
+  - Benchmark text renderers: src/benchmarks/reporter.rs:68-158 and src/benchmarks/profiler.rs:357-420.
+  - Docgen renderers: src/docgen/render/html.rs:11-79, src/docgen/render/markdown.rs:11-34, src/docgen/core.rs:876-917.
 - Why it matters
-  - Teaches low-level mechanics instead of intent.
-  - Generates long repetitive code blocks in agent context.
-  - Increases chance of formatting/label inconsistency.
+  - Intent is hidden by mechanical string assembly.
+  - Agents must touch many near-identical lines for small output changes.
 - Recommended direction
-  - Provide a tiny, explicit output/report helper surface for Ruff scripts (module or stdlib-level):
-    - `out.section(title)`
-    - `out.kv(label, value)`
-    - `out.list(items)`
-    - `out.table(headers, rows)`
-    - `report.new/check/summary/render` for doctor/checklist-like tools.
+  - Introduce small internal builders (TextBuilder, MarkdownBuilder) with explicit primitives.
 - Risks
-  - Prematurely over-scoping a DSL.
-  - Confusion if helpers overlap existing JSON-only workflows.
+  - Over-abstraction can hide ordering semantics.
 - Suggested implementation checklist
-  - Start with 4-5 minimal helpers and keep them composable.
-  - Port one canonical example (`run_benchmarks.ruff` or workflow-pack sample) to validate ergonomics.
-  - Add example-output contract tests.
+  - Start with workflow markdown renderer.
+  - Preserve byte-for-byte output for first migration.
+  - Add stronger output tests before expanding to docgen.
 
-### 3) Add human-render output golden tests beyond diagnostics
+### 3) Normalize Ruff script output idioms in examples
 
 - Problem
-  - JSON surfaces are well-covered, but many human-readable renderers are not contract-protected.
+  - Many examples still teach manual print storms and mechanical report construction.
 - Evidence from the codebase
-  - Strong coverage exists for diagnostics and JSON contracts:
-    - `tests/diagnostics_golden.rs:107-169`
-    - `tests/cli_json_contracts.rs:73+`
-    - `docs/CLI_MACHINE_READABLE_CONTRACTS.md:47-207`
-  - But renderer-heavy modules have little/no snapshot coverage:
-    - `src/workflow_pack/renderer.rs:10-88`, `135-220` (no output snapshot tests)
-    - `src/benchmarks/reporter.rs:10-169`
-    - `src/benchmarks/profiler.rs:355-422`
-    - `src/repl.rs:124-327`
+  - examples/file_operations_demo.ruff:4-85.
+  - examples/projects/log_parser.ruff:4-193.
+  - examples/project_markdown_converter.ruff:177-219.
+  - README quick start still models direct output branching at README.md:120-122.
 - Why it matters
-  - Human-facing output is a stability surface for operators, onboarding docs, and AI scraping workflows.
-  - Refactors become risky without byte-shape guards.
+  - Humans copy verbose patterns.
+  - Agents consume token-heavy examples and generate similarly noisy code.
 - Recommended direction
-  - Add golden tests for representative human-rendered outputs in these modules.
+  - Adopt canonical local helper idiom in examples (section, kv, item, status).
 - Risks
-  - Brittle tests if color control and environment normalization are inconsistent.
+  - Over-refactoring may make beginner examples less direct.
 - Suggested implementation checklist
-  - Add `NO_COLOR`-normalized snapshot helpers.
-  - Snapshot workflow pack human + markdown outputs.
-  - Snapshot benchmark and REPL help/banner output.
+  - Define “tiny script” vs “report script” guideline.
+  - Refactor three canonical examples first.
+  - Add output snapshots for those examples.
 
-### 4) Align docs/examples with AI-native style guidance
+### 4) Expand output contract coverage where tests are currently lenient
 
 - Problem
-  - Current docs intentionally teach valid behavior, but not yet a preferred concise output-building style.
+  - Several rendering tests rely on contains assertions rather than exact output shape.
 - Evidence from the codebase
-  - `docs/FIRST_TOOL_COOKBOOK.md:24-50` teaches direct `print` chains.
-  - `docs/STANDARD_LIBRARY_REFERENCE.md:81-85` emphasizes reassigning collection helper results.
-  - `docs/WORKFLOW_PACKS.md:103-131` sample emphasizes manual summary/aggregation mechanics.
-  - `tests/docs_examples.rs:91-161` tracks 29 expected-fail examples; this reduces trust in examples as canonical agent context.
+  - workflow markdown test checks fragments: src/workflow_pack/renderer.rs:426-464.
+  - benchmark reporter tests are contains-based: src/benchmarks/reporter.rs:182-219.
+  - profiler text test is contains-based: src/benchmarks/profiler.rs:575-591.
+  - REPL text tests are contains-based: src/repl.rs:643-656.
+  - interpreter test runner has output logic but no dedicated output tests: src/interpreter/test_runner.rs:175-218.
+  - docgen renderers currently have no output snapshot tests.
 - Why it matters
-  - Docs are high-priority context for both humans and agents.
-  - Verbose/legacy patterns get copied forward.
+  - Formatting drift can pass tests.
+  - Agents lack strong safety rails during refactors.
 - Recommended direction
-  - Add a style section for "human + agent readable CLI/report output" and migrate canonical docs examples to that style.
+  - Add deterministic full-output snapshots for operator-facing renderers.
 - Risks
-  - Mixed style during migration can confuse contributors.
+  - Snapshot churn if formatting intent is not clearly defined.
 - Suggested implementation checklist
-  - Define one "preferred" and one "acceptable low-level" style.
-  - Update cookbook + workflow docs after helpers exist.
-  - Add policy checks or doc lints for newly added examples.
+  - Add snapshot normalization helper.
+  - Snapshot strict surfaces first (LSP plain rows, workflow markdown, test-runner summary).
+  - Keep contains checks only where intentional flexibility is desired.
 
-### 5) Reduce repetitive text-construction mechanics in Rust renderers
+### 5) Reduce documentation/example trust debt in AI context
 
 - Problem
-  - Several modules manually append/format lines where semantic helpers would be clearer.
+  - The expected-fail example list is still large and includes high-visibility scripts.
 - Evidence from the codebase
-  - `src/errors.rs:244-267` builds human output via `Vec<String>` + `push` + `join("\n")`.
-  - `src/benchmarks/profiler.rs:341-351` manually builds flamegraph line arrays.
-  - `src/interpreter/test_runner.rs:178-219`, `src/workflow_pack/renderer.rs:13-87`, `src/benchmarks/reporter.rs:12-166` are print-heavy imperative rendering blocks.
+  - tests/docs_examples.rs:91 tracks 29 expected-fail examples.
+  - Includes examples/benchmarks/run_benchmarks.ruff (tests/docs_examples.rs:99), examples/project_markdown_converter.ruff (tests/docs_examples.rs:133), and examples/projects/log_parser.ruff (tests/docs_examples.rs:148).
+  - Docs already recommend helper-oriented style at docs/FIRST_TOOL_COOKBOOK.md:68 and docs/STANDARD_LIBRARY_REFERENCE.md:86-99, but examples are inconsistent.
 - Why it matters
-  - High local repetition and low semantic signaling.
-  - Agents editing one line risk missing adjacent required output conventions.
+  - Mixed style signals for humans.
+  - Agents learn from stale or known-broken patterns.
 - Recommended direction
-  - Introduce tiny local helper functions before broader abstractions (e.g., `print_header`, `print_kv`, `status_badge`, `render_section`).
+  - Prioritize cleanup for the most copied/high-visibility expected-fail examples.
 - Risks
-  - Over-abstraction can hide order-sensitive behavior.
+  - Removing examples without replacement reduces tutorial coverage.
 - Suggested implementation checklist
-  - Apply small helper extraction with no behavior changes.
-  - Add before/after snapshot assertions.
+  - Rank expected-fail examples by visibility.
+  - Repair or quarantine highest-value examples first.
+  - Add explicit legacy markers for intentionally non-canonical examples.
 
 ## Repeated output/rendering patterns
 
-1. Rust CLI JSON/human branching duplication
-- `src/main.rs:2349-2620` repeats per-command serialization and fallback formatting.
+1. Repeated dual-mode output branching in LSP handlers.
+- Evidence: src/main.rs:2647-2869.
 
-2. Repeated human status rendering
-- `src/workflow_pack/renderer.rs:61-87` manually maps statuses + suggested fix output.
-- `src/interpreter/test_runner.rs:182-219` repeats pass/fail summary layout.
+2. Repeated status/field/warning output loops in SSG benchmark command.
+- Evidence: src/main.rs:2308-2567.
 
-3. Manual section headers and separators
-- `src/benchmarks/reporter.rs:10-20`, `123-167`.
-- `src/benchmarks/profiler.rs:358-422`.
-- `src/repl.rs:124-139`, `257-289`.
+3. Manual markdown report assembly via push_str chains.
+- Evidence: src/workflow_pack/renderer.rs:143-212, src/docgen/render/markdown.rs:11-34, src/docgen/core.rs:891-917.
 
-4. Line-vector construction patterns
-- `src/errors.rs:244-267`.
-- `src/benchmarks/profiler.rs:341-351`.
+4. Manual HTML assembly via string fragment pushes.
+- Evidence: src/docgen/render/html.rs:11-79, src/docgen/core.rs:880-885.
 
-5. Ruff-script repetitive print/table mechanics
-- `examples/benchmarks/run_benchmarks.ruff:126-171`.
-- `examples/expense_tracker.ruff:16-24`, `53-55`, `97-107`.
+5. Repeated println sequences for headers and metrics.
+- Evidence: src/benchmarks/reporter.rs:27-61, src/interpreter/test_runner.rs:178-218.
 
-6. Docs teaching manual push/reassign loops
-- `docs/FIRST_TOOL_COOKBOOK.md:64`.
-- `docs/WORKFLOW_PACKS.md:109-121`.
+6. Repeated print section formatting in Ruff examples.
+- Evidence: examples/file_operations_demo.ruff:4-85, examples/projects/log_parser.ruff:4-193.
+
+7. Repeated line array push/join mechanics in converter example.
+- Evidence: examples/project_markdown_converter.ruff:116-124, examples/project_markdown_converter.ruff:167-171, examples/project_markdown_converter.ruff:177-219.
 
 ## Token-efficiency opportunities
 
-1. Duplicate serializer/error branches in `src/main.rs` LSP commands
-- Why it costs tokens: same control flow repeated across 7 commands.
-- Affects: humans + agents.
-- Best fix: Rust helper + local refactor.
+1. LSP branch duplication in src/main.rs.
+- Why it costs extra tokens
+  - Similar JSON/row logic repeated across commands.
+- Affects humans/agents
+  - Both.
+- Best fix type
+  - Internal Rust helper + call-site refactor.
 
-2. Manual alignment/padding in Ruff examples
-- Evidence: `examples/benchmarks/run_benchmarks.ruff:142-163`.
-- Why it costs tokens: alignment mechanics dominate business intent.
-- Affects: mostly agents and onboarding humans.
-- Best fix: helper convention (`out.table`) + example rewrite.
+2. push_str-heavy report rendering in Rust modules.
+- Why it costs extra tokens
+  - Mechanical append operations dominate semantic intent.
+- Affects humans/agents
+  - Both.
+- Best fix type
+  - Builder helper + snapshot-backed refactor.
 
-3. Repeated status/report boilerplate in workflow docs example
-- Evidence: `docs/WORKFLOW_PACKS.md:103-131`.
-- Why it costs tokens: check accumulation and summary recomputation boilerplate.
-- Affects: both.
-- Best fix: report helper API + docs update.
+3. print storms in high-visibility examples.
+- Why it costs extra tokens
+  - Repetitive separators and labels dominate logic.
+- Affects humans/agents
+  - Mostly agents, also humans.
+- Best fix type
+  - Documentation pattern + canonical example updates.
 
-4. `push` reassignment verbosity in iterative construction
-- Evidence: `docs/STANDARD_LIBRARY_REFERENCE.md:83-85`, `examples/ssg/test_push_fix.ruff:8-31`.
-- Why it costs tokens: extra identifier repetition (`items = push(items, v)`) across loops.
-- Affects: mostly agents.
-- Best fix: convention/helper first; potential language ergonomic feature later.
+4. Mechanics-heavy workflow pack sample.
+- Why it costs extra tokens
+  - Manual summary loops and push mechanics for a common task.
+- Affects humans/agents
+  - Both.
+- Best fix type
+  - Docs sample redesign + helper pattern.
 
-5. Example debt in expected-fail corpus
-- Evidence: `tests/docs_examples.rs:91-161`.
-- Why it costs tokens: agents consume examples that are intentionally stale/invalid and require exception logic.
-- Affects: both.
-- Best fix: docs/example cleanup program + expected-fail reduction policy.
+5. Expected-fail example corpus as context noise.
+- Why it costs extra tokens
+  - Agents must reason around known-broken examples.
+- Affects humans/agents
+  - Both.
+- Best fix type
+  - Test corpus migration policy.
 
 ## Semantic compression opportunities
 
-1. Status line emission
-- Current: multiple `println!` format blocks with manual status color mapping.
-- Better shape: `out.status(check.status, check.label, check.observed)`.
+1. LSP command output currently encodes mechanics, not intent.
+- Current shape
+  - Per-command branch with inline JSON map + inline plain row formatting.
+- Better semantic shape
+  - emit_lsp_rows and emit_lsp_optional helpers.
 
-2. Section and separator rendering
-- Current: repeated `println!("{}", "=".repeat(...))` and blank-line calls.
-- Better shape: `out.section("Summary")`, `out.separator()`.
+2. Report output currently encodes push mechanics.
+- Current shape
+  - md.push_str and out.push_str sequences.
+- Better semantic shape
+  - section, kv, list, table row primitives.
 
-3. Key-value summaries
-- Current: repeated `println!("  Label: {}", value)`.
-- Better shape: `out.kv("Label", value)` with stable alignment.
+3. Ruff script examples encode formatting mechanics.
+- Current shape
+  - repeated print of headers, blanks, and aligned labels.
+- Better semantic shape
+  - section/kv/item/status helper idiom.
 
-4. Table output
-- Current: manual pad calculation and concatenation in Ruff scripts.
-- Better shape: `out.table(headers, rows)`.
-
-5. Report composition in workflow scripts
-- Current: manual `checks` push + `summary` mutation loops.
-- Better shape: `report.add(check)` + `report.render_json()`.
+4. Converter rendering encodes line-buffer plumbing.
+- Current shape
+  - push lines and join in multiple functions.
+- Better semantic shape
+  - focused render helpers per structural region.
 
 ## Potential standard primitives or helpers
 
-### A) `out.line` / `out.blank` / `out.section`
+### 1) CLI output adapters (Rust internal)
 
 - Name candidates
-  - `out.line`, `out.blank`, `out.section`
-  - `print_line`, `print_blank`, `print_section`
+  - emit_json_rows
+  - emit_plain_rows
+  - emit_optional_record
 - Purpose
-  - Remove repetitive section/header boilerplate in CLI/report output.
+  - Remove duplicated branch mechanics in dual-mode commands.
 - Example API
-  - `out.section("Summary")`
-  - `out.line("done")`
-  - `out.blank()`
+  - emit_lsp_rows(json_mode, values, to_json, to_plain_row, context)
 - Example before/after code
-  - Before: repeated `println!` blocks in `src/repl.rs:257-289`.
-  - After: concise section calls with explicit intent.
-- Where it would be used
-  - `src/repl.rs`, `src/benchmarks/reporter.rs`, `src/interpreter/test_runner.rs`.
-- Test requirements
-  - Snapshot tests for spacing/newline behavior.
-  - Color/no-color parity tests.
 
-### B) `out.kv(label, value)`
+Before:
+```rust
+if json {
+	let rows = values.iter().map(|v| serde_json::json!({ ... })).collect::<Vec<_>>();
+	emit_json_or_internal_error(&rows, "context");
+} else {
+	for v in values {
+		println!("...", ...);
+	}
+}
+```
+
+After:
+```rust
+emit_lsp_rows(
+	json,
+	&values,
+	|v| serde_json::json!({ ... }),
+	|v| format!("...", ...),
+	"context",
+);
+```
+
+- Where it would be used
+  - src/main.rs:2647-2869.
+- Test requirements
+  - Row-shape tests for every LSP command.
+  - JSON-shape tests and stderr/stdout routing tests.
+
+### 2) TextBuilder (Rust internal)
 
 - Name candidates
-  - `out.kv`, `out.field`, `out.pair`
+  - TextBuilder
+  - ReportText
+  - Lines
 - Purpose
-  - Standardize aligned key-value output formatting.
+  - Express line, section, kv, bullet semantics directly.
 - Example API
-  - `out.kv("Warmup runs", warmup_runs)`
+  - tb.section("Summary")
+  - tb.kv("Files", files)
+  - tb.item("hint: rerun with --json")
 - Example before/after code
-  - Before: `src/main.rs:2033-2036`, `2078-2079`, `2136-2139`.
-  - After: repeated metrics become single-shape statements.
-- Where it would be used
-  - SSG benchmark and profiling outputs.
-- Test requirements
-  - Width/alignment tests.
-  - Numeric formatting stability tests.
 
-### C) `out.list(items)` / `out.warn` / `out.error`
+Before:
+```rust
+out.push_str("## Summary\n\n");
+out.push_str(&format!("| PASS | {} |\n", pass));
+out.push_str(&format!("| WARN | {} |\n", warn));
+```
+
+After:
+```rust
+tb.section("Summary");
+tb.table_row(["PASS", pass.to_string()]);
+tb.table_row(["WARN", warn.to_string()]);
+```
+
+- Where it would be used
+  - src/workflow_pack/renderer.rs, src/benchmarks/reporter.rs, src/benchmarks/profiler.rs, src/docgen/core.rs.
+- Test requirements
+  - Byte-for-byte deterministic output tests.
+  - No-color path parity tests where applicable.
+
+### 3) MarkdownBuilder (Rust internal)
 
 - Name candidates
-  - `out.list`, `out.bullets`
-  - `out.warn`, `out.error`, `out.success`
+  - MdBuilder
+  - MarkdownOut
+  - MdReport
 - Purpose
-  - Normalize warning and action hint sections.
+  - Replace manual markdown push_str mechanics with semantic operations.
 - Example API
-  - `out.warn("High variability detected")`
-  - `out.list(hints)`
+  - md.h2("Recommended Next Actions")
+  - md.bullets(actions)
 - Example before/after code
-  - Before: `src/main.rs:2232-2238`, `2258-2269`.
-  - After: warnings/hints rendered with one helper family.
-- Where it would be used
-  - SSG warning sections and workflow summaries.
-- Test requirements
-  - Stable prefix/indent tests.
 
-### D) `out.table(headers, rows)`
+Before:
+```rust
+md.push_str("## Recommended Next Actions\n\n");
+for action in actions {
+	md.push_str(&format!("- {}\n", action));
+}
+```
+
+After:
+```rust
+md.h2("Recommended Next Actions");
+md.blank();
+md.bullets(actions);
+```
+
+- Where it would be used
+  - src/workflow_pack/renderer.rs:139-212, src/docgen/render/markdown.rs:11-34, src/docgen/core.rs:891-917.
+- Test requirements
+  - Full markdown snapshot tests, not fragment-only assertions.
+
+### 4) Ruff-script output helper convention (docs/examples first)
 
 - Name candidates
-  - `out.table`, `report.table`, `render_table`
+  - section, kv, item, status_ok, status_warn
+  - out.section, out.kv, out.item
 - Purpose
-  - Replace manual padding logic in Ruff scripts and Rust benchmark output.
+  - Standardize intent-first output style for multi-step scripts.
 - Example API
-  - `out.table(["Benchmark", "VM", "JIT"], rows)`
+  - section("Summary")
+  - kv("ERROR", to_string(error_count))
 - Example before/after code
-  - Before: `examples/benchmarks/run_benchmarks.ruff:142-163`.
-  - After: rows-as-data, renderer handles spacing.
-- Where it would be used
-  - Ruff benchmark examples and potential built-in workflow pack reports.
-- Test requirements
-  - Snapshot tests for column layout and long values.
 
-### E) `Report` builder for workflow/check outputs
+Before:
+```ruff
+print("=== Log Level Summary ===")
+print("INFO: " + info_count)
+print("ERROR: " + error_count)
+print("WARNING: " + warning_count)
+```
+
+After:
+```ruff
+section("Log Level Summary")
+kv("INFO", to_string(info_count))
+kv("ERROR", to_string(error_count))
+kv("WARNING", to_string(warning_count))
+```
+
+- Where it would be used
+  - examples/file_operations_demo.ruff, examples/projects/log_parser.ruff, docs/WORKFLOW_PACKS.md sample.
+- Test requirements
+  - Canonical example output snapshots.
+  - docs snippet parse/run verification.
+
+### 5) Workflow report accumulator helper (Ruff-script side)
 
 - Name candidates
-  - `Report.new`, `report.check`, `report.summary`, `report.render`
-  - `DoctorReportBuilder`
+  - report_add_check
+  - report_summary
+  - DoctorReportBuilder
 - Purpose
-  - Reduce manual check aggregation + status computation in scripts.
+  - Eliminate manual summary loops and status drift.
 - Example API
-  - `report := Report.new("acme", "doctor")`
-  - `report.add(check_warn(...))`
-  - `print(report.to_json())`
+  - report = report_add_check(report, check_warn(...))
+  - summary = report_summary(report["checks"])
 - Example before/after code
-  - Before: `docs/WORKFLOW_PACKS.md:103-131`.
-  - After: no manual summary mutation loop.
-- Where it would be used
-  - Workflow pack docs samples and external pack authoring.
-- Test requirements
-  - Summary correctness tests (pass/warn/fail/skip/info).
-  - JSON shape compatibility tests against existing schema.
 
-### F) Rust `emit_json_or_text` helper
+Before:
+```ruff
+summary := {"pass": 0, "warn": 0, "fail": 0, "skip": 0, "info": 0}
+while (i < len(checks)) {
+	status := checks[i]["status"]
+	...
+	i = i + 1
+}
+```
 
-- Name candidates
-  - `emit_json_or_text`, `CliEmitter`, `OutputModeEmitter`
-- Purpose
-  - Remove duplicated command-branch boilerplate and unify serialization failure handling.
-- Example API
-  - `emit_json_or_text(json, || render_text(...), mode)`
-- Example before/after code
-  - Before: `src/main.rs:2349-2620` repeated per command.
-  - After: one standard emission path.
+After:
+```ruff
+summary := report_summary(checks)
+```
+
 - Where it would be used
-  - LSP command handlers and other dual-mode CLI surfaces.
+  - docs/WORKFLOW_PACKS.md:105-141 and third-party pack scripts.
 - Test requirements
-  - Output/stderr/exit-code contract tests for both modes.
+  - Summary correctness tests for mixed statuses.
+  - JSON schema compatibility tests against current DoctorReport shape.
 
 ## Agent-readability risks
 
-1. Near-identical output branches in `src/main.rs` make partial edits error-prone.
-- Likely failure mode: agent updates one command’s JSON shape but misses others.
-- Mitigation: shared emission helpers + command-family tests.
+1. Near-identical LSP command blocks can be edited inconsistently.
+- Likely failure mode
+  - One command updated, sibling commands left stale.
+- Reduction strategy
+  - Shared emit helpers + per-command contract tests.
 
-2. Manual alignment strings and spacing math in examples hide intent.
-- Likely failure mode: accidental column drift or broken layout during edits.
-- Mitigation: table/kv helpers with snapshot tests.
+2. Mixed style guidance (helper recommendations vs manual examples).
+- Likely failure mode
+  - Agents copy verbose print mechanics from examples.
+- Reduction strategy
+  - Promote canonical examples and mark legacy patterns explicitly.
 
-3. Style-teaching docs currently emphasize mechanics (push reassignment, print chaining).
-- Likely failure mode: generated scripts copy verbose anti-patterns.
-- Mitigation: explicit "preferred style" section after helper rollout.
+3. Literal-heavy renderer blocks are fragile in partial patches.
+- Likely failure mode
+  - Unbalanced output fragments and formatting regressions.
+- Reduction strategy
+  - Builder primitives + whole-output snapshots.
 
-4. Human renderers are under-tested compared to JSON contracts.
-- Likely failure mode: unnoticed regressions in operator-facing output.
-- Mitigation: add human-render goldens for workflow/benchmark/repl surfaces.
+4. Contains-only render tests miss format drift.
+- Likely failure mode
+  - Meaningful output changes pass tests.
+- Reduction strategy
+  - Snapshot equality tests for deterministic surfaces.
 
-5. Expected-fail example debt introduces ambiguous truth sources.
-- Likely failure mode: agent consumes stale pattern as canonical usage.
-- Mitigation: reduce expected-fail set and label legacy examples more explicitly.
+5. Expected-fail corpus reduces context trust.
+- Likely failure mode
+  - Agents learn obsolete syntax/patterns.
+- Reduction strategy
+  - Prioritized expected-fail burn-down.
 
 ## Documentation updates needed
 
-1. `docs/FIRST_TOOL_COOKBOOK.md`
-- Add preferred output/report style section with helper-based examples.
+1. Update README quick start to include one intent-first output helper example (README.md:103-122).
 
-2. `docs/WORKFLOW_PACKS.md`
-- Replace manual summary/push sample with report-builder style once available.
-- Keep explicit JSON schema but reduce mechanics in tutorial snippet.
+2. Update docs/WORKFLOW_PACKS.md sample to avoid manual summary loops and direct push mechanics (docs/WORKFLOW_PACKS.md:105-141).
 
-3. `docs/STANDARD_LIBRARY_REFERENCE.md`
-- Add concise guidance for output/report helper usage and when low-level `push` patterns remain acceptable.
+3. Keep docs/FIRST_TOOL_COOKBOOK.md and docs/STANDARD_LIBRARY_REFERENCE.md as style source of truth, then align examples to those recommendations (docs/FIRST_TOOL_COOKBOOK.md:68-81, docs/STANDARD_LIBRARY_REFERENCE.md:86-99).
 
-4. `README.md`
-- Add short pointer to "AI-readable scripting style" section once created.
+4. Add a short “AI-readable output patterns” section that defines when direct print is acceptable vs helper style expected.
 
-5. `docs/CLI_MACHINE_READABLE_CONTRACTS.md`
-- Add note on human-render consistency expectations for dual-mode command families where appropriate.
+5. Add migration notes for examples moved from expected-fail to parse/run-clean status (tests/docs_examples.rs:91-165).
 
 ## Implementation checklist for the next agent
 
 ### Phase 1: Discovery and tests
 
-- Inventory all dual-mode CLI commands (`--json` + human) and record current output shapes for representative fixtures.
-- Add/extend snapshot harness for human renderer outputs in:
-  - `src/workflow_pack/renderer.rs`
-  - `src/benchmarks/reporter.rs`
-  - `src/benchmarks/profiler.rs`
-  - `src/repl.rs` (banner/help)
-- Add focused contract tests for LSP command family output/stderr behavior before refactor.
-- Document any behavior that is intentionally unstable vs stability-surface.
+1. Capture baseline outputs for lsp-complete, lsp-definition, lsp-references, lsp-hover, lsp-diagnostics, lsp-rename, and lsp-code-actions.
+
+2. Expand tests in tests/cli_contracts.rs so every LSP command has:
+- plain-output shape assertions,
+- JSON shape assertions.
+
+3. Add deterministic renderer snapshots for:
+- workflow markdown output,
+- benchmark reporter text,
+- profiler text,
+- REPL banner/help text,
+- interpreter test-runner output,
+- docgen markdown/html outputs.
+
+4. Add snapshot update and normalization helpers (line endings, optional ANSI stripping).
 
 ### Phase 2: Minimal helper implementation
 
-- Add a Rust output helper module with:
-  - `emit_json<T: Serialize>` (shared serialization + error handling)
-  - `section`, `kv`, `blank`, `list_item` (small pure helpers)
-- Keep helpers intentionally simple; no broad trait-heavy abstraction.
-- Add unit tests for helper output formatting and serialization error paths.
+1. Add narrowly scoped LSP output helpers in Rust (internal only).
+
+2. Add TextBuilder and MarkdownBuilder with core primitives:
+- line, blank, section, kv, item, table_row.
+
+3. Keep helper APIs small and additive; no output behavior changes in this phase.
+
+4. Add unit tests for helper formatting edge cases.
 
 ### Phase 3: Refactor high-value call sites
 
-- Refactor LSP command handlers in `src/main.rs` to use shared JSON emission helper without changing payload fields.
-- Refactor one high-noise human renderer (suggest `src/workflow_pack/renderer.rs`) to helper calls while preserving output.
-- Refactor one benchmark renderer (`src/benchmarks/reporter.rs` or `src/benchmarks/profiler.rs`) as a second validation target.
-- Run and update snapshots only when output intent changes are explicitly approved.
+1. Refactor LSP command handlers in src/main.rs to helper-based output while preserving payload fields and row formats.
+
+2. Refactor workflow markdown renderer (src/workflow_pack/renderer.rs:139-212) to builders with output parity.
+
+3. Refactor one docgen renderer first (src/docgen/render/markdown.rs), then html renderer if stable.
+
+4. Refactor src/interpreter/test_runner.rs output to helper lines and add dedicated tests.
+
+5. Refactor SSG benchmark summary/warning output in src/main.rs:2308-2567 after tests lock formatting intent.
 
 ### Phase 4: Documentation and examples
 
-- Update `docs/FIRST_TOOL_COOKBOOK.md` with preferred helper-based output style.
-- Update `docs/WORKFLOW_PACKS.md` sample to reduce manual summary and list mechanics.
-- Add short style guidance to `docs/STANDARD_LIBRARY_REFERENCE.md` on output/report patterns.
-- Convert at least one benchmark/example script to the new style as canonical reference.
+1. Update README quick start to demonstrate concise output style.
+
+2. Update docs/WORKFLOW_PACKS.md sample to use cleaner report/output helpers.
+
+3. Refactor three canonical examples to helper style:
+- one simple CLI demo,
+- examples/projects/log_parser.ruff,
+- examples/project_markdown_converter.ruff (output/report sections first).
+
+4. Add explicit guidance section covering:
+- acceptable direct-print cases,
+- preferred helper style for multi-step scripts,
+- machine-readable output contract guidance.
+
+5. Reclassify fixed examples in tests/docs_examples.rs from expected-fail to parse/run modes.
 
 ### Phase 5: Regression review
 
-- Run contract suites:
-  - `cargo test --test cli_json_contracts`
-  - `cargo test --test cli_contracts`
-  - diagnostics goldens
-  - docs/examples smoke tests
-- Confirm no changes to documented JSON schemas and exit-code policy.
-- Verify human-render snapshots are deterministic with `NO_COLOR=1`.
-- Produce a migration note listing any call sites intentionally left on low-level patterns and why.
+1. Run contract and golden suites:
+- CLI contracts,
+- diagnostics goldens,
+- docs examples smoke tests,
+- renderer snapshots.
+
+2. Verify no JSON schema changes for documented machine-readable outputs.
+
+3. Verify stderr/stdout routing and exit-code behavior remain unchanged.
+
+4. Review diffs for token-noise reduction and semantic clarity improvements.
+
+5. Record intentionally deferred call sites in docs/OUTPUT_HELPER_MIGRATION_NOTE.md with rationale.
 
 ## Files reviewed
 
-- `src/main.rs`
-- `src/workflow_pack/mod.rs`
-- `src/workflow_pack/renderer.rs`
-- `src/workflow_pack/types.rs`
-- `src/benchmarks/reporter.rs`
-- `src/benchmarks/profiler.rs`
-- `src/interpreter/test_runner.rs`
-- `src/errors.rs`
-- `src/repl.rs`
-- `src/docgen/core.rs`
-- `tests/cli_json_contracts.rs`
-- `tests/cli_contracts.rs`
-- `tests/diagnostics_contract.rs`
-- `tests/diagnostics_golden.rs`
-- `tests/docs_examples.rs`
-- `docs/CLI_MACHINE_READABLE_CONTRACTS.md`
-- `docs/FIRST_TOOL_COOKBOOK.md`
-- `docs/STANDARD_LIBRARY_REFERENCE.md`
-- `docs/WORKFLOW_PACKS.md`
-- `docs/AI_CENTRIC_GAP_ANALYSIS.md`
-- `examples/benchmarks/run_benchmarks.ruff`
-- `examples/expense_tracker.ruff`
-- `examples/projects/log_parser.ruff`
+- src/main.rs
+- src/cli_output.rs
+- src/workflow_pack/mod.rs
+- src/workflow_pack/renderer.rs
+- src/benchmarks/reporter.rs
+- src/benchmarks/profiler.rs
+- src/interpreter/test_runner.rs
+- src/repl.rs
+- src/errors.rs
+- src/docgen/core.rs
+- src/docgen/render/html.rs
+- src/docgen/render/markdown.rs
+- src/docgen/render/mod.rs
+- tests/cli_contracts.rs
+- tests/diagnostics_golden.rs
+- tests/docs_examples.rs
+- docs/FIRST_TOOL_COOKBOOK.md
+- docs/STANDARD_LIBRARY_REFERENCE.md
+- docs/WORKFLOW_PACKS.md
+- docs/CLI_DUAL_MODE_OUTPUT_INVENTORY.md
+- docs/OUTPUT_HELPER_MIGRATION_NOTE.md
+- README.md
+- examples/file_operations_demo.ruff
+- examples/projects/log_parser.ruff
+- examples/project_markdown_converter.ruff
+- examples/benchmarks/run_benchmarks.ruff
 
 ## Open questions
 
-1. Do you want the first implementation pass to prioritize Rust CLI helper consolidation (`src/main.rs`) or Ruff script/report helper ergonomics first?
-2. Should human-readable output for existing commands remain byte-for-byte stable, or are small readability-only changes acceptable if tests and docs are updated?
-3. Should output helper primitives start as internal Rust modules only, or be exposed as Ruff standard-library features in the same milestone?
-4. Is `push` reassignment ergonomics (for example `push_mut` or method-style mutation) in scope for pre-1.0, or should it remain a documentation/convention topic for now?
-5. For workflow packs, do you want a strict render contract test suite similar to `cli_json_contracts` before adding new display features?
+1. Should the next implementation pass prioritize LSP/CLI consolidation in src/main.rs first, or example/script style cleanup first?
+
+2. For human output, should changes remain byte-for-byte where practical, or are readability-only tweaks acceptable if tests are updated?
+
+3. Should Ruff-script output helpers stay docs/convention-level initially, or should a stdlib/module surface be introduced in the same milestone?
+
+4. Should docgen HTML/markdown builder migration happen now, or after LSP/workflow renderers are stabilized?
+
+5. What expected-fail burn-down target should be set for the next milestone (current count: 29)?
