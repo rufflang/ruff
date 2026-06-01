@@ -1065,18 +1065,20 @@ pub fn now_utc() -> String {
     Utc::now().format("%Y-%m-%dT%H:%M:%SZ").to_string()
 }
 
+fn safe_duration_since_unix_epoch(now: SystemTime) -> Duration {
+    now.duration_since(UNIX_EPOCH).unwrap_or(Duration::ZERO)
+}
+
 /// Get current Unix timestamp in seconds.
 pub fn now_unix() -> i64 {
-    SystemTime::now().duration_since(UNIX_EPOCH).expect("System time before UNIX epoch").as_secs()
-        as i64
+    safe_duration_since_unix_epoch(SystemTime::now()).as_secs() as i64
 }
 
 /// Get current timestamp in milliseconds since UNIX epoch
 /// Returns the number of milliseconds elapsed since January 1, 1970 00:00:00 UTC
 /// This is useful for timestamps and timing operations
 pub fn current_timestamp() -> i64 {
-    SystemTime::now().duration_since(UNIX_EPOCH).expect("System time before UNIX epoch").as_millis()
-        as i64
+    safe_duration_since_unix_epoch(SystemTime::now()).as_millis() as i64
 }
 
 /// High-resolution performance timer in milliseconds
@@ -2404,5 +2406,21 @@ mod tests {
     fn test_format_date_rejects_out_of_range_timestamp_without_panicking() {
         let formatted = format_date(i64::MAX as f64, "YYYY-MM-DD");
         assert_eq!(formatted, "Invalid timestamp: value is out of supported range");
+    }
+
+    #[test]
+    fn test_safe_duration_since_unix_epoch_clamps_pre_epoch_values_to_zero() {
+        let pre_epoch = UNIX_EPOCH
+            .checked_sub(Duration::from_secs(1))
+            .expect("pre-epoch test timestamp should be constructible");
+        let duration = safe_duration_since_unix_epoch(pre_epoch);
+        assert_eq!(duration, Duration::ZERO);
+    }
+
+    #[test]
+    fn test_safe_duration_since_unix_epoch_returns_positive_duration_for_post_epoch() {
+        let post_epoch = UNIX_EPOCH + Duration::from_secs(42);
+        let duration = safe_duration_since_unix_epoch(post_epoch);
+        assert_eq!(duration, Duration::from_secs(42));
     }
 }
