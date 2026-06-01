@@ -8951,6 +8951,11 @@ mod tests {
         start.elapsed()
     }
 
+    fn median_duration(samples: &mut [std::time::Duration]) -> std::time::Duration {
+        samples.sort_unstable();
+        samples[samples.len() / 2]
+    }
+
     #[test]
     #[ignore] // Benchmark test - run with: cargo test --release -- --ignored benchmark_
     fn benchmark_specialized_vs_generic_addition() {
@@ -9000,10 +9005,6 @@ mod tests {
         chunk1.emit(OpCode::Add);
         chunk1.emit(OpCode::Return);
 
-        let time1 = measure_time(|| {
-            let _ = compiler.compile(&chunk1, 0);
-        });
-
         // Test 2: Complex arithmetic chain (should be slower)
         let mut chunk2 = BytecodeChunk::new();
         for i in 0..100 {
@@ -9015,16 +9016,32 @@ mod tests {
         }
         chunk2.emit(OpCode::Return);
 
-        let time2 = measure_time(|| {
-            let _ = compiler.compile(&chunk2, 1);
-        });
+        // Warm up once to avoid one-time initialization noise dominating the first sample.
+        let _ = compiler.compile(&chunk1, 0);
+        let _ = compiler.compile(&chunk2, 1);
+
+        const SAMPLES: usize = 9;
+        let mut simple_samples = Vec::with_capacity(SAMPLES);
+        let mut complex_samples = Vec::with_capacity(SAMPLES);
+
+        for sample in 0..SAMPLES {
+            simple_samples.push(measure_time(|| {
+                let _ = compiler.compile(&chunk1, 1_000 + sample);
+            }));
+            complex_samples.push(measure_time(|| {
+                let _ = compiler.compile(&chunk2, 2_000 + sample);
+            }));
+        }
+
+        let time1 = median_duration(&mut simple_samples);
+        let time2 = median_duration(&mut complex_samples);
 
         println!("\n=== Compilation Overhead Benchmark ===");
         println!("Simple (3 instructions): {:?}", time1);
         println!("Complex (200 instructions): {:?}", time2);
         println!("Ratio: {:.2}x", time2.as_nanos() as f64 / time1.as_nanos() as f64);
 
-        // Complex should take longer (but not orders of magnitude longer)
+        // Complex should take longer once warmup noise is removed.
         assert!(time2 > time1, "Complex compilation should take longer");
     }
 

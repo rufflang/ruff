@@ -46,15 +46,17 @@ impl BindingKind {
 /// # Examples
 ///
 /// ```ignore
+/// use ruff::interpreter::{Environment, Value};
+///
 /// let mut env = Environment::new();
 /// env.define("x".to_string(), Value::Int(10));  // Global scope
 ///
 /// env.push_scope();                             // Enter function scope
 /// env.define("x".to_string(), Value::Int(20));  // Shadows outer x
-/// assert_eq!(env.get("x"), Some(&Value::Int(20)));
+/// assert!(matches!(env.get("x"), Some(Value::Int(20))));
 ///
 /// env.pop_scope();                              // Exit function scope
-/// assert_eq!(env.get("x"), Some(&Value::Int(10)));  // Original x visible again
+/// assert!(matches!(env.get("x"), Some(Value::Int(10))));  // Original x visible again
 /// ```
 #[derive(Clone, Debug)]
 pub struct Environment {

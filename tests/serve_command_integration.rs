@@ -4,6 +4,7 @@ use std::io::{ErrorKind, Read, Write};
 use std::net::{Shutdown, TcpListener, TcpStream};
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
+use std::sync::{Mutex, OnceLock};
 use std::thread;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
@@ -11,6 +12,11 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use std::os::unix::fs as unix_fs;
 
 const TEST_HOST: &str = "127.0.0.1";
+
+fn serve_spawn_lock() -> &'static Mutex<()> {
+    static LOCK: OnceLock<Mutex<()>> = OnceLock::new();
+    LOCK.get_or_init(|| Mutex::new(()))
+}
 
 struct HttpResponse {
     status_code: u16,
@@ -58,47 +64,67 @@ fn spawn_serve_process(root: &Path) -> Option<ServeProcess> {
 }
 
 fn spawn_serve_process_with_extra_args(root: &Path, extra_args: &[&str]) -> Option<ServeProcess> {
-    let port = find_free_port()?;
-    let mut command = Command::new(ruff_binary());
-    command.current_dir(root);
-    command.args([
-        "serve",
-        root.to_str().expect("path should be utf-8"),
-        "--host",
-        TEST_HOST,
-        "--port",
-        &port.to_string(),
-        "--index",
-        "index.html",
-        "--cache-max-age",
-        "120",
-    ]);
-    command.args(extra_args);
+    // Avoid TOCTOU port-allocation races across parallel tests:
+    // reserve a port and launch the process while holding a shared lock.
+    let _spawn_guard =
+        serve_spawn_lock().lock().unwrap_or_else(|poisoned| poisoned.into_inner());
 
-    let mut child = command
-        .stdout(Stdio::null())
-        .stderr(Stdio::null())
-        .spawn()
-        .expect("failed to spawn ruff serve process");
+    let mut last_port = None;
+    for _attempt in 0..5 {
+        let port = find_free_port()?;
+        last_port = Some(port);
 
-    for _ in 0..100 {
-        if let Some(status) = child.try_wait().expect("failed to poll child process") {
-            panic!("ruff serve exited before readiness check completed: {}", status);
+        let mut command = Command::new(ruff_binary());
+        command.current_dir(root);
+        command.args([
+            "serve",
+            root.to_str().expect("path should be utf-8"),
+            "--host",
+            TEST_HOST,
+            "--port",
+            &port.to_string(),
+            "--index",
+            "index.html",
+            "--cache-max-age",
+            "120",
+        ]);
+        command.args(extra_args);
+
+        let mut child = command
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .spawn()
+            .expect("failed to spawn ruff serve process");
+
+        let mut reached = false;
+        for _ in 0..100 {
+            if child.try_wait().expect("failed to poll child process").is_some() {
+                break;
+            }
+
+            if TcpStream::connect((TEST_HOST, port)).is_ok() {
+                reached = true;
+                break;
+            }
+
+            thread::sleep(Duration::from_millis(50));
         }
 
-        if TcpStream::connect((TEST_HOST, port)).is_ok() {
+        if reached {
             if let Some(status) = child.try_wait().expect("failed to poll child process") {
                 panic!("ruff serve exited before readiness check completed: {}", status);
             }
             return Some(ServeProcess { child, port });
         }
 
-        thread::sleep(Duration::from_millis(50));
+        let _ = child.kill();
+        let _ = child.wait();
     }
 
-    let _ = child.kill();
-    let _ = child.wait();
-    panic!("ruff serve did not become reachable in time on port {}", port);
+    panic!(
+        "ruff serve did not become reachable after retries (last port: {})",
+        last_port.unwrap_or(0)
+    );
 }
 
 macro_rules! spawn_server_or_skip {
@@ -116,14 +142,16 @@ macro_rules! spawn_server_or_skip {
 
 fn send_http_request(port: u16, request: &str) -> HttpResponse {
     // Under CI contention, the server subprocess can occasionally reset the first connection.
-    // Retry a small number of times so the test reflects response-shape correctness, not socket jitter.
+    // Retry with a wider budget so the test reflects response-shape correctness, not socket jitter.
+    const RETRIES: usize = 20;
+    const RETRY_DELAY_MS: u64 = 50;
     let mut last_error = None;
-    for _ in 0..3 {
+    for _ in 0..RETRIES {
         match send_http_request_once(port, request) {
             Ok(response) => return response,
             Err(error) => {
                 last_error = Some(error);
-                thread::sleep(Duration::from_millis(25));
+                thread::sleep(Duration::from_millis(RETRY_DELAY_MS));
             }
         }
     }
