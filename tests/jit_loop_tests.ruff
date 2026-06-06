@@ -1,4 +1,5 @@
 # JIT Loop Tests
+# Run with: ruff test-run tests/jit_loop_tests.ruff
 # Tests for Step 11: Loop Back-Edge Fix
 # These should all work once loop JIT is implemented
 
@@ -40,8 +41,9 @@ print("")
 print("Test 3: Nested loops")
 mut result := 0
 mut a := 0
+mut b := 0
 while a < 3 {
-        mut b := 0
+    b = 0
     while b < 4 {
         result = result + 1
         b = b + 1

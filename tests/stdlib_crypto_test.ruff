@@ -1,4 +1,5 @@
 # Crypto Module Test Suite
+# Run with: ruff test-run tests/stdlib_crypto_test.ruff
 # Comprehensive tests for AES and RSA encryption
 
 print("Running Crypto Module Tests...")
