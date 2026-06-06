@@ -185,15 +185,15 @@ if contains(echo_result.stdout, "Hello from spawned process") {
 
 print("")
 
-# Test spawn_process with ls command (should work on Unix systems)
-print("--- Directory Listing Test ---")
-let ls_result := spawn_process(["ls", "-la"])
-if ls_result.success {
-    print("✓ ls command executed successfully")
-    let lines := split(ls_result.stdout, "\n")
+# Test spawn_process with a deterministic command
+print("--- Deterministic Command Test ---")
+let cmd_result := spawn_process(["printf", "alpha\nbeta\ngamma\n"])
+if cmd_result.success {
+    print("✓ printf command executed successfully")
+    let lines := split(trim(cmd_result.stdout), "\n")
     print("  Output has ${len(lines)} lines")
 } else {
-    print("✗ ls command failed")
+    print("✗ printf command failed")
 }
 
 print("")
@@ -202,7 +202,7 @@ print("")
 print("--- Pipe Commands Test ---")
 
 # Create test file for piping
-write_file("pipe_test.txt", "line1\nline2\nline3\nline4\nline5")
+write_file("pipe_test.txt", "line1\nline2\nline3\nline4\nline5\n")
 
 # Pipe: cat file | wc -l (count lines)
 let pipe_result := pipe_commands([

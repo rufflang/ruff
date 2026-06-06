@@ -31,7 +31,7 @@ struct Vector {
     },
     
     func to_string() {
-        return "Vector(" + x + ", " + y + ")";
+        return "Vector(" + to_string(x) + ", " + to_string(y) + ")";
     }
 }
 
@@ -107,7 +107,7 @@ struct Money {
     },
     
     func to_string() {
-        return currency + amount;
+        return currency + to_string(amount);
     }
 }
 

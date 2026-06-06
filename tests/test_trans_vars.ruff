@@ -8,8 +8,12 @@ first_result := db_begin(db)
 print("Result: " + str(first_result))
 
 print("2. Second begin (should error)...")
-second_result := db_begin(db)
-print("Result: " + str(second_result))
+try {
+    second_result := db_begin(db)
+    print("Result: " + str(second_result))
+} except error {
+    print("Caught expected second-begin error")
+}
 
 print("Done!")
 db_close(db)

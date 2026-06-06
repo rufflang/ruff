@@ -121,8 +121,12 @@ db_execute(db, "CREATE TABLE test (id INTEGER)", [])
 db_begin(db)
 
 # Try to begin again - should fail
-result := db_begin(db)
-assert(type(result) == "Error", "Double begin should fail")
+try {
+    result := db_begin(db)
+    assert(type(result) == "Error", "Double begin should fail")
+} except error {
+    print("Caught expected double-begin error")
+}
 
 # Commit the first transaction
 db_commit(db)
@@ -144,12 +148,20 @@ print("\n=== Test 5: Commit/Rollback without Begin ===")
 db := db_connect("sqlite", ":memory:")
 
 # Try to commit without begin
-result := db_commit(db)
-assert(type(result) == "Error", "Commit without begin should fail")
+try {
+    result := db_commit(db)
+    assert(type(result) == "Error", "Commit without begin should fail")
+} except error {
+    print("Caught expected commit-without-begin error")
+}
 
 # Try to rollback without begin
-result := db_rollback(db)
-assert(type(result) == "Error", "Rollback without begin should fail")
+try {
+    result := db_rollback(db)
+    assert(type(result) == "Error", "Rollback without begin should fail")
+} except error {
+    print("Caught expected rollback-without-begin error")
+}
 
 print("✓ Commit/rollback without begin prevented")
 
@@ -206,15 +218,20 @@ db_begin(db)
 db_execute(db, "INSERT INTO products (sku, name) VALUES (?, ?)", ["SKU002", "Product B"])
 
 # This should fail due to unique constraint
-result := db_execute(db, "INSERT INTO products (sku, name) VALUES (?, ?)", ["SKU001", "Duplicate"])
+try {
+    result := db_execute(db, "INSERT INTO products (sku, name) VALUES (?, ?)", ["SKU001", "Duplicate"])
 
-# Check if it's an error
-if type(result) == "Error" {
-    # Rollback on error
+    # Check if it's an error
+    if type(result) == "Error" {
+        # Rollback on error
+        db_rollback(db)
+        print("✓ Error detected, transaction rolled back")
+    } else {
+        db_commit(db)
+    }
+} except error {
     db_rollback(db)
     print("✓ Error detected, transaction rolled back")
-} else {
-    db_commit(db)
 }
 
 # Verify only original product exists (rollback worked)
@@ -313,6 +330,6 @@ db_close(db)
 # ============================================================================
 # All Tests Passed
 # ============================================================================
-print("\n" + "=" * 50)
+print("\n==================================================")
 print("✅ ALL TRANSACTION TESTS PASSED!")
-print("=" * 50)
+print("==================================================")

@@ -68,7 +68,7 @@ print("basename('/home/user/documents/') = " + base3)
 // Test path_exists with actual files
 // Test for Cargo.toml which should exist in project root
 cargo_exists := path_exists("Cargo.toml")
-print("path_exists('Cargo.toml') = " + cargo_exists)
+print("path_exists('Cargo.toml') = " + to_string(cargo_exists))
 
 if cargo_exists {
     print("✓ path_exists finds existing file")
@@ -78,7 +78,7 @@ if cargo_exists {
 
 // Test for non-existent file
 fake_exists := path_exists("nonexistent_file_12345.txt")
-print("path_exists('nonexistent_file_12345.txt') = " + fake_exists)
+print("path_exists('nonexistent_file_12345.txt') = " + to_string(fake_exists))
 
 if !fake_exists {
     print("✓ path_exists returns false for non-existent file")
@@ -88,7 +88,7 @@ if !fake_exists {
 
 // Test with directory
 src_exists := path_exists("src")
-print("path_exists('src') = " + src_exists)
+print("path_exists('src') = " + to_string(src_exists))
 
 if src_exists {
     print("✓ path_exists works with directories")

@@ -6,12 +6,12 @@ struct Vector {
     x: float,
     y: float,
     
-    func __add__(other) {
+    func op_add(other) {
         print("Inside __add__ method");
-        print("self.x = " + x);
-        print("self.y = " + y);
-        print("other.x = " + other.x);
-        print("other.y = " + other.y);
+        print("self.x = " + to_string(x));
+        print("self.y = " + to_string(y));
+        print("other.x = " + to_string(other.x));
+        print("other.y = " + to_string(other.y));
         return Vector { x: x + other.x, y: y + other.y };
     }
 }
@@ -28,7 +28,7 @@ print("About to add vectors...");
 v3 := v1 + v2;
 print("Added vectors");
 
-print("v3.x = " + v3.x);
-print("v3.y = " + v3.y);
+print("v3.x = " + to_string(v3.x));
+print("v3.y = " + to_string(v3.y));
 
 print("Test complete!");

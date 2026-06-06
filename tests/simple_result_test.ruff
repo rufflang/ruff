@@ -18,8 +18,12 @@ print(o2)
 print("Testing pattern match on Ok...")
 let test_ok := Ok(5)
 match test_ok {
-    case Ok(v): print("Matched OK")
-    case Err(e): print("Matched Err")
+    case Ok(v): {
+        print("Matched OK")
+    }
+    case Err(e): {
+        print("Matched Err")
+    }
 }
 
 print("Done!")

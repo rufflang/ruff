@@ -21,9 +21,13 @@ if type(result) == "Error" {
 
 # Test double begin
 print("\nTesting double begin...")
-result2 := db_begin(db)
-print("Second begin result type: " + type(result2))
-print("Second begin result: " + str(result2))
+try {
+    result2 := db_begin(db)
+    print("Second begin result type: " + type(result2))
+    print("Second begin result: " + str(result2))
+} except error {
+    print("Caught expected double-begin error")
+}
 
 # Commit first transaction
 print("\nCommitting...")

@@ -4,24 +4,24 @@ struct Calculator {
     base: float,
     
     # Method with single parameter
-    func add(x) {
-        return base + x;
+    func add(self, x) {
+        return self.base + x;
     }
     
     # Method with multiple parameters
-    func multiply_and_add(a, b) {
-        result := base + (a * b);
+    func multiply_and_add(self, a, b) {
+        result := self.base + (a * b);
         return result;
     }
     
     # Method that calls another method
-    func chain(x) {
-        temp := add(x);
+    func chain(self, x) {
+        temp := self.add(x);
         return temp * 2.0;
     }
     
     # Method that creates and returns new struct
-    func with_base(new_base) {
+    func with_base(self, new_base) {
         return Calculator { base: new_base };
     }
 }

@@ -1,4 +1,4 @@
 # Just create and print an Ok value
-let test := Ok(42)
+let ok_value := Ok(42)
 print("Created OK")
-print(test)
+print(ok_value)

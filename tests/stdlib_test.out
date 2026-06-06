@@ -36,13 +36,13 @@ Process success: true
 ✓ Process executed successfully
 ✓ Process output is correct
 
---- Directory Listing Test ---
-✓ ls command executed successfully
-  Output has 53 lines
+--- Deterministic Command Test ---
+✓ printf command executed successfully
+  Output has 3 lines
 
 --- Pipe Commands Test ---
-Pipe result: 4
-✗ Pipe commands result unexpected
+Pipe result: 5
+✓ Pipe commands executed correctly
 
 --- Error Handling Test ---
 ✓ Invalid command correctly threw error

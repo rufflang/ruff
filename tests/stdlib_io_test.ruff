@@ -19,7 +19,7 @@ print("Test 1: io_read_bytes - read specific number of bytes")
 let test_file := "/tmp/ruff_io_read_bytes.bin"
 let test_content := "Hello, World! This is a test file with some content."
 let test_bytes := decode_base64(encode_base64(test_content))
-write_binary_file(test_file, test_bytes)
+write_binary_file(test_file, test_bytes, true)
 
 # Read first 5 bytes
 let first_5 := io_read_bytes(test_file, 5)

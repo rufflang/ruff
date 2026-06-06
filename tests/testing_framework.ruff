@@ -109,9 +109,15 @@ test "assert_contains with last element" {
 // Test 16: Complex test with multiple assertions
 test "complex test with multiple assertions" {
     // Create a simple calculator
-    add := fn(a, b) { return a + b }
-    subtract := fn(a, b) { return a - b }
-    multiply := fn(a, b) { return a * b }
+    func add(a, b) {
+        return a + b
+    }
+    func subtract(a, b) {
+        return a - b
+    }
+    func multiply(a, b) {
+        return a * b
+    }
     
     // Test addition
     result := add(5, 3)

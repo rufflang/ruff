@@ -14,13 +14,13 @@ func add(a, b) {
     return a + b
 }
 
-let sum := 0
+mut total_sum := 0
 for i in range(0, 200) {
-    sum := sum + add(i, 1)
+    total_sum = total_sum + add(i, 1)
 }
 // Expected: sum of (0+1) + (1+1) + ... + (199+1) = 0+1+2+...+199 + 200 = 19900 + 200 = 20100
-print("Sum after 200 calls: " + to_string(sum))
-assert_equal(sum, 20100, "Test 1 failed: Simple function with inline cache")
+print("Sum after 200 calls: " + to_string(total_sum))
+assert_equal(total_sum, 20100)
 
 print("Test 1 PASSED")
 print("")
@@ -39,18 +39,18 @@ func fib(n) {
 }
 
 // Call fib multiple times to warm up the cache
-let fib_results := []
+mut fib_results := []
 for i in range(0, 15) {
-    fib_results := push(fib_results, fib(i))
+    fib_results = push(fib_results, fib(i))
 }
 
 print("Fib sequence: " + to_string(fib_results))
-assert_equal(fib_results[0], 0, "fib(0) should be 0")
-assert_equal(fib_results[1], 1, "fib(1) should be 1")
-assert_equal(fib_results[2], 1, "fib(2) should be 1")
-assert_equal(fib_results[5], 5, "fib(5) should be 5")
-assert_equal(fib_results[10], 55, "fib(10) should be 55")
-assert_equal(fib_results[14], 377, "fib(14) should be 377")
+assert_equal(fib_results[0], 0)
+assert_equal(fib_results[1], 1)
+assert_equal(fib_results[2], 1)
+assert_equal(fib_results[5], 5)
+assert_equal(fib_results[10], 55)
+assert_equal(fib_results[14], 377)
 
 print("Test 2 PASSED")
 print("")
@@ -68,14 +68,14 @@ func inner(y) {
     return y * 2
 }
 
-let nested_sum := 0
+mut nested_sum := 0
 for i in range(0, 150) {
-    nested_sum := nested_sum + outer(i)
+    nested_sum = nested_sum + outer(i)
 }
 // outer(i) = inner(i) + inner(i+1) = 2*i + 2*(i+1) = 2*i + 2*i + 2 = 4*i + 2
 // Sum for i=0..149 = sum(4*i + 2) = 4*sum(i) + 2*150 = 4*(149*150/2) + 300 = 4*11175 + 300 = 45000
 print("Nested sum: " + to_string(nested_sum))
-assert_equal(nested_sum, 45000, "Test 3 failed: Nested function calls")
+assert_equal(nested_sum, 45000)
 
 print("Test 3 PASSED")
 print("")
@@ -94,21 +94,21 @@ func triple(x) {
     return x * 3
 }
 
-let result1 := 0
+mut result1 := 0
 for i in range(0, 120) {
-    result1 := result1 + double(i)
+    result1 = result1 + double(i)
 }
 print("Double result: " + to_string(result1))
 // double sum = 2 * sum(0..119) = 2 * (119*120/2) = 119*120 = 14280
-assert_equal(result1, 14280, "Test 4a failed: double function")
+assert_equal(result1, 14280)
 
-let result2 := 0
+mut result2 := 0
 for i in range(0, 120) {
-    result2 := result2 + triple(i)
+    result2 = result2 + triple(i)
 }
 print("Triple result: " + to_string(result2))
 // triple sum = 3 * sum(0..119) = 3 * (119*120/2) = 3 * 7140 = 21420
-assert_equal(result2, 21420, "Test 4b failed: triple function")
+assert_equal(result2, 21420)
 
 print("Test 4 PASSED")
 print("")
@@ -125,14 +125,14 @@ func compute(x) {
     return c
 }
 
-let compute_sum := 0
+mut compute_sum := 0
 for i in range(0, 150) {
-    compute_sum := compute_sum + compute(i)
+    compute_sum = compute_sum + compute(i)
 }
 // compute(i) = ((i*2) + 1) * 3 = (2i + 1) * 3 = 6i + 3
 // Sum for i=0..149 = 6*sum(i) + 3*150 = 6*(149*150/2) + 450 = 6*11175 + 450 = 67500
 print("Compute sum: " + to_string(compute_sum))
-assert_equal(compute_sum, 67500, "Test 5 failed: Function with locals")
+assert_equal(compute_sum, 67500)
 
 print("Test 5 PASSED")
 print("")
@@ -152,14 +152,14 @@ func increment(n) {
     return n + 1
 }
 
-let ho_result := 0
+mut ho_result := 0
 for i in range(0, 50) {
-    ho_result := ho_result + apply_twice(increment, i)
+    ho_result = ho_result + apply_twice(increment, i)
 }
 // apply_twice(increment, i) = increment(increment(i)) = i + 2
 // Sum for i=0..49 = sum(i+2) = sum(i) + 2*50 = 1225 + 100 = 1325
 print("Higher-order result: " + to_string(ho_result))
-assert_equal(ho_result, 1325, "Test 6 failed: Higher-order functions")
+assert_equal(ho_result, 1325)
 
 print("Test 6 PASSED")
 print("")
@@ -185,14 +185,14 @@ func level4(x) {
     return x * 2
 }
 
-let deep_sum := 0
+mut deep_sum := 0
 for i in range(0, 150) {
-    deep_sum := deep_sum + level1(i)
+    deep_sum = deep_sum + level1(i)
 }
 // level1(i) = level2(i+1) = level3(i+2) = level4(i+3) = (i+3)*2 = 2i + 6
 // Sum for i=0..149 = 2*sum(i) + 6*150 = 2*11175 + 900 = 23250
 print("Deep call sum: " + to_string(deep_sum))
-assert_equal(deep_sum, 23250, "Test 7 failed: Deep call chain")
+assert_equal(deep_sum, 23250)
 
 print("Test 7 PASSED")
 print("")
@@ -206,14 +206,14 @@ func get_constant() {
     return 42
 }
 
-let zero_param_sum := 0
+mut zero_param_sum := 0
 for i in range(0, 150) {
-    zero_param_sum := zero_param_sum + get_constant()
+    zero_param_sum = zero_param_sum + get_constant()
 }
 // get_constant() always returns 42
 // Sum = 42 * 150 = 6300
 print("Zero-param sum: " + to_string(zero_param_sum))
-assert_equal(zero_param_sum, 6300, "Test 8 failed: Zero-parameter function")
+assert_equal(zero_param_sum, 6300)
 
 print("Test 8 PASSED")
 print("")

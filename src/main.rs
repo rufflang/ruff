@@ -1475,7 +1475,13 @@ async fn main() {
                 TestRuntimeMode::Vm => parser::TestRuntimeStrategy::Vm,
                 TestRuntimeMode::Dual => parser::TestRuntimeStrategy::Dual,
             };
-            parser::Parser::run_all_tests(Path::new("tests"), update, runtime_strategy, verbose);
+            let exit_code = parser::Parser::run_all_tests(
+                Path::new("tests"),
+                update,
+                runtime_strategy,
+                verbose,
+            );
+            std::process::exit(exit_code);
         }
 
         Commands::TestRun { file, verbose, capabilities } => {

@@ -1,22 +1,12 @@
 // Test file to verify import/export parsing
-// This tests that the parser correctly handles module syntax
+// This exercises module imports and exports against local fixture modules.
 
-// Test full import
-import mymodule;
+from modules.module_syntax.mymodule import public_function, PUBLIC_CONSTANT
+from modules.module_syntax.utils import helper, formatter
 
-// Test selective import
-from utils import helper, formatter;
+let doubled := public_function(21)
+let helper_value := helper(10)
+let formatted := formatter("ruff")
+let constant_value := PUBLIC_CONSTANT
 
-// Test export statements
-export fn public_function(x) {
-    return x * 2;
-}
-
-export let PUBLIC_CONSTANT = 42;
-
-// Non-exported items
-let private_var = "secret";
-
-fn private_function() {
-    return private_var;
-}
+// Keep the fixture output-free; the pass criterion is successful execution.

@@ -7,10 +7,10 @@ func fib(n) {
 }
 
 # Warmup to trigger JIT
-let i := 0
+mut i := 0
 while i < 110 {
-    let _ := fib(5)
-    i := i + 1
+    fib(5)
+    i = i + 1
 }
 
 print("fib(10) = ", fib(10))

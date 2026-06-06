@@ -669,9 +669,9 @@ test_group "Classic Generator Patterns" {
                 }
                 if i % 15 == 0 {
                     yield "FizzBuzz"
-                } else_if i % 3 == 0 {
+                } else if i % 3 == 0 {
                     yield "Fizz"
-                } else_if i % 5 == 0 {
+                } else if i % 5 == 0 {
                     yield "Buzz"
                 } else {
                     yield i

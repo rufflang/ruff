@@ -6,7 +6,7 @@ print("Testing random functions...")
 
 // Test random() - should return float between 0.0 and 1.0
 r1 := random()
-print("random() = " + r1)
+print("random() = " + to_string(r1))
 
 if r1 >= 0.0 && r1 <= 1.0 {
     print("✓ random() returns value in [0.0, 1.0]")
@@ -16,7 +16,7 @@ if r1 >= 0.0 && r1 <= 1.0 {
 
 // Test random_int(min, max)
 r2 := random_int(1, 10)
-print("random_int(1, 10) = " + r2)
+print("random_int(1, 10) = " + to_string(r2))
 
 if r2 >= 1.0 && r2 <= 10.0 {
     print("✓ random_int(1, 10) returns value in [1, 10]")
@@ -26,7 +26,7 @@ if r2 >= 1.0 && r2 <= 10.0 {
 
 // Test with negative range
 r3 := random_int(-5, 5)
-print("random_int(-5, 5) = " + r3)
+print("random_int(-5, 5) = " + to_string(r3))
 
 if r3 >= -5.0 && r3 <= 5.0 {
     print("✓ random_int(-5, 5) returns value in [-5, 5]")
@@ -56,7 +56,7 @@ if found == 1 {
 // Test random_choice with numbers
 numbers := [10, 20, 30, 40, 50]
 num_choice := random_choice(numbers)
-print("random_choice(numbers) = " + num_choice)
+print("random_choice(numbers) = " + to_string(num_choice))
 
 // Test multiple calls produce different results (probabilistic)
 same_count := 0

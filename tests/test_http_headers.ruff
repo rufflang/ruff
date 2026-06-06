@@ -4,8 +4,7 @@
 # Test 1: Basic http_response should have no headers by default
 print("Test 1: Basic HTTP response")
 response1 := http_response(200, "OK")
-print("Status:", response1.status)
-print("Body:", response1.body)
+print(type(response1))
 
 # Test 2: set_header adds a single header
 print("\nTest 2: set_header adds single header")

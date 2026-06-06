@@ -19,7 +19,7 @@ print()
 
 # String Functions  
 print("String Functions:")
-let str := "  hello WORLD  "
+let str_input := "  hello WORLD  "
 print("  len('hello') =", len("hello"))
 print("  to_upper('hello') =", to_upper("hello"))
 print("  to_lower('WORLD') =", to_lower("WORLD"))
@@ -58,11 +58,11 @@ print()
 
 # Dict Functions  
 print("Dict Functions:")
-let dict := {"a": 1, "b": 2}
-print("  Dict:", dict)
-let k := keys(dict)
+let dict_map := {"a": 1, "b": 2}
+print("  Dict:", dict_map)
+let k := keys(dict_map)
 print("  keys(dict) =", k)
-let v := values(dict)
+let v := values(dict_map)
 print("  values(dict) =", v)
 print("  ✓ Dict functions work")
 print()

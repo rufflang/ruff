@@ -13,3 +13,16 @@ basename('/home/user/documents/file.txt') = file.txt
 basename('example.ruff') = example.ruff
 ✓ basename works with just filename
 basename('/home/user/documents/') = documents
+path_exists('Cargo.toml') = true
+✓ path_exists finds existing file
+path_exists('nonexistent_file_12345.txt') = false
+✓ path_exists returns false for non-existent file
+path_exists('src') = true
+✓ path_exists works with directories
+
+Integration test:
+  full_path = home/user/test.ruff
+  dirname = home/user
+  basename = test.ruff
+✓ Path integration test passed
+Path operation tests completed!

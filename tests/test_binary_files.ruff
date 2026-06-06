@@ -18,7 +18,7 @@ let test_file := "/tmp/ruff_binary_test_1.bin"
 # (In real use, you'd get binary data from http_get_binary, images, etc.)
 let binary_data := decode_base64(encode_base64(test_data))
 
-result := write_binary_file(test_file, binary_data)
+result := write_binary_file(test_file, binary_data, true)
 if result {
     print("✓ Binary file written successfully")
     
@@ -42,8 +42,8 @@ let test_strings := ["Hello", "Test123", "Special chars: !@#$%", "Unicode: 你�
 
 for test_str in test_strings {
     # Encode string as bytes, then to base64
-    let as_bytes := decode_base64(encode_base64(test_str))
-    let encoded := encode_base64(as_bytes)
+    let bytes_value := decode_base64(encode_base64(test_str))
+    let encoded := encode_base64(bytes_value)
     let decoded := decode_base64(encoded)
     let back_to_base64 := encode_base64(decoded)
     
@@ -63,7 +63,7 @@ let size_test_file := "/tmp/ruff_binary_size_test.bin"
 let pattern := "ABC"
 let pattern_bytes := decode_base64(encode_base64(pattern))
 
-result := write_binary_file(size_test_file, pattern_bytes)
+result := write_binary_file(size_test_file, pattern_bytes, true)
 if result {
     let read_data := read_binary_file(size_test_file)
     let size := len(read_data)
@@ -84,7 +84,7 @@ print("Test 4: Empty binary file handling")
 let empty_file := "/tmp/ruff_empty_binary.bin"
 let empty_bytes := decode_base64("")
 
-result := write_binary_file(empty_file, empty_bytes)
+result := write_binary_file(empty_file, empty_bytes, true)
 if result {
     let read_empty := read_binary_file(empty_file)
     let empty_size := len(read_empty)
@@ -108,7 +108,7 @@ let chunk := "0123456789ABCDEF"
 let repeated := chunk + chunk + chunk + chunk + chunk  # 80 chars
 let large_bytes := decode_base64(encode_base64(repeated))
 
-result := write_binary_file(large_file, large_bytes)
+result := write_binary_file(large_file, large_bytes, true)
 if result {
     let read_large := read_binary_file(large_file)
     let large_encoded := encode_base64(read_large)
@@ -160,9 +160,9 @@ let data1 := decode_base64(encode_base64("File1"))
 let data2 := decode_base64(encode_base64("File2"))
 let data3 := decode_base64(encode_base64("File3"))
 
-r1 := write_binary_file(multi_file_1, data1)
-r2 := write_binary_file(multi_file_2, data2)
-r3 := write_binary_file(multi_file_3, data3)
+r1 := write_binary_file(multi_file_1, data1, true)
+r2 := write_binary_file(multi_file_2, data2, true)
+r3 := write_binary_file(multi_file_3, data3, true)
 
 if r1 && r2 && r3 {
     let content1 := encode_base64(read_binary_file(multi_file_1))

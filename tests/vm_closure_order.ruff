@@ -1,12 +1,12 @@
 # Test to verify bytecode ordering
 func make_counter() {
     print("Before let")
-    let count := 0
+    mut count := 0
     print("After let, before return")
     print(count)
     return func() {
         print("Inside inner func")
-        count := count + 1
+        count = count + 1
         return count
     }
 }

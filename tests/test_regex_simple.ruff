@@ -2,15 +2,15 @@
 
 print("Testing regex_match...")
 result := regex_match("hello", "^h")
-print("regex_match('hello', '^h') = " + result)
+print("regex_match('hello', '^h') = " + to_string(result))
 
 result2 := regex_match("test@example.com", "@")
-print("regex_match('test@example.com', '@') = " + result2)
+print("regex_match('test@example.com', '@') = " + to_string(result2))
 
 print("")
 print("Testing regex_find_all...")
 matches := regex_find_all("abc123def456", "\\d+")
-print("Found " + len(matches) + " matches")
+print("Found " + to_string(len(matches)) + " matches")
 for m in matches {
     print("  " + m)
 }
@@ -23,7 +23,7 @@ print("regex_replace('hello world', 'world', 'ruff') = " + replaced)
 print("")
 print("Testing regex_split...")
 parts := regex_split("one,two,three", ",")
-print("Split into " + len(parts) + " parts")
+print("Split into " + to_string(len(parts)) + " parts")
 for part in parts {
     print("  " + part)
 }

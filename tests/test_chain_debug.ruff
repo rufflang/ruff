@@ -3,20 +3,20 @@
 struct Test {
     value: float,
     
-    func add(x) {
+    func add(self, x) {
         print("In add, value:");
-        print(value);
+        print(self.value);
         print("x:");
         print(x);
-        result := value + x;
+        result := self.value + x;
         print("result:");
         print(result);
         return result;
     }
     
-    func chain(x) {
+    func chain(self, x) {
         print("In chain");
-        temp := add(x);
+        temp := self.add(x);
         print("temp:");
         print(temp);
         doubled := temp * 2.0;

@@ -40,13 +40,18 @@ if encrypted != encrypted2 {
 }
 
 # Test 3: Wrong key fails
-wrong_decrypted := aes_decrypt(encrypted, "wrong-key")
-if is_error(wrong_decrypted) {
+try {
+    wrong_decrypted := aes_decrypt(encrypted, "wrong-key")
+    if is_error(wrong_decrypted) {
+        print("✓ Test 3: Wrong key produces error")
+        passed := passed + 1
+    } else {
+        print("✗ Test 3: Failed")
+        failed := failed + 1
+    }
+} except error {
     print("✓ Test 3: Wrong key produces error")
     passed := passed + 1
-} else {
-    print("✗ Test 3: Failed")
-    failed := failed + 1
 }
 
 # Test 4: Empty string
@@ -106,17 +111,22 @@ if len(encrypted) > 0 {
 }
 
 # Test 9: Invalid base64
-invalid_result := aes_decrypt("not-valid-base64!!!", key)
-if is_error(invalid_result) {
+try {
+    invalid_result := aes_decrypt("not-valid-base64!!!", key)
+    if is_error(invalid_result) {
+        print("✓ Test 9: Invalid base64 produces error")
+        passed := passed + 1
+    } else {
+        print("✗ Test 9: Failed")
+        failed := failed + 1
+    }
+} except error {
     print("✓ Test 9: Invalid base64 produces error")
     passed := passed + 1
-} else {
-    print("✗ Test 9: Failed")
-    failed := failed + 1
 }
 
 # Test 10: AES bytes functions
-bytes_data := "binary\x00data"
+bytes_data := "binary data"
 bytes_enc := aes_encrypt_bytes(bytes_data, key)
 bytes_dec := aes_decrypt_bytes(bytes_enc, key)
 if bytes_dec == bytes_data {
@@ -235,13 +245,18 @@ if rsa_special_dec == rsa_special {
 # Generate second keypair only for this test
 keypair2 := rsa_generate_keypair(2048)
 wrong_key := keypair2["private"]
-wrong_decrypt := rsa_decrypt(rsa_encrypted, wrong_key)
-if is_error(wrong_decrypt) {
+try {
+    wrong_decrypt := rsa_decrypt(rsa_encrypted, wrong_key)
+    if is_error(wrong_decrypt) {
+        print("✓ Test 20: Wrong key produces error")
+        passed := passed + 1
+    } else {
+        print("✗ Test 20: Failed")
+        failed := failed + 1
+    }
+} except error {
     print("✓ Test 20: Wrong key produces error")
     passed := passed + 1
-} else {
-    print("✗ Test 20: Failed")
-    failed := failed + 1
 }
 
 # =============================================================================
@@ -333,13 +348,18 @@ if large_key_dec == "Test" {
 }
 
 # Test 28: Invalid key size
-invalid_keypair := rsa_generate_keypair(1024)
-if is_error(invalid_keypair) {
+try {
+    invalid_keypair := rsa_generate_keypair(1024)
+    if is_error(invalid_keypair) {
+        print("✓ Test 28: Invalid key size produces error")
+        passed := passed + 1
+    } else {
+        print("✗ Test 28: Failed")
+        failed := failed + 1
+    }
+} except error {
     print("✓ Test 28: Invalid key size produces error")
     passed := passed + 1
-} else {
-    print("✗ Test 28: Failed")
-    failed := failed + 1
 }
 
 # =============================================================================

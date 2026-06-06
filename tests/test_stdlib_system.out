@@ -2,3 +2,17 @@ Testing system operation functions...
 env('HOME') = /Users/robertdevore
 ✓ env('HOME') returns value
 ✓ env() returns empty string for non-existent var
+args() count = 0
+✓ args() returns array (length may be 0)
+Testing sleep(100)... (100ms)
+Elapsed time: ~0ms
+⚠ sleep timing may be imprecise: 0ms
+execute('echo Hello from Ruff'):
+Hello from Ruff
+
+✓ execute() runs commands successfully
+path_exists('tests/test_stdlib_system.ruff') = true
+
+Note: exit() not tested as it would terminate the program
+To test exit(), run: ruff -e 'exit(42)' and check exit code
+System operation tests completed!

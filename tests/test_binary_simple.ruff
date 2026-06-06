@@ -11,7 +11,7 @@ let binary := decode_base64(encode_base64(test_data))
 print("Created binary data")
 
 # Write to file
-let write_result := write_binary_file(test_file, binary)
+let write_result := write_binary_file(test_file, binary, true)
 
 if write_result {
     print("✓ Successfully wrote binary file")

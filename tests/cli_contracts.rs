@@ -6,6 +6,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 const EXIT_USAGE_ERROR: i32 = 2;
 const EXIT_LEX_PARSE_ERROR: i32 = 3;
+const EXIT_VERIFICATION_ERROR: i32 = 3;
 const EXIT_RUNTIME_ERROR: i32 = 4;
 const EXIT_IO_ERROR: i32 = 5;
 
@@ -372,6 +373,68 @@ fn cli_test_runtime_dual_mode_keeps_vm_primary_for_vm_drift_fixture() {
     assert!(
         !stdout.contains("[dual fallback: interpreter]"),
         "dual mode should not emit fallback marker when interpreter fallback is unused"
+    );
+}
+
+#[test]
+fn cli_test_reports_fixture_failures_with_verification_exit_code() {
+    for runtime in ["vm", "dual"] {
+        let workspace = unique_temp_dir(&format!("cli_test_exit_code_{runtime}"));
+        let tests_dir = workspace.join("tests");
+        fs::create_dir_all(&tests_dir).expect("failed to create tests directory");
+
+        let fixture = tests_dir.join("failing.ruff");
+        let snapshot = tests_dir.join("failing.out");
+        write_fixture(&fixture, "print(\"actual-output\")\n");
+        write_fixture(&snapshot, "expected-output\n");
+
+        let output = run_ruff_in_dir(&["test", "--runtime", runtime], &workspace);
+        assert_eq!(
+            output.status.code(),
+            Some(EXIT_VERIFICATION_ERROR),
+            "ruff test --runtime {runtime} should return verification failure exit code"
+        );
+        let stdout = String::from_utf8(output.stdout).expect("stdout should be utf-8");
+        assert!(
+            stdout.contains("[✗]"),
+            "ruff test --runtime {runtime} should report failing fixtures"
+        );
+        assert!(
+            stdout.contains("Expected:"),
+            "ruff test --runtime {runtime} should print expected output on mismatch"
+        );
+    }
+}
+
+#[test]
+fn cli_test_reports_nonzero_fixture_exit_codes_as_failures() {
+    let workspace = unique_temp_dir("cli_test_nonzero_fixture_exit");
+    let tests_dir = workspace.join("tests");
+    fs::create_dir_all(&tests_dir).expect("failed to create tests directory");
+
+    let fixture = tests_dir.join("runtime_error.ruff");
+    let snapshot = tests_dir.join("runtime_error.out");
+    write_fixture(
+        &fixture,
+        "print(\"before runtime failure\")\n\
+db := db_connect(\"sqlite\", \":memory:\")\n\
+db_execute(db, \"CREATE TABLE test (id INTEGER)\", [])\n\
+db_begin(db)\n\
+db_begin(db)\n",
+    );
+    write_fixture(&snapshot, "before runtime failure\n");
+
+    let output = run_ruff_in_dir(&["test", "--runtime", "vm"], &workspace);
+    assert_eq!(
+        output.status.code(),
+        Some(EXIT_VERIFICATION_ERROR),
+        "ruff test should surface nonzero fixture exits as verification failures"
+    );
+
+    let stdout = String::from_utf8(output.stdout).expect("stdout should be utf-8");
+    assert!(
+        stdout.contains("runtime_error.ruff"),
+        "ruff test should report the failing fixture name"
     );
 }
 

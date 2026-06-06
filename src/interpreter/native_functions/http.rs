@@ -1221,28 +1221,44 @@ pub fn handle(name: &str, arg_values: &[Value]) -> Option<Value> {
                 )));
             }
 
-            if let (Some(response), Some(Value::Dict(headers_dict))) =
-                (arg_values.first(), arg_values.get(1))
-            {
-                if let Value::HttpResponse { status, body, headers } = response {
-                    let mut new_headers = headers.clone();
-                    for (key, value) in headers_dict.iter() {
-                        if let Value::Str(header_value) = value {
-                            new_headers.insert(
-                                key.as_ref().to_string(),
-                                header_value.as_ref().to_string(),
-                            );
+            if let Some(response) = arg_values.first() {
+                let header_pairs: Option<Vec<(String, Value)>> = match arg_values.get(1) {
+                    Some(Value::Dict(headers_dict)) => Some(
+                        headers_dict
+                            .iter()
+                            .map(|(key, value)| (key.as_ref().to_string(), value.clone()))
+                            .collect(),
+                    ),
+                    Some(Value::FixedDict { keys, values }) => Some(
+                        keys.iter()
+                            .cloned()
+                            .zip(values.iter().cloned())
+                            .map(|(key, value)| (key.to_string(), value))
+                            .collect(),
+                    ),
+                    _ => None,
+                };
+
+                if let Some(header_pairs) = header_pairs {
+                    if let Value::HttpResponse { status, body, headers } = response {
+                        let mut new_headers = headers.clone();
+                        for (key, value) in header_pairs {
+                            if let Value::Str(header_value) = value {
+                                new_headers.insert(key, header_value.as_ref().to_string());
+                            }
                         }
-                    }
-                    Value::HttpResponse {
-                        status: *status,
-                        body: body.clone(),
-                        headers: new_headers,
+                        Value::HttpResponse {
+                            status: *status,
+                            body: body.clone(),
+                            headers: new_headers,
+                        }
+                    } else {
+                        Value::Error(
+                            "set_headers requires an HTTP response as first argument".to_string(),
+                        )
                     }
                 } else {
-                    Value::Error(
-                        "set_headers requires an HTTP response as first argument".to_string(),
-                    )
+                    Value::Error("set_headers requires response and headers dictionary".to_string())
                 }
             } else {
                 Value::Error("set_headers requires response and headers dictionary".to_string())

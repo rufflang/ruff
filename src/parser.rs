@@ -2213,9 +2213,46 @@ impl Parser {
         }
 
         match command.output() {
-            Ok(output) => Ok(String::from_utf8_lossy(&output.stdout).trim().to_string()),
+            Ok(output) => {
+                let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
+                let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+                if !output.status.success() && stdout.is_empty() && stderr.is_empty() {
+                    let exit_code = output.status.code().unwrap_or(-1);
+                    return Err(format!(
+                        "Fixture {} exited with code {} and produced no output",
+                        fixture_path.display(),
+                        exit_code
+                    ));
+                }
+
+                match (stdout.is_empty(), stderr.is_empty()) {
+                    (false, false) => Ok(format!("{stdout}\n{stderr}")),
+                    (false, true) => Ok(stdout),
+                    (true, false) => Ok(stderr),
+                    (true, true) => Ok(String::new()),
+                }
+            }
             Err(err) => Err(format!("Failed to execute test script: {err}")),
         }
+    }
+
+    fn normalize_fixture_output(output: &str) -> String {
+        output
+            .lines()
+            .filter(|line| !line.starts_with("Compiler optimization:"))
+            .map(|line| {
+                if let Some(start) = line.find(" (took ~") {
+                    if let Some(end_rel) = line[start..].find("ms)") {
+                        let end = start + end_rel + 3;
+                        return format!("{}{}", &line[..start], &line[end..]);
+                    }
+                }
+                line.to_string()
+            })
+            .collect::<Vec<_>>()
+            .join("\n")
+            .trim()
+            .to_string()
     }
 
     pub fn run_all_tests(
@@ -2223,10 +2260,10 @@ impl Parser {
         update_snapshots: bool,
         runtime_strategy: TestRuntimeStrategy,
         verbose: bool,
-    ) {
+    ) -> i32 {
         let Ok(entries) = fs::read_dir(test_dir) else {
             eprintln!("[!] Failed to read test directory: {}", test_dir.display());
-            return;
+            return 5;
         };
 
         let mut passed = 0;
@@ -2234,6 +2271,7 @@ impl Parser {
         let mut vm_primary_passed = 0;
         let mut interpreter_primary_passed = 0;
         let mut dual_fallback_passed = 0;
+        let mut had_failures = false;
 
         for entry in entries.flatten() {
             let path = entry.path();
@@ -2241,8 +2279,14 @@ impl Parser {
                 if verbose {
                     println!("[i] Running fixture: {}", path.display());
                 }
-                total += 1;
                 let content = fs::read_to_string(&path).unwrap_or_default();
+                if content.lines().take(3).any(|line| line.contains("Run with: ruff test-run")) {
+                    if verbose {
+                        println!("[i] Skipping test-run fixture: {}", path.display());
+                    }
+                    continue;
+                }
+                total += 1;
                 let expected_path = path.with_extension("out");
 
                 let tokens = match crate::lexer::tokenize(&content) {
@@ -2255,6 +2299,7 @@ impl Parser {
                                 diagnostic.line, diagnostic.column, diagnostic.message
                             );
                         }
+                        had_failures = true;
                         continue;
                     }
                 };
@@ -2268,6 +2313,7 @@ impl Parser {
                             diagnostic.line, diagnostic.column, diagnostic.message
                         );
                     }
+                    had_failures = true;
                     continue;
                 }
                 let start = Instant::now();
@@ -2278,6 +2324,7 @@ impl Parser {
                     Err(err) => {
                         println!("[✗] {}", path.display());
                         println!("Failed to locate current executable: {err}");
+                        had_failures = true;
                         continue;
                     }
                 };
@@ -2288,6 +2335,7 @@ impl Parser {
                 } else {
                     String::new()
                 };
+                let expected = Self::normalize_fixture_output(&expected);
 
                 if update_snapshots || !expected_exists {
                     let snapshot_output = match runtime_strategy {
@@ -2297,6 +2345,7 @@ impl Parser {
                                 Err(err) => {
                                     println!("[✗] {}", path.display());
                                     println!("{err}");
+                                    had_failures = true;
                                     continue;
                                 }
                             }
@@ -2307,6 +2356,7 @@ impl Parser {
                                 Err(err) => {
                                     println!("[✗] {}", path.display());
                                     println!("{err}");
+                                    had_failures = true;
                                     continue;
                                 }
                             }
@@ -2319,11 +2369,13 @@ impl Parser {
                                 Err(err) => {
                                     println!("[✗] {}", path.display());
                                     println!("{err}");
+                                    had_failures = true;
                                     continue;
                                 }
                             }
                         }
                     };
+                    let snapshot_output = Self::normalize_fixture_output(&snapshot_output);
                     fs::write(&expected_path, &snapshot_output).ok();
                     println!("[✓] {} ({:.2?})", path.display(), start.elapsed());
                     if verbose {
@@ -2343,9 +2395,11 @@ impl Parser {
                             Err(err) => {
                                 println!("[✗] {}", path.display());
                                 println!("{err}");
+                                had_failures = true;
                                 continue;
                             }
                         };
+                        let actual = Self::normalize_fixture_output(&actual);
                         let is_match = actual == expected;
                         if is_match {
                             interpreter_primary_passed += 1;
@@ -2360,9 +2414,11 @@ impl Parser {
                             Err(err) => {
                                 println!("[✗] {}", path.display());
                                 println!("{err}");
+                                had_failures = true;
                                 continue;
                             }
                         };
+                        let actual = Self::normalize_fixture_output(&actual);
                         let is_match = actual == expected;
                         if is_match {
                             vm_primary_passed += 1;
@@ -2377,9 +2433,11 @@ impl Parser {
                             Err(err) => {
                                 println!("[✗] {}", path.display());
                                 println!("{err}");
+                                had_failures = true;
                                 continue;
                             }
                         };
+                        let vm_actual = Self::normalize_fixture_output(&vm_actual);
                         if vm_actual == expected {
                             vm_primary_passed += 1;
                             true
@@ -2390,9 +2448,12 @@ impl Parser {
                                     Err(err) => {
                                         println!("[✗] {}", path.display());
                                         println!("{err}");
+                                        had_failures = true;
                                         continue;
                                     }
                                 };
+                            let interpreter_actual =
+                                Self::normalize_fixture_output(&interpreter_actual);
                             if interpreter_actual == expected {
                                 dual_fallback_passed += 1;
                                 used_interpreter_fallback = true;
@@ -2431,6 +2492,7 @@ impl Parser {
                     if let Some(fallback_actual) = fallback_for_report {
                         println!("Got (interpreter fallback)\n{}\n", fallback_actual);
                     }
+                    had_failures = true;
                 }
             }
         }
@@ -2448,6 +2510,12 @@ impl Parser {
                 "[i] Runtime strategy: interpreter (interpreter_primary={})",
                 interpreter_primary_passed
             );
+        }
+
+        if had_failures {
+            3
+        } else {
+            0
         }
     }
 }

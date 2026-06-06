@@ -1,4 +1,5 @@
 // Test suite for JIT Direct Recursion (Phase 7 Step 12)
+// Run with: ruff test-run tests/jit_direct_recursion.ruff
 // Tests that direct JIT recursion provides correct results
 // Performance testing should show significant speedup over standard JIT
 
@@ -19,17 +20,17 @@ func fib(n) {
 }
 
 // Test small values for correctness
-assert_equal(fib(0), 0, "fib(0) should be 0")
-assert_equal(fib(1), 1, "fib(1) should be 1")
-assert_equal(fib(2), 1, "fib(2) should be 1")
-assert_equal(fib(3), 2, "fib(3) should be 2")
-assert_equal(fib(4), 3, "fib(4) should be 3")
-assert_equal(fib(5), 5, "fib(5) should be 5")
-assert_equal(fib(6), 8, "fib(6) should be 8")
-assert_equal(fib(7), 13, "fib(7) should be 13")
-assert_equal(fib(8), 21, "fib(8) should be 21")
-assert_equal(fib(9), 34, "fib(9) should be 34")
-assert_equal(fib(10), 55, "fib(10) should be 55")
+assert_equal(fib(0), 0)
+assert_equal(fib(1), 1)
+assert_equal(fib(2), 1)
+assert_equal(fib(3), 2)
+assert_equal(fib(4), 3)
+assert_equal(fib(5), 5)
+assert_equal(fib(6), 8)
+assert_equal(fib(7), 13)
+assert_equal(fib(8), 21)
+assert_equal(fib(9), 34)
+assert_equal(fib(10), 55)
 
 print("Test 1 PASSED: All small fib values correct")
 print("")
@@ -47,10 +48,10 @@ for i in range(0, 15) {
 
 // Now test with JIT potentially active
 let fib15 := fib(15)
-assert_equal(fib15, 610, "fib(15) should be 610")
+assert_equal(fib15, 610)
 
 let fib20 := fib(20)
-assert_equal(fib20, 6765, "fib(20) should be 6765")
+assert_equal(fib20, 6765)
 
 print("Test 2 PASSED: Larger fib values correct after JIT warm-up")
 print("")
@@ -68,13 +69,13 @@ func factorial(n) {
 }
 
 // Test small values
-assert_equal(factorial(0), 1, "factorial(0) should be 1")
-assert_equal(factorial(1), 1, "factorial(1) should be 1")
-assert_equal(factorial(2), 2, "factorial(2) should be 2")
-assert_equal(factorial(3), 6, "factorial(3) should be 6")
-assert_equal(factorial(4), 24, "factorial(4) should be 24")
-assert_equal(factorial(5), 120, "factorial(5) should be 120")
-assert_equal(factorial(10), 3628800, "factorial(10) should be 3628800")
+assert_equal(factorial(0), 1)
+assert_equal(factorial(1), 1)
+assert_equal(factorial(2), 2)
+assert_equal(factorial(3), 6)
+assert_equal(factorial(4), 24)
+assert_equal(factorial(5), 120)
+assert_equal(factorial(10), 3628800)
 
 // Warm up JIT
 for i in range(0, 15) {
@@ -82,7 +83,7 @@ for i in range(0, 15) {
 }
 
 // Test after JIT warm-up
-assert_equal(factorial(12), 479001600, "factorial(12) should be 479001600")
+assert_equal(factorial(12), 479001600)
 
 print("Test 3 PASSED: Factorial values correct")
 print("")
@@ -99,11 +100,11 @@ func sum_to(n) {
     return n + sum_to(n - 1)
 }
 
-assert_equal(sum_to(0), 0, "sum_to(0) should be 0")
-assert_equal(sum_to(1), 1, "sum_to(1) should be 1")
-assert_equal(sum_to(5), 15, "sum_to(5) should be 15")
-assert_equal(sum_to(10), 55, "sum_to(10) should be 55")
-assert_equal(sum_to(100), 5050, "sum_to(100) should be 5050")
+assert_equal(sum_to(0), 0)
+assert_equal(sum_to(1), 1)
+assert_equal(sum_to(5), 15)
+assert_equal(sum_to(10), 55)
+assert_equal(sum_to(100), 5050)
 
 print("Test 4 PASSED: Sum values correct")
 print("")
@@ -123,9 +124,9 @@ for i in range(0, 150) {
     let _ := double(i)
 }
 
-assert_equal(double(0), 0, "double(0) should be 0")
-assert_equal(double(5), 10, "double(5) should be 10")
-assert_equal(double(100), 200, "double(100) should be 200")
+assert_equal(double(0), 0)
+assert_equal(double(5), 10)
+assert_equal(double(100), 200)
 
 print("Test 5 PASSED: Non-recursive function works correctly")
 print("")
@@ -143,10 +144,10 @@ func power(base, exp) {
     return base * power(base, exp - 1)
 }
 
-assert_equal(power(2, 0), 1, "power(2,0) should be 1")
-assert_equal(power(2, 1), 2, "power(2,1) should be 2")
-assert_equal(power(2, 10), 1024, "power(2,10) should be 1024")
-assert_equal(power(3, 4), 81, "power(3,4) should be 81")
+assert_equal(power(2, 0), 1)
+assert_equal(power(2, 1), 2)
+assert_equal(power(2, 10), 1024)
+assert_equal(power(3, 4), 81)
 
 print("Test 6 PASSED: Multi-arg recursive function works correctly")
 print("")
@@ -164,12 +165,12 @@ func count_down(n) {
 }
 
 // Test with larger values (stress test)
-assert_equal(count_down(50), 50, "count_down(50) should be 50")
-assert_equal(count_down(100), 100, "count_down(100) should be 100")
+assert_equal(count_down(50), 50)
+assert_equal(count_down(100), 100)
 
 // Test fib with edge cases
-assert_equal(fib(0), 0, "fib(0) edge case")
-assert_equal(fib(1), 1, "fib(1) edge case")
+assert_equal(fib(0), 0)
+assert_equal(fib(1), 1)
 
 print("Test 7 PASSED: Edge cases handled correctly")
 print("")
@@ -187,7 +188,7 @@ let duration_ns := end - start
 let duration_ms := duration_ns / 1000000.0
 
 print("fib(25) = " + to_string(result) + " (took ~" + to_string(to_int(duration_ms)) + "ms)")
-assert_equal(result, 75025, "fib(25) should be 75025")
+assert_equal(result, 75025)
 
 print("Test 8 PASSED: Benchmark complete")
 print("")

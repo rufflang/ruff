@@ -38,9 +38,9 @@ print(type(timeout))
 
 # Test: env_bool - parse as boolean
 env_set("DEBUG", "true")
-let debug := env_bool("DEBUG")
-print(debug)
-print(type(debug))
+let debug_enabled := env_bool("DEBUG")
+print(debug_enabled)
+print(type(debug_enabled))
 
 env_set("VERBOSE", "1")
 let verbose := env_bool("VERBOSE")

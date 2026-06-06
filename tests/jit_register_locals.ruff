@@ -1,58 +1,59 @@
 // Test JIT Register-Based Locals Optimization
+// Run with: ruff test-run tests/jit_register_locals.ruff
 // This test verifies that local variables use fast stack slots
 // instead of runtime function calls for variable access
 
 // Test 1: Simple local variable read/write
 func test_simple_local() {
-    let x := 42
-    let y := x + 8
+    mut x := 42
+    mut y := x + 8
     return y
 }
 
 // Call multiple times to trigger JIT
-let result1 := 0
+mut result1 := 0
 for i in range(150) {
-    result1 := test_simple_local()
+    result1 = test_simple_local()
 }
 print("Test 1 - Simple local: " + to_string(result1))
-assert_equal(result1, 50, "Simple local should be 50")
+assert_equal(result1, 50)
 
 // Test 2: Multiple local variables
 func test_multiple_locals() {
-    let a := 10
-    let b := 20
-    let c := 30
-    let sum := a + b + c
+    mut a := 10
+    mut b := 20
+    mut c := 30
+    mut sum := a + b + c
     return sum
 }
 
-let result2 := 0
+mut result2 := 0
 for i in range(150) {
-    result2 := test_multiple_locals()
+    result2 = test_multiple_locals()
 }
 print("Test 2 - Multiple locals: " + to_string(result2))
-assert_equal(result2, 60, "Multiple locals should sum to 60")
+assert_equal(result2, 60)
 
 // Test 3: Local variable with arithmetic
 func test_arithmetic_locals() {
-    let x := 5
-    let y := 3
-    let product := x * y
-    let quotient := x / y
-    let remainder := x % y
+    mut x := 5
+    mut y := 3
+    mut product := x * y
+    mut quotient := x / y
+    mut remainder := x % y
     return product + remainder
 }
 
-let result3 := 0
+mut result3 := 0
 for i in range(150) {
-    result3 := test_arithmetic_locals()
+    result3 = test_arithmetic_locals()
 }
 print("Test 3 - Arithmetic locals: " + to_string(result3))
-assert_equal(result3, 17, "Arithmetic locals should be 17")
+assert_equal(result3, 17)
 
 // Test 4: Local variable reassignment
 func test_reassignment() {
-    let x := 1
+    mut x := 1
     x := x + 1
     x := x + 1
     x := x + 1
@@ -60,12 +61,12 @@ func test_reassignment() {
     return x
 }
 
-let result4 := 0
+mut result4 := 0
 for i in range(150) {
-    result4 := test_reassignment()
+    result4 = test_reassignment()
 }
 print("Test 4 - Reassignment: " + to_string(result4))
-assert_equal(result4, 5, "Reassignment should be 5")
+assert_equal(result4, 5)
 
 // Test 5: Fibonacci (main performance test)
 func fib(n) {
@@ -76,17 +77,17 @@ func fib(n) {
 }
 
 // Call fib many times to trigger JIT
-let fib_result := 0
+mut fib_result := 0
 for i in range(150) {
-    fib_result := fib(10)
+    fib_result = fib(10)
 }
 print("Test 5 - Fibonacci(10): " + to_string(fib_result))
-assert_equal(fib_result, 55, "Fibonacci(10) should be 55")
+assert_equal(fib_result, 55)
 
 // Test 6: Fibonacci with larger input (correctness test)
 let fib25 := fib(25)
 print("Test 6 - Fibonacci(25): " + to_string(fib25))
-assert_equal(fib25, 75025, "Fibonacci(25) should be 75025")
+assert_equal(fib25, 75025)
 
 print("")
 print("All JIT register-based locals tests passed!")
