@@ -4,7 +4,9 @@ Return to [README](README.md) for full language overview.
 
 > Looking for how to get Ruff installed on your system? You're in the right place.
 
-Ruff is a programming language built with Rust. You can install Ruff either from prebuilt release artifacts (recommended for users) or by building from source with Cargo.
+Ruff is the Kujo core language/runtime built with Rust. You can install Ruff either from prebuilt release artifacts (recommended for users) or by building from source with Cargo.
+
+If another `ruff` command is already on your machine, make sure you are using the binary from this repository so you do not confuse it with unrelated tools that share the same name.
 
 ---
 

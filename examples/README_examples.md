@@ -2,9 +2,9 @@
 
 This directory contains example programs demonstrating Ruff's features.
 
-## 🎯 Featured Examples (New v0.3.0 Features)
+## 🎯 Featured Examples
 
-These examples showcase the latest features: **lexical scoping**, **user input**, **type conversion**, and **file I/O**.
+These examples showcase core Ruff features such as **lexical scoping**, **user input**, **type conversion**, and **file I/O**.
 
 ### Interactive Applications
 

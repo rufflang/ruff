@@ -256,7 +256,7 @@ ruff run examples/project_markdown_converter.ruff \
 
 ## 🚀 Why These Projects Matter
 
-These showcase projects demonstrate that Ruff is **production-ready** for:
+These showcase projects demonstrate practical patterns Ruff can support today:
 
 1. **CLI Tools** - Full-featured command-line applications with arg parsing
 2. **Data Processing** - CSV/JSON transformation, validation, filtering
@@ -309,4 +309,4 @@ See also:
 
 ---
 
-**Built with Ruff v0.8.0-dev** 🐾
+**Built with the Ruff language runtime** 🐾

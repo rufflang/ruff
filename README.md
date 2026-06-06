@@ -1,7 +1,7 @@
 # Ruff
 
-Ruff is an AI-native programming language and runtime built in Rust.
-It is designed for production automation, agentic workflows, and application scripting where deterministic behavior, strong native capabilities, and practical ergonomics matter.
+Ruff is the Kujo core language/runtime: the programming language for AI-native software, built in Rust.
+It is designed for local-first automation, agentic workflows, and application scripting where deterministic behavior, strong native capabilities, and practical ergonomics matter.
 
 Ruff is VM-first (`ruff run`), with a tree-walking interpreter available as an explicit fallback/debug path.
 
@@ -11,15 +11,16 @@ Ruff is VM-first (`ruff run`), with a tree-walking interpreter available as an e
 - VM runtime parity for modular workflows has been significantly hardened.
 - Dotted module import workflows are supported on the default VM path.
 - Native capability controls are available for trusted and untrusted execution modes.
-- Ruff is pre-1.0 and not yet universally production-ready for all enterprise workloads.
+- Ruff remains pre-1.0, and release readiness is still bounded by `ROADMAP.md` and the pre-v1 checklist.
 
 ## Why Ruff
 
-- VM-first execution for predictable runtime behavior in production scripts.
+- VM-first execution for predictable runtime behavior in local and production scripts.
 - Practical native APIs (filesystem, process, network, async, crypto, database).
 - Security policy controls for trusted and untrusted execution.
 - Module workflows that support both flat and dotted imports.
 - Strong diagnostics, contract tests, and release-gate automation.
+- Core surfaces for `doctor`, `docgen`, and machine-readable CLI contracts keep the language agent-readable.
 
 ## 1.0 Readiness Status
 
@@ -70,6 +71,8 @@ export RUFF_ALLOW_PRIVATE_NETWORK_DESTINATIONS=1
 - [ROADMAP.md](ROADMAP.md)
 - [docs/LANGUAGE_SPEC.md](docs/LANGUAGE_SPEC.md)
 - [docs/STANDARD_LIBRARY.md](docs/STANDARD_LIBRARY.md)
+- [docs/DOCGEN.md](docs/DOCGEN.md)
+- [docs/CLI_MACHINE_READABLE_CONTRACTS.md](docs/CLI_MACHINE_READABLE_CONTRACTS.md)
 - [docs/INSTALL_MATRIX.md](docs/INSTALL_MATRIX.md)
 - [docs/FIRST_TOOL_COOKBOOK.md](docs/FIRST_TOOL_COOKBOOK.md)
 - [docs/RELEASE_PROCESS.md](docs/RELEASE_PROCESS.md)
@@ -78,6 +81,8 @@ export RUFF_ALLOW_PRIVATE_NETWORK_DESTINATIONS=1
 For script ergonomics, see the output/report style guidance in [docs/FIRST_TOOL_COOKBOOK.md](docs/FIRST_TOOL_COOKBOOK.md) and [docs/STANDARD_LIBRARY_REFERENCE.md](docs/STANDARD_LIBRARY_REFERENCE.md).
 
 ## Install
+
+This repository builds the Ruff language/runtime. If another `ruff` command is already installed on your system, prefer the full path to this repo's binary while testing so you do not confuse it with unrelated tools.
 
 ```bash
 git clone https://github.com/rufflang/ruff.git
@@ -149,6 +154,8 @@ Common commands:
 - `ruff run <file>`: execute Ruff scripts on the VM path.
 - `ruff run --interpreter <file>`: execute on the interpreter fallback path.
 - `ruff check <file>`: validate source without execution.
+- `ruff doctor`: run first-party diagnostics and environment checks.
+- `ruff docgen <path>`: generate documentation from Ruff source code.
 - `ruff test`: run snapshot fixture corpus (`--runtime vm|dual|interpreter`, `--update`).
 - `ruff test-run <file>`: run Ruff `test "..." {}` declarations in a file.
 - `ruff serve [dir]`: static file server for local preview/testing.
