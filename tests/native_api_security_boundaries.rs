@@ -656,6 +656,42 @@ fn network_http_client_rejects_malformed_url_before_request_execution() {
 }
 
 #[test]
+fn network_http_client_rejects_invalid_port_before_request_execution() {
+    let project_root = unique_temp_dir("network_http_client_rejects_invalid_port");
+    let script_path = project_root.join("invalid_port.ruff");
+    fs::write(&script_path, "http_get(\"http://127.0.0.1:99999\")\n")
+        .expect("failed to write invalid port test script");
+
+    let output = run_ruff_with_env(
+        &[
+            "run",
+            "--interpreter",
+            "--untrusted",
+            "--allow-net-client",
+            script_path.to_str().expect("script path should be utf-8"),
+        ],
+        &project_root,
+        &[],
+    );
+
+    assert_eq!(
+        output.status.code(),
+        Some(4),
+        "expected invalid port to fail with runtime error, got status={:?}, stdout={}, stderr={}",
+        output.status.code(),
+        stdout_text(&output),
+        stderr_text(&output)
+    );
+    let combined_output = format!("{}\n{}", stdout_text(&output), stderr_text(&output));
+    assert!(
+        combined_output.contains("invalid URL") || combined_output.contains("port"),
+        "expected invalid port diagnostic, got stdout={} stderr={}",
+        stdout_text(&output),
+        stderr_text(&output)
+    );
+}
+
+#[test]
 fn network_destination_policy_deny_private_blocks_loopback_http_client() {
     let project_root = unique_temp_dir("network_destination_policy_blocks_loopback_http");
     let script_path = project_root.join("destination_policy_http_block.ruff");
@@ -1306,6 +1342,53 @@ fn process_env_allow_and_deny_policy_is_enforced() {
             && output_text.contains("missing-denied")
             && output_text.contains("injected-value"),
         "expected allow/deny env policy effects in process stdout, got stdout={} stderr={}",
+        output_text,
+        stderr_text(&output)
+    );
+}
+
+#[test]
+fn process_env_deny_overrides_allow_for_inherited_values() {
+    let project_root = unique_temp_dir("native_api_process_env_deny_overrides_allow");
+    let child_script_path = project_root.join("env_child_deny_override.ruff");
+    fs::write(
+        &child_script_path,
+        "print(env_or(\"RUFF_ALLOWED\", \"missing-allowed\"))\nprint(env_or(\"RUFF_DENIED\", \"missing-denied\"))\n",
+    )
+    .expect("failed to write child script");
+
+    let script_path = project_root.join("env_deny_override_boundary.ruff");
+    let script_source = format!(
+        "let result := spawn_process([\"{}\", \"run\", \"--interpreter\", \"{}\"], {{\"inherit_env\": true, \"env_allow\": [\"RUFF_ALLOWED\", \"RUFF_DENIED\"], \"env_deny\": [\"RUFF_DENIED\"]}})\nprint(result.stdout)\n",
+        escape_ruff_string(ruff_binary().as_str()),
+        escape_ruff_string(child_script_path.to_str().expect("child script path should be utf-8")),
+    );
+    fs::write(&script_path, script_source).expect("failed to write env deny override script");
+
+    let output = run_ruff_with_env(
+        &[
+            "run",
+            "--interpreter",
+            "--untrusted",
+            "--allow-process-exec",
+            script_path.to_str().expect("script path should be utf-8"),
+        ],
+        &project_root,
+        &[("RUFF_ALLOWED", "allowed-value"), ("RUFF_DENIED", "denied-value")],
+    );
+
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "expected process env deny override policy to be enforced, got status={:?}, stdout={}, stderr={}",
+        output.status.code(),
+        stdout_text(&output),
+        stderr_text(&output)
+    );
+    let output_text = stdout_text(&output);
+    assert!(
+        output_text.contains("allowed-value") && output_text.contains("missing-denied"),
+        "expected inherited env allow/deny precedence to be reflected in process stdout, got stdout={} stderr={}",
         output_text,
         stderr_text(&output)
     );
