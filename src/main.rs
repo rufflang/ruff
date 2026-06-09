@@ -53,6 +53,9 @@ use std::collections::BTreeSet;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
+use tokio::runtime::Builder;
+
+const VM_EXECUTION_STACK_SIZE: usize = 64 * 1024 * 1024;
 
 #[derive(ClapParser)]
 #[command(
@@ -1101,8 +1104,16 @@ fn reserved_external_alias_error(name: &str) -> Option<String> {
     None
 }
 
-#[tokio::main]
-async fn main() {
+fn main() {
+    let runtime = Builder::new_multi_thread().enable_all().build().unwrap_or_else(|error| {
+        eprintln!("Error: failed to initialize tokio runtime: {}", error);
+        std::process::exit(1);
+    });
+
+    runtime.block_on(async_main());
+}
+
+async fn async_main() {
     let cli = Cli::parse();
 
     // Handle workflow pack commands via external subcommand routing.
@@ -1190,67 +1201,79 @@ async fn main() {
                 let mut compiler = compiler::Compiler::new();
                 match compiler.compile(&stmts) {
                     Ok(chunk) => {
-                        // Spawn VM execution in a blocking task to avoid runtime conflicts
-                        let result = tokio::task::spawn_blocking(move || {
-                            let mut vm = vm::VM::new();
-                            for search_path in entry_script_search_paths(&file) {
-                                vm.add_module_search_path(search_path);
-                            }
-                            let jit_requested = jit && std::env::var("DISABLE_JIT").is_err();
-                            vm.set_jit_enabled(jit_requested);
-                            if jit_requested {
-                                if let Err(reason) = vm.validate_jit_supported_surfaces(&chunk) {
-                                    eprintln!(
-                                        "JIT opt-in requested, but this program is not JIT-compatible ({}). Falling back to VM bytecode execution without JIT.",
-                                        reason
+                        // Run the VM on a dedicated large-stack thread so deep
+                        // value operations do not inherit tokio's smaller default stack.
+                        let result = std::thread::Builder::new()
+                            .name("ruff-vm-runner".to_string())
+                            .stack_size(VM_EXECUTION_STACK_SIZE)
+                            .spawn(move || {
+                                let mut vm = vm::VM::new();
+                                for search_path in entry_script_search_paths(&file) {
+                                    vm.add_module_search_path(search_path);
+                                }
+                                let jit_requested = jit && std::env::var("DISABLE_JIT").is_err();
+                                vm.set_jit_enabled(jit_requested);
+                                if jit_requested {
+                                    if let Err(reason) = vm.validate_jit_supported_surfaces(&chunk) {
+                                        eprintln!(
+                                            "JIT opt-in requested, but this program is not JIT-compatible ({}). Falling back to VM bytecode execution without JIT.",
+                                            reason
+                                        );
+                                        vm.set_jit_enabled(false);
+                                    }
+                                }
+                                vm.set_capability_policy(capability_policy.clone());
+
+                                // Set up global environment with built-in functions
+                                // We need to populate it with NativeFunction values for all built-ins
+                                let env = Arc::new(Mutex::new(interpreter::Environment::new()));
+
+                                // Register all built-in functions as NativeFunction values
+                                // Get the complete list from the interpreter
+                                let builtins = interpreter::Interpreter::get_builtin_names();
+
+                                for builtin_name in builtins {
+                                    env.lock().unwrap().set(
+                                        builtin_name.to_string(),
+                                        interpreter::Value::NativeFunction(
+                                            builtin_name.to_string(),
+                                        ),
                                     );
-                                    vm.set_jit_enabled(false);
                                 }
-                            }
-                            vm.set_capability_policy(capability_policy.clone());
 
-                            // Set up global environment with built-in functions
-                            // We need to populate it with NativeFunction values for all built-ins
-                            let env = Arc::new(Mutex::new(interpreter::Environment::new()));
-
-                            // Register all built-in functions as NativeFunction values
-                            // Get the complete list from the interpreter
-                            let builtins = interpreter::Interpreter::get_builtin_names();
-
-                            for builtin_name in builtins {
-                                env.lock().unwrap().set(
-                                    builtin_name.to_string(),
-                                    interpreter::Value::NativeFunction(builtin_name.to_string()),
-                                );
-                            }
-
-                            // Register constant globals that are not callable native functions.
-                            {
-                                let mut env_lock = env.lock().unwrap();
-                                for (name, value) in crate::builtins::get_builtins() {
-                                    env_lock.set(name, value);
+                                // Register constant globals that are not callable native functions.
+                                {
+                                    let mut env_lock = env.lock().unwrap();
+                                    for (name, value) in crate::builtins::get_builtins() {
+                                        env_lock.set(name, value);
+                                    }
+                                    env_lock.set("null".to_string(), interpreter::Value::Null);
                                 }
-                                env_lock.set("null".to_string(), interpreter::Value::Null);
-                            }
 
-                            vm.set_globals(env);
+                                vm.set_globals(env);
 
-                            // Execute using cooperative suspend/resume for true concurrency
-                            // Initial execution
-                            let exec_result = match vm.execute_until_suspend(chunk.clone()) {
-                                Ok(vm::VmExecutionResult::Completed) => Ok(()),
-                                Ok(vm::VmExecutionResult::Suspended { .. }) => {
-                                    // Run scheduler until all contexts complete.
-                                    // Use a timeout budget so long-running async workloads
-                                    // can complete without relying on a fixed round count.
-                                    vm.run_scheduler_until_complete_with_timeout(scheduler_timeout)
-                                }
-                                Err(e) => Err(e),
-                            };
+                                // Execute using cooperative suspend/resume for true concurrency
+                                // Initial execution
+                                let exec_result = match vm.execute_until_suspend(chunk.clone()) {
+                                    Ok(vm::VmExecutionResult::Completed) => Ok(()),
+                                    Ok(vm::VmExecutionResult::Suspended { .. }) => {
+                                        // Run scheduler until all contexts complete.
+                                        // Use a timeout budget so long-running async workloads
+                                        // can complete without relying on a fixed round count.
+                                        vm.run_scheduler_until_complete_with_timeout(
+                                            scheduler_timeout,
+                                        )
+                                    }
+                                    Err(e) => Err(e),
+                                };
 
-                            (exec_result, vm.get_call_stack())
-                        })
-                        .await;
+                                (exec_result, vm.get_call_stack())
+                            })
+                            .unwrap_or_else(|error| {
+                                eprintln!("Error: failed to start Ruff VM thread: {}", error);
+                                std::process::exit(1);
+                            })
+                            .join();
 
                         match result {
                             Ok((Ok(_result), _)) => {
@@ -1272,12 +1295,12 @@ async fn main() {
                                     json_runtime_diagnostics,
                                 );
                             }
-                            Err(e) => {
+                            Err(_) => {
                                 let diagnostic = errors::Diagnostic::new(
                                     errors::DIAGNOSTIC_CODE_VM,
                                     errors::DiagnosticSeverity::Error,
                                     errors::DiagnosticSubsystem::Vm,
-                                    format!("VM execution panicked: {}", e),
+                                    "VM execution panicked in dedicated VM thread".to_string(),
                                 );
                                 report_run_runtime_diagnostic_and_exit(
                                     &diagnostic,

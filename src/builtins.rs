@@ -258,7 +258,7 @@ pub fn range(args: &[Value]) -> Result<Vec<Value>, String> {
 
 /// String functions
 pub fn str_len(s: &str) -> f64 {
-    s.len() as f64
+    s.chars().count() as f64
 }
 
 pub fn substring(s: &str, start: f64, end: f64) -> String {
@@ -320,7 +320,7 @@ pub fn ends_with(s: &str, suffix: &str) -> bool {
 
 pub fn index_of(s: &str, substr: &str) -> f64 {
     match s.find(substr) {
-        Some(idx) => idx as f64,
+        Some(idx) => s[..idx].chars().count() as f64,
         None => -1.0,
     }
 }
@@ -2317,6 +2317,7 @@ mod tests {
     #[test]
     fn test_string_functions() {
         assert_eq!(str_len("hello"), 5.0);
+        assert_eq!(str_len("Free Tools → Plan"), 17.0);
         assert_eq!(substring("hello", 1.0, 4.0), "ell");
         assert_eq!(to_upper("hello"), "HELLO");
         assert_eq!(to_lower("HELLO"), "hello");
@@ -2331,6 +2332,7 @@ mod tests {
         assert!(ends_with("test.ruff", ".ruff"));
         assert!(!ends_with("test.ruff", ".py"));
         assert_eq!(index_of("hello", "ll"), 2.0);
+        assert_eq!(index_of("a→b", "b"), 2.0);
         assert_eq!(index_of("hello", "xyz"), -1.0);
         assert_eq!(repeat("ha", 3.0), "hahaha");
         assert_eq!(split("a,b,c", ","), vec!["a", "b", "c"]);

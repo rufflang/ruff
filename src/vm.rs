@@ -829,6 +829,129 @@ impl VM {
         format!("Missing map key: {}", Self::index_key_description(index))
     }
 
+    fn value_nesting_depth(value: &Value) -> usize {
+        let mut stack: Vec<(&Value, usize)> = vec![(value, 0)];
+        let mut max_depth = 0;
+
+        while let Some((value, depth)) = stack.pop() {
+            max_depth = max_depth.max(depth);
+
+            match value {
+                Value::Array(items) => {
+                    for item in items.iter() {
+                        stack.push((item, depth + 1));
+                    }
+                }
+                Value::Dict(dict) => {
+                    for nested in dict.values() {
+                        stack.push((nested, depth + 1));
+                    }
+                }
+                Value::FixedDict { values, .. } => {
+                    for nested in values.iter() {
+                        stack.push((nested, depth + 1));
+                    }
+                }
+                Value::Struct { fields, .. } | Value::Tagged { fields, .. } => {
+                    for nested in fields.values() {
+                        stack.push((nested, depth + 1));
+                    }
+                }
+                Value::IntDict(dict) => {
+                    for nested in dict.values() {
+                        stack.push((nested, depth + 1));
+                    }
+                }
+                Value::DenseIntDict(values) => {
+                    for nested in values.iter() {
+                        stack.push((nested, depth + 1));
+                    }
+                }
+                Value::Set(items) | Value::Stack(items) => {
+                    for nested in items.iter() {
+                        stack.push((nested, depth + 1));
+                    }
+                }
+                Value::Queue(items) => {
+                    for nested in items.iter() {
+                        stack.push((nested, depth + 1));
+                    }
+                }
+                Value::HttpServer { routes, .. } => {
+                    for (_, _, nested) in routes.iter() {
+                        stack.push((nested, depth + 1));
+                    }
+                }
+                Value::Result { value, .. }
+                | Value::Option { value, .. }
+                | Value::Return(value) => {
+                    stack.push((value.as_ref(), depth + 1));
+                }
+                Value::ErrorObject { cause: Some(cause), .. } => {
+                    stack.push((cause.as_ref(), depth + 1));
+                }
+                Value::HttpResponse { .. }
+                | Value::Int(_)
+                | Value::Float(_)
+                | Value::Str(_)
+                | Value::Bool(_)
+                | Value::Null
+                | Value::Bytes(_)
+                | Value::Function(_, _, _)
+                | Value::AsyncFunction(_, _, _)
+                | Value::NativeFunction(_)
+                | Value::BytecodeFunction { .. }
+                | Value::BytecodeGenerator { .. }
+                | Value::ArrayMarker
+                | Value::Error(_)
+                | Value::ErrorObject { .. }
+                | Value::Enum(_)
+                | Value::DenseIntDictInt(_)
+                | Value::DenseIntDictIntFull(_)
+                | Value::Database { .. }
+                | Value::DatabasePool { .. }
+                | Value::Image { .. }
+                | Value::ZipArchive { .. }
+                | Value::TcpListener { .. }
+                | Value::TcpStream { .. }
+                | Value::UdpSocket { .. }
+                | Value::Channel(_)
+                | Value::GeneratorDef(_, _)
+                | Value::Generator { .. }
+                | Value::Iterator { .. }
+                | Value::Promise { .. }
+                | Value::TaskHandle { .. }
+                | Value::StructDef { .. } => {}
+            }
+        }
+
+        max_depth
+    }
+
+    fn ensure_value_nesting_depth(value: &Value, context: &str) -> Result<(), String> {
+        let max_depth = runtime_limits::DEFAULT_MAX_VALUE_NESTING_DEPTH;
+        let depth = Self::value_nesting_depth(value);
+        if depth > max_depth {
+            Err(format!("Maximum data nesting depth of {} exceeded while {}", max_depth, context))
+        } else {
+            Ok(())
+        }
+    }
+
+    fn push_checked_value(&mut self, value: Value, context: &str) -> Result<bool, String> {
+        if let Err(message) = Self::ensure_value_nesting_depth(&value, context) {
+            if self.exception_handlers.is_empty() {
+                return Err(message);
+            }
+
+            self.throw_runtime_value(Value::Error(message))?;
+            return Ok(false);
+        }
+
+        self.stack.push(value);
+        Ok(true)
+    }
+
     fn get_indexed_value(object: &Value, index: &Value) -> Result<Value, String> {
         match (object, index) {
             (Value::Array(arr), Value::Int(i)) => {
@@ -836,7 +959,8 @@ impl VM {
                 arr.get(idx).cloned().ok_or_else(|| format!("Index out of bounds: {}", i))
             }
             (Value::Str(s), Value::Int(i)) => {
-                let idx = if *i < 0 { (s.len() as i64 + i) as usize } else { *i as usize };
+                let char_len = s.chars().count();
+                let idx = if *i < 0 { (char_len as i64 + i) as usize } else { *i as usize };
                 s.chars()
                     .nth(idx)
                     .map(|c| Value::Str(Arc::new(c.to_string())))
@@ -3305,7 +3429,12 @@ impl VM {
                     }
 
                     elements.reverse();
-                    self.stack.push(Value::Array(Arc::new(elements)));
+                    if !self.push_checked_value(
+                        Value::Array(Arc::new(elements)),
+                        "building array literal",
+                    )? {
+                        continue;
+                    }
                 }
 
                 OpCode::MakeArrayFromMarker => {
@@ -3323,7 +3452,12 @@ impl VM {
                     }
 
                     elements.reverse();
-                    self.stack.push(Value::Array(Arc::new(elements)));
+                    if !self.push_checked_value(
+                        Value::Array(Arc::new(elements)),
+                        "building array literal",
+                    )? {
+                        continue;
+                    }
                 }
 
                 OpCode::PushArrayMarker => {
@@ -3351,7 +3485,12 @@ impl VM {
                     for (key, value) in entries {
                         dict.insert(key, value);
                     }
-                    self.stack.push(Value::Dict(Arc::new(dict)));
+                    if !self.push_checked_value(
+                        Value::Dict(Arc::new(dict)),
+                        "building dictionary literal",
+                    )? {
+                        continue;
+                    }
                 }
 
                 OpCode::MakeDictFromMarker => {
@@ -3383,7 +3522,12 @@ impl VM {
                         dict.insert(key, value);
                     }
 
-                    self.stack.push(Value::Dict(Arc::new(dict)));
+                    if !self.push_checked_value(
+                        Value::Dict(Arc::new(dict)),
+                        "building dictionary literal",
+                    )? {
+                        continue;
+                    }
                 }
 
                 OpCode::MakeDictWithKeys(keys) => {
@@ -3392,7 +3536,12 @@ impl VM {
                         values.push(self.stack.pop().ok_or("Stack underflow")?);
                     }
                     values.reverse();
-                    self.stack.push(Value::FixedDict { keys: Arc::clone(&keys), values });
+                    if !self.push_checked_value(
+                        Value::FixedDict { keys: Arc::clone(&keys), values },
+                        "building fixed dictionary literal",
+                    )? {
+                        continue;
+                    }
                 }
 
                 OpCode::IndexGet => {
@@ -3420,7 +3569,12 @@ impl VM {
 
                             if idx < arr_mut.len() {
                                 arr_mut[idx] = value;
-                                self.stack.push(Value::Array(arr_clone));
+                                if !self.push_checked_value(
+                                    Value::Array(arr_clone),
+                                    "updating array element",
+                                )? {
+                                    continue;
+                                }
                             } else {
                                 return Err(format!("Index out of bounds: {}", i));
                             }
@@ -3429,20 +3583,35 @@ impl VM {
                             let mut dict_clone = dict;
                             let dict_mut = Arc::make_mut(&mut dict_clone);
                             dict_mut.insert(Arc::from(key.as_str()), value);
-                            self.stack.push(Value::Dict(dict_clone));
+                            if !self.push_checked_value(
+                                Value::Dict(dict_clone),
+                                "updating dictionary entry",
+                            )? {
+                                continue;
+                            }
                         }
                         (Value::FixedDict { keys, mut values }, Value::Str(key)) => {
                             if let Some(idx) = keys.iter().position(|k| k.as_ref() == key.as_str())
                             {
                                 values[idx] = value;
-                                self.stack.push(Value::FixedDict { keys, values });
+                                if !self.push_checked_value(
+                                    Value::FixedDict { keys, values },
+                                    "updating fixed dictionary entry",
+                                )? {
+                                    continue;
+                                }
                             } else {
                                 let mut dict = DictMap::default();
                                 for (k, v) in keys.iter().cloned().zip(values.into_iter()) {
                                     dict.insert(k, v);
                                 }
                                 dict.insert(Arc::from(key.as_str()), value);
-                                self.stack.push(Value::Dict(Arc::new(dict)));
+                                if !self.push_checked_value(
+                                    Value::Dict(Arc::new(dict)),
+                                    "updating dictionary entry",
+                                )? {
+                                    continue;
+                                }
                             }
                         }
                         (Value::Dict(dict), Value::Int(i)) => {
@@ -3452,35 +3621,58 @@ impl VM {
                                     match value {
                                         Value::Int(int_value) => {
                                             if i == 0 {
-                                                self.stack.push(Value::DenseIntDictIntFull(
-                                                    Arc::new(vec![int_value]),
-                                                ));
+                                                if !self.push_checked_value(
+                                                    Value::DenseIntDictIntFull(Arc::new(vec![
+                                                        int_value,
+                                                    ])),
+                                                    "updating integer dictionary entry",
+                                                )? {
+                                                    continue;
+                                                }
                                             } else {
                                                 let mut values = Self::dense_int_dict_int_with_len(
                                                     (i as usize) + 1,
                                                 );
                                                 values[i as usize] = Some(int_value);
-                                                self.stack
-                                                    .push(Value::DenseIntDictInt(Arc::new(values)));
+                                                if !self.push_checked_value(
+                                                    Value::DenseIntDictInt(Arc::new(values)),
+                                                    "updating integer dictionary entry",
+                                                )? {
+                                                    continue;
+                                                }
                                             }
                                         }
                                         Value::Null => {
                                             let values =
                                                 Self::dense_int_dict_int_with_len((i as usize) + 1);
-                                            self.stack
-                                                .push(Value::DenseIntDictInt(Arc::new(values)));
+                                            if !self.push_checked_value(
+                                                Value::DenseIntDictInt(Arc::new(values)),
+                                                "updating integer dictionary entry",
+                                            )? {
+                                                continue;
+                                            }
                                         }
                                         other => {
                                             let mut values = vec![Value::Null; (i as usize) + 1];
                                             values[i as usize] = other;
-                                            self.stack.push(Value::DenseIntDict(Arc::new(values)));
+                                            if !self.push_checked_value(
+                                                Value::DenseIntDict(Arc::new(values)),
+                                                "updating integer dictionary entry",
+                                            )? {
+                                                continue;
+                                            }
                                         }
                                     }
                                 } else {
                                     let mut int_dict = IntDictMap::default();
                                     int_dict.reserve(1024);
                                     int_dict.insert(i, value);
-                                    self.stack.push(Value::IntDict(Arc::new(int_dict)));
+                                    if !self.push_checked_value(
+                                        Value::IntDict(Arc::new(int_dict)),
+                                        "updating integer dictionary entry",
+                                    )? {
+                                        continue;
+                                    }
                                 }
                             } else {
                                 let mut dict_clone = dict;
@@ -3488,7 +3680,12 @@ impl VM {
                                 // Support integer keys by converting to string
                                 let key = self.int_key_string(i);
                                 dict_mut.insert(Arc::clone(&key), value);
-                                self.stack.push(Value::Dict(dict_clone));
+                                if !self.push_checked_value(
+                                    Value::Dict(dict_clone),
+                                    "updating dictionary entry",
+                                )? {
+                                    continue;
+                                }
                             }
                         }
                         (Value::FixedDict { keys, values }, Value::Int(i)) => {
@@ -3497,35 +3694,58 @@ impl VM {
                                     match value {
                                         Value::Int(int_value) => {
                                             if i == 0 {
-                                                self.stack.push(Value::DenseIntDictIntFull(
-                                                    Arc::new(vec![int_value]),
-                                                ));
+                                                if !self.push_checked_value(
+                                                    Value::DenseIntDictIntFull(Arc::new(vec![
+                                                        int_value,
+                                                    ])),
+                                                    "updating integer dictionary entry",
+                                                )? {
+                                                    continue;
+                                                }
                                             } else {
                                                 let mut values = Self::dense_int_dict_int_with_len(
                                                     (i as usize) + 1,
                                                 );
                                                 values[i as usize] = Some(int_value);
-                                                self.stack
-                                                    .push(Value::DenseIntDictInt(Arc::new(values)));
+                                                if !self.push_checked_value(
+                                                    Value::DenseIntDictInt(Arc::new(values)),
+                                                    "updating integer dictionary entry",
+                                                )? {
+                                                    continue;
+                                                }
                                             }
                                         }
                                         Value::Null => {
                                             let values =
                                                 Self::dense_int_dict_int_with_len((i as usize) + 1);
-                                            self.stack
-                                                .push(Value::DenseIntDictInt(Arc::new(values)));
+                                            if !self.push_checked_value(
+                                                Value::DenseIntDictInt(Arc::new(values)),
+                                                "updating integer dictionary entry",
+                                            )? {
+                                                continue;
+                                            }
                                         }
                                         other => {
                                             let mut values = vec![Value::Null; (i as usize) + 1];
                                             values[i as usize] = other;
-                                            self.stack.push(Value::DenseIntDict(Arc::new(values)));
+                                            if !self.push_checked_value(
+                                                Value::DenseIntDict(Arc::new(values)),
+                                                "updating integer dictionary entry",
+                                            )? {
+                                                continue;
+                                            }
                                         }
                                     }
                                 } else {
                                     let mut int_dict = IntDictMap::default();
                                     int_dict.reserve(1024);
                                     int_dict.insert(i, value);
-                                    self.stack.push(Value::IntDict(Arc::new(int_dict)));
+                                    if !self.push_checked_value(
+                                        Value::IntDict(Arc::new(int_dict)),
+                                        "updating integer dictionary entry",
+                                    )? {
+                                        continue;
+                                    }
                                 }
                             } else {
                                 let key = self.int_key_string(i);
@@ -3534,14 +3754,24 @@ impl VM {
                                 {
                                     let mut values = values;
                                     values[idx] = value;
-                                    self.stack.push(Value::FixedDict { keys, values });
+                                    if !self.push_checked_value(
+                                        Value::FixedDict { keys, values },
+                                        "updating fixed dictionary entry",
+                                    )? {
+                                        continue;
+                                    }
                                 } else {
                                     let mut dict = DictMap::default();
                                     for (k, v) in keys.iter().cloned().zip(values.into_iter()) {
                                         dict.insert(k, v);
                                     }
                                     dict.insert(Arc::clone(&key), value);
-                                    self.stack.push(Value::Dict(Arc::new(dict)));
+                                    if !self.push_checked_value(
+                                        Value::Dict(Arc::new(dict)),
+                                        "updating dictionary entry",
+                                    )? {
+                                        continue;
+                                    }
                                 }
                             }
                         }
@@ -3550,14 +3780,24 @@ impl VM {
                             let mut dict_clone = dict;
                             let dict_mut = Arc::make_mut(&mut dict_clone);
                             dict_mut.insert(i, value);
-                            self.stack.push(Value::IntDict(dict_clone));
+                            if !self.push_checked_value(
+                                Value::IntDict(dict_clone),
+                                "updating integer dictionary entry",
+                            )? {
+                                continue;
+                            }
                         }
                         (Value::DenseIntDict(mut values), Value::Int(i)) => {
                             hashmap_profile_bump(&HASHMAP_SET_DENSE);
                             if i < 0 {
                                 let mut int_dict = Self::dense_int_dict_to_int_dict(&values);
                                 int_dict.insert(i, value);
-                                self.stack.push(Value::IntDict(Arc::new(int_dict)));
+                                if !self.push_checked_value(
+                                    Value::IntDict(Arc::new(int_dict)),
+                                    "updating integer dictionary entry",
+                                )? {
+                                    continue;
+                                }
                             } else {
                                 let values_mut = Arc::make_mut(&mut values);
                                 let index = i as usize;
@@ -3565,7 +3805,12 @@ impl VM {
                                     values_mut.resize(index + 1, Value::Null);
                                 }
                                 values_mut[index] = value;
-                                self.stack.push(Value::DenseIntDict(values));
+                                if !self.push_checked_value(
+                                    Value::DenseIntDict(values),
+                                    "updating dense integer dictionary entry",
+                                )? {
+                                    continue;
+                                }
                             }
                         }
                         (Value::DenseIntDictInt(mut values), Value::Int(i)) => {
@@ -3573,7 +3818,12 @@ impl VM {
                             if i < 0 {
                                 let mut int_dict = Self::dense_int_dict_int_to_int_dict(&values);
                                 int_dict.insert(i, value);
-                                self.stack.push(Value::IntDict(Arc::new(int_dict)));
+                                if !self.push_checked_value(
+                                    Value::IntDict(Arc::new(int_dict)),
+                                    "updating integer dictionary entry",
+                                )? {
+                                    continue;
+                                }
                             } else {
                                 let index = i as usize;
                                 match value {
@@ -3588,7 +3838,12 @@ impl VM {
                                             values_mut.resize(index + 1, None);
                                             values_mut[index] = Some(int_value);
                                         }
-                                        self.stack.push(Value::DenseIntDictInt(values));
+                                        if !self.push_checked_value(
+                                            Value::DenseIntDictInt(values),
+                                            "updating dense integer dictionary entry",
+                                        )? {
+                                            continue;
+                                        }
                                     }
                                     Value::Null => {
                                         let values_mut = Arc::make_mut(&mut values);
@@ -3601,7 +3856,12 @@ impl VM {
                                             values_mut.resize(index + 1, None);
                                             values_mut[index] = None;
                                         }
-                                        self.stack.push(Value::DenseIntDictInt(values));
+                                        if !self.push_checked_value(
+                                            Value::DenseIntDictInt(values),
+                                            "updating dense integer dictionary entry",
+                                        )? {
+                                            continue;
+                                        }
                                     }
                                     other => {
                                         let mut dense_values =
@@ -3622,7 +3882,12 @@ impl VM {
                                 let mut int_dict =
                                     Self::dense_int_dict_int_full_to_int_dict(&values);
                                 int_dict.insert(i, value);
-                                self.stack.push(Value::IntDict(Arc::new(int_dict)));
+                                if !self.push_checked_value(
+                                    Value::IntDict(Arc::new(int_dict)),
+                                    "updating integer dictionary entry",
+                                )? {
+                                    continue;
+                                }
                             } else {
                                 let index = i as usize;
                                 match value {
@@ -3631,17 +3896,31 @@ impl VM {
                                         let len = values_mut.len();
                                         if index == len {
                                             values_mut.push(int_value);
-                                            self.stack.push(Value::DenseIntDictIntFull(values));
+                                            if !self.push_checked_value(
+                                                Value::DenseIntDictIntFull(values),
+                                                "updating dense integer dictionary entry",
+                                            )? {
+                                                continue;
+                                            }
                                         } else if index < len {
                                             values_mut[index] = int_value;
-                                            self.stack.push(Value::DenseIntDictIntFull(values));
+                                            if !self.push_checked_value(
+                                                Value::DenseIntDictIntFull(values),
+                                                "updating dense integer dictionary entry",
+                                            )? {
+                                                continue;
+                                            }
                                         } else {
                                             let mut sparse =
                                                 Self::dense_int_dict_int_full_to_sparse(&values);
                                             sparse.resize(index + 1, None);
                                             sparse[index] = Some(int_value);
-                                            self.stack
-                                                .push(Value::DenseIntDictInt(Arc::new(sparse)));
+                                            if !self.push_checked_value(
+                                                Value::DenseIntDictInt(Arc::new(sparse)),
+                                                "updating integer dictionary entry",
+                                            )? {
+                                                continue;
+                                            }
                                         }
                                     }
                                     Value::Null => {
@@ -3651,7 +3930,12 @@ impl VM {
                                             sparse.resize(index + 1, None);
                                         }
                                         sparse[index] = None;
-                                        self.stack.push(Value::DenseIntDictInt(Arc::new(sparse)));
+                                        if !self.push_checked_value(
+                                            Value::DenseIntDictInt(Arc::new(sparse)),
+                                            "updating integer dictionary entry",
+                                        )? {
+                                            continue;
+                                        }
                                     }
                                     other => {
                                         let mut dense_values =
@@ -3660,8 +3944,12 @@ impl VM {
                                             dense_values.resize(index + 1, Value::Null);
                                         }
                                         dense_values[index] = other;
-                                        self.stack
-                                            .push(Value::DenseIntDict(Arc::new(dense_values)));
+                                        if !self.push_checked_value(
+                                            Value::DenseIntDict(Arc::new(dense_values)),
+                                            "updating integer dictionary entry",
+                                        )? {
+                                            continue;
+                                        }
                                     }
                                 }
                             }
@@ -3672,7 +3960,12 @@ impl VM {
                                 dict_clone.insert(k.to_string().into(), v.clone());
                             }
                             dict_clone.insert(Arc::from(key.as_str()), value);
-                            self.stack.push(Value::Dict(Arc::new(dict_clone)));
+                            if !self.push_checked_value(
+                                Value::Dict(Arc::new(dict_clone)),
+                                "updating dictionary entry",
+                            )? {
+                                continue;
+                            }
                         }
                         (Value::DenseIntDict(values), Value::Str(key)) => {
                             match key.parse::<i64>() {
@@ -3681,7 +3974,12 @@ impl VM {
                                         let mut int_dict =
                                             Self::dense_int_dict_to_int_dict(&values);
                                         int_dict.insert(int_key, value);
-                                        self.stack.push(Value::IntDict(Arc::new(int_dict)));
+                                        if !self.push_checked_value(
+                                            Value::IntDict(Arc::new(int_dict)),
+                                            "updating integer dictionary entry",
+                                        )? {
+                                            continue;
+                                        }
                                     } else {
                                         let mut values = values;
                                         let values_mut = Arc::make_mut(&mut values);
@@ -3690,13 +3988,23 @@ impl VM {
                                             values_mut.resize(index + 1, Value::Null);
                                         }
                                         values_mut[index] = value;
-                                        self.stack.push(Value::DenseIntDict(values));
+                                        if !self.push_checked_value(
+                                            Value::DenseIntDict(values),
+                                            "updating dense integer dictionary entry",
+                                        )? {
+                                            continue;
+                                        }
                                     }
                                 }
                                 Err(_) => {
                                     let mut dict = Self::dense_int_dict_to_dict(&values);
                                     dict.insert(Arc::from(key.as_str()), value);
-                                    self.stack.push(Value::Dict(Arc::new(dict)));
+                                    if !self.push_checked_value(
+                                        Value::Dict(Arc::new(dict)),
+                                        "updating dictionary entry",
+                                    )? {
+                                        continue;
+                                    }
                                 }
                             }
                         }
@@ -3707,7 +4015,12 @@ impl VM {
                                         let mut int_dict =
                                             Self::dense_int_dict_int_to_int_dict(&values);
                                         int_dict.insert(int_key, value);
-                                        self.stack.push(Value::IntDict(Arc::new(int_dict)));
+                                        if !self.push_checked_value(
+                                            Value::IntDict(Arc::new(int_dict)),
+                                            "updating integer dictionary entry",
+                                        )? {
+                                            continue;
+                                        }
                                     } else {
                                         let index = int_key as usize;
                                         match value {
@@ -3723,7 +4036,12 @@ impl VM {
                                                     values_mut.resize(index + 1, None);
                                                     values_mut[index] = Some(int_value);
                                                 }
-                                                self.stack.push(Value::DenseIntDictInt(values));
+                                                if !self.push_checked_value(
+                                                    Value::DenseIntDictInt(values),
+                                                    "updating dense integer dictionary entry",
+                                                )? {
+                                                    continue;
+                                                }
                                             }
                                             Value::Null => {
                                                 let mut values = values;
@@ -3737,7 +4055,12 @@ impl VM {
                                                     values_mut.resize(index + 1, None);
                                                     values_mut[index] = None;
                                                 }
-                                                self.stack.push(Value::DenseIntDictInt(values));
+                                                if !self.push_checked_value(
+                                                    Value::DenseIntDictInt(values),
+                                                    "updating dense integer dictionary entry",
+                                                )? {
+                                                    continue;
+                                                }
                                             }
                                             other => {
                                                 let mut dense_values =
@@ -3748,9 +4071,12 @@ impl VM {
                                                     dense_values.resize(index + 1, Value::Null);
                                                 }
                                                 dense_values[index] = other;
-                                                self.stack.push(Value::DenseIntDict(Arc::new(
-                                                    dense_values,
-                                                )));
+                                                if !self.push_checked_value(
+                                                    Value::DenseIntDict(Arc::new(dense_values)),
+                                                    "updating integer dictionary entry",
+                                                )? {
+                                                    continue;
+                                                }
                                             }
                                         }
                                     }
@@ -3758,7 +4084,12 @@ impl VM {
                                 Err(_) => {
                                     let mut dict = Self::dense_int_dict_int_to_dict(&values);
                                     dict.insert(Arc::from(key.as_str()), value);
-                                    self.stack.push(Value::Dict(Arc::new(dict)));
+                                    if !self.push_checked_value(
+                                        Value::Dict(Arc::new(dict)),
+                                        "updating dictionary entry",
+                                    )? {
+                                        continue;
+                                    }
                                 }
                             }
                         }
@@ -3769,7 +4100,12 @@ impl VM {
                                         let mut int_dict =
                                             Self::dense_int_dict_int_full_to_int_dict(&values);
                                         int_dict.insert(int_key, value);
-                                        self.stack.push(Value::IntDict(Arc::new(int_dict)));
+                                        if !self.push_checked_value(
+                                            Value::IntDict(Arc::new(int_dict)),
+                                            "updating integer dictionary entry",
+                                        )? {
+                                            continue;
+                                        }
                                     } else {
                                         let index = int_key as usize;
                                         match value {
@@ -3779,12 +4115,20 @@ impl VM {
                                                 let len = values_mut.len();
                                                 if index == len {
                                                     values_mut.push(int_value);
-                                                    self.stack
-                                                        .push(Value::DenseIntDictIntFull(values));
+                                                    if !self.push_checked_value(
+                                                        Value::DenseIntDictIntFull(values),
+                                                        "updating integer dictionary entry",
+                                                    )? {
+                                                        continue;
+                                                    }
                                                 } else if index < len {
                                                     values_mut[index] = int_value;
-                                                    self.stack
-                                                        .push(Value::DenseIntDictIntFull(values));
+                                                    if !self.push_checked_value(
+                                                        Value::DenseIntDictIntFull(values),
+                                                        "updating integer dictionary entry",
+                                                    )? {
+                                                        continue;
+                                                    }
                                                 } else {
                                                     let mut sparse =
                                                         Self::dense_int_dict_int_full_to_sparse(
@@ -3792,9 +4136,12 @@ impl VM {
                                                         );
                                                     sparse.resize(index + 1, None);
                                                     sparse[index] = Some(int_value);
-                                                    self.stack.push(Value::DenseIntDictInt(
-                                                        Arc::new(sparse),
-                                                    ));
+                                                    if !self.push_checked_value(
+                                                        Value::DenseIntDictInt(Arc::new(sparse)),
+                                                        "updating integer dictionary entry",
+                                                    )? {
+                                                        continue;
+                                                    }
                                                 }
                                             }
                                             Value::Null => {
@@ -3806,8 +4153,12 @@ impl VM {
                                                     sparse.resize(index + 1, None);
                                                 }
                                                 sparse[index] = None;
-                                                self.stack
-                                                    .push(Value::DenseIntDictInt(Arc::new(sparse)));
+                                                if !self.push_checked_value(
+                                                    Value::DenseIntDictInt(Arc::new(sparse)),
+                                                    "updating integer dictionary entry",
+                                                )? {
+                                                    continue;
+                                                }
                                             }
                                             other => {
                                                 let mut dense_values =
@@ -3816,9 +4167,12 @@ impl VM {
                                                     dense_values.resize(index + 1, Value::Null);
                                                 }
                                                 dense_values[index] = other;
-                                                self.stack.push(Value::DenseIntDict(Arc::new(
-                                                    dense_values,
-                                                )));
+                                                if !self.push_checked_value(
+                                                    Value::DenseIntDict(Arc::new(dense_values)),
+                                                    "updating integer dictionary entry",
+                                                )? {
+                                                    continue;
+                                                }
                                             }
                                         }
                                     }
@@ -3832,7 +4186,12 @@ impl VM {
                                         );
                                     }
                                     dict.insert(Arc::from(key.as_str()), value);
-                                    self.stack.push(Value::Dict(Arc::new(dict)));
+                                    if !self.push_checked_value(
+                                        Value::Dict(Arc::new(dict)),
+                                        "updating dictionary entry",
+                                    )? {
+                                        continue;
+                                    }
                                 }
                             }
                         }
@@ -4404,27 +4763,47 @@ impl VM {
                     match object {
                         Value::Struct { name, mut fields } => {
                             fields.insert(field, value);
-                            self.stack.push(Value::Struct { name, fields });
+                            if !self.push_checked_value(
+                                Value::Struct { name, fields },
+                                "building struct value",
+                            )? {
+                                continue;
+                            }
                         }
                         Value::Dict(dict) => {
                             let mut dict_clone = dict;
                             let dict_mut = Arc::make_mut(&mut dict_clone);
                             dict_mut.insert(Arc::from(field), value);
-                            self.stack.push(Value::Dict(dict_clone));
+                            if !self.push_checked_value(
+                                Value::Dict(dict_clone),
+                                "updating dictionary entry",
+                            )? {
+                                continue;
+                            }
                         }
                         Value::FixedDict { keys, mut values } => {
                             if let Some(idx) =
                                 keys.iter().position(|k| k.as_ref() == field.as_str())
                             {
                                 values[idx] = value;
-                                self.stack.push(Value::FixedDict { keys, values });
+                                if !self.push_checked_value(
+                                    Value::FixedDict { keys, values },
+                                    "updating fixed dictionary entry",
+                                )? {
+                                    continue;
+                                }
                             } else {
                                 let mut dict = DictMap::default();
                                 for (k, v) in keys.iter().cloned().zip(values.into_iter()) {
                                     dict.insert(k, v);
                                 }
                                 dict.insert(Arc::from(field), value);
-                                self.stack.push(Value::Dict(Arc::new(dict)));
+                                if !self.push_checked_value(
+                                    Value::Dict(Arc::new(dict)),
+                                    "updating dictionary entry",
+                                )? {
+                                    continue;
+                                }
                             }
                         }
                         Value::IntDict(dict) => {
@@ -4433,14 +4812,24 @@ impl VM {
                                 dict_clone.insert(k.to_string().into(), v.clone());
                             }
                             dict_clone.insert(Arc::from(field), value);
-                            self.stack.push(Value::Dict(Arc::new(dict_clone)));
+                            if !self.push_checked_value(
+                                Value::Dict(Arc::new(dict_clone)),
+                                "updating dictionary entry",
+                            )? {
+                                continue;
+                            }
                         }
                         Value::DenseIntDict(values) => match field.parse::<i64>() {
                             Ok(int_key) => {
                                 if int_key < 0 {
                                     let mut int_dict = Self::dense_int_dict_to_int_dict(&values);
                                     int_dict.insert(int_key, value);
-                                    self.stack.push(Value::IntDict(Arc::new(int_dict)));
+                                    if !self.push_checked_value(
+                                        Value::IntDict(Arc::new(int_dict)),
+                                        "updating integer dictionary entry",
+                                    )? {
+                                        continue;
+                                    }
                                 } else {
                                     let mut values = values;
                                     let values_mut = Arc::make_mut(&mut values);
@@ -4449,13 +4838,23 @@ impl VM {
                                         values_mut.resize(index + 1, Value::Null);
                                     }
                                     values_mut[index] = value;
-                                    self.stack.push(Value::DenseIntDict(values));
+                                    if !self.push_checked_value(
+                                        Value::DenseIntDict(values),
+                                        "updating dense integer dictionary entry",
+                                    )? {
+                                        continue;
+                                    }
                                 }
                             }
                             Err(_) => {
                                 let mut dict = Self::dense_int_dict_to_dict(&values);
                                 dict.insert(Arc::from(field), value);
-                                self.stack.push(Value::Dict(Arc::new(dict)));
+                                if !self.push_checked_value(
+                                    Value::Dict(Arc::new(dict)),
+                                    "updating dictionary entry",
+                                )? {
+                                    continue;
+                                }
                             }
                         },
                         _ => return Err("Cannot set field on non-struct".to_string()),
@@ -4547,21 +4946,41 @@ impl VM {
                 // Result/Option operations
                 OpCode::MakeOk => {
                     let value = self.stack.pop().ok_or("Stack underflow")?;
-                    self.stack.push(Value::Result { is_ok: true, value: Box::new(value) });
+                    if !self.push_checked_value(
+                        Value::Result { is_ok: true, value: Box::new(value) },
+                        "building result value",
+                    )? {
+                        continue;
+                    }
                 }
 
                 OpCode::MakeErr => {
                     let value = self.stack.pop().ok_or("Stack underflow")?;
-                    self.stack.push(Value::Result { is_ok: false, value: Box::new(value) });
+                    if !self.push_checked_value(
+                        Value::Result { is_ok: false, value: Box::new(value) },
+                        "building result value",
+                    )? {
+                        continue;
+                    }
                 }
 
                 OpCode::MakeSome => {
                     let value = self.stack.pop().ok_or("Stack underflow")?;
-                    self.stack.push(Value::Option { is_some: true, value: Box::new(value) });
+                    if !self.push_checked_value(
+                        Value::Option { is_some: true, value: Box::new(value) },
+                        "building option value",
+                    )? {
+                        continue;
+                    }
                 }
 
                 OpCode::MakeNone => {
-                    self.stack.push(Value::Option { is_some: false, value: Box::new(Value::Null) });
+                    if !self.push_checked_value(
+                        Value::Option { is_some: false, value: Box::new(Value::Null) },
+                        "building option value",
+                    )? {
+                        continue;
+                    }
                 }
 
                 OpCode::TryUnwrap => {
@@ -4626,7 +5045,12 @@ impl VM {
                         field_map.insert(field_name.clone(), value);
                     }
 
-                    self.stack.push(Value::Struct { name, fields: field_map });
+                    if !self.push_checked_value(
+                        Value::Struct { name, fields: field_map },
+                        "building struct value",
+                    )? {
+                        continue;
+                    }
                 }
 
                 // Environment management
@@ -7098,7 +7522,12 @@ impl VM {
                                 let value = self.stack.pop().ok_or("Stack underflow")?;
                                 fields.insert(field_name.clone(), value);
                             }
-                            self.stack.push(Value::Struct { name, fields });
+                            if !self.push_checked_value(
+                                Value::Struct { name, fields },
+                                "building struct value",
+                            )? {
+                                continue;
+                            }
                         }
 
                         OpCode::Jump(target) => {
@@ -8735,6 +9164,25 @@ mod tests {
                 assert_eq!(items[2], serde_json::Value::Number(3.into()));
             }
             Ok(other) => panic!("Expected JSON string, got: {:?}", other),
+            Err(e) => panic!("VM error: {}", e),
+        }
+    }
+
+    #[test]
+    fn test_vm_string_len_and_indexing_use_character_counts() {
+        let code = r#"
+            s := "Free Tools → Plan"
+            mut i := 0
+            while i < len(s) {
+                ch := s[i]
+                i = i + 1
+            }
+            return "done"
+        "#;
+
+        match run_vm_code_with_natives(code, &["len"]) {
+            Ok(Value::Str(result)) => assert_eq!(result.as_ref(), "done"),
+            Ok(other) => panic!("Expected string result, got: {:?}", other),
             Err(e) => panic!("VM error: {}", e),
         }
     }

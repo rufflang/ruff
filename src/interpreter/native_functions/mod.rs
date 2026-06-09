@@ -956,6 +956,13 @@ mod tests {
             ],
         );
         assert!(matches!(index_of_array, Value::Int(1)));
+
+        let index_of_unicode = call_native_function(
+            &mut interpreter,
+            "index_of",
+            &[Value::Str(Arc::new("a→b".to_string())), Value::Str(Arc::new("b".to_string()))],
+        );
+        assert!(matches!(index_of_unicode, Value::Int(2)));
     }
 
     #[test]
@@ -968,6 +975,13 @@ mod tests {
             &[Value::Str(Arc::new("ruff".to_string()))],
         );
         assert!(matches!(string_len, Value::Int(4)));
+
+        let unicode_len = call_native_function(
+            &mut interpreter,
+            "len",
+            &[Value::Str(Arc::new("Free Tools → Plan".to_string()))],
+        );
+        assert!(matches!(unicode_len, Value::Int(17)));
 
         let array_len = call_native_function(
             &mut interpreter,
