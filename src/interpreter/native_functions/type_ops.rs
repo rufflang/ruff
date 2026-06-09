@@ -138,6 +138,18 @@ pub fn handle(name: &str, arg_values: &[Value]) -> Option<Value> {
             }
         }
 
+        "is_truthy" => {
+            if arg_values.len() != 1 {
+                return Some(Value::Error("is_truthy() requires one argument".to_string()));
+            }
+
+            if let Some(val) = arg_values.first() {
+                Value::Bool(val.is_truthy())
+            } else {
+                Value::Bool(false)
+            }
+        }
+
         "bytes" => {
             if arg_values.len() != 1 {
                 return Some(Value::Error("bytes() requires an array argument".to_string()));

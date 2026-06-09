@@ -490,6 +490,27 @@ pub fn handle(_interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Op
             }
         }
 
+        "read_file_lossy" => {
+            if arg_values.len() != 1 {
+                return Some(Value::Error(
+                    "read_file_lossy requires a string path argument".to_string(),
+                ));
+            }
+
+            if let Some(Value::Str(path)) = arg_values.first() {
+                if let Err(error) = validate_read_size_limit(path.as_ref()) {
+                    return Some(Value::Error(error));
+                }
+
+                match std::fs::read(path.as_ref()) {
+                    Ok(bytes) => Value::Str(Arc::new(String::from_utf8_lossy(&bytes).into_owned())),
+                    Err(e) => Value::Error(format!("Cannot read file '{}': {}", path.as_ref(), e)),
+                }
+            } else {
+                Value::Error("read_file_lossy requires a string path argument".to_string())
+            }
+        }
+
         "write_file_sync" => {
             let overwrite = match parse_overwrite_flag("write_file_sync", arg_values) {
                 Ok(flag) => flag,

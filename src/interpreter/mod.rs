@@ -343,6 +343,8 @@ impl Interpreter {
             "str" => "to_string",
             "time" => "current_timestamp",
             "substr" => "substring",
+            "pad_start" => "pad_left",
+            "pad_end" => "pad_right",
             "now_utc_seconds" => "now_unix",
             other => other,
         }
@@ -528,6 +530,8 @@ impl Interpreter {
             "ends_with",
             "pad_left",
             "pad_right",
+            "pad_start",
+            "pad_end",
             "lines",
             "words",
             "str_reverse",
@@ -603,6 +607,7 @@ impl Interpreter {
             // Type checking functions
             "type",
             "type_of",
+            "is_truthy",
             "is_int",
             "is_float",
             "is_string",
@@ -616,6 +621,7 @@ impl Interpreter {
             "debug",
             // File I/O functions
             "read_file",
+            "read_file_lossy",
             "write_file",
             "append_file",
             "file_exists",
@@ -948,6 +954,8 @@ impl Interpreter {
         // Advanced string methods
         self.env.define("pad_left".to_string(), Value::NativeFunction("pad_left".to_string()));
         self.env.define("pad_right".to_string(), Value::NativeFunction("pad_right".to_string()));
+        self.env.define("pad_start".to_string(), Value::NativeFunction("pad_left".to_string()));
+        self.env.define("pad_end".to_string(), Value::NativeFunction("pad_right".to_string()));
         self.env.define("lines".to_string(), Value::NativeFunction("lines".to_string()));
         self.env.define("words".to_string(), Value::NativeFunction("words".to_string()));
         self.env
@@ -1035,6 +1043,7 @@ impl Interpreter {
         self.env.define("to_string".to_string(), Value::NativeFunction("to_string".to_string()));
         self.env.define("str".to_string(), Value::NativeFunction("to_string".to_string()));
         self.env.define("to_bool".to_string(), Value::NativeFunction("to_bool".to_string()));
+        self.env.define("is_truthy".to_string(), Value::NativeFunction("is_truthy".to_string()));
         self.env.define("bytes".to_string(), Value::NativeFunction("bytes".to_string()));
         self.env.define("dict".to_string(), Value::NativeFunction("dict".to_string()));
         self.env.define("array".to_string(), Value::NativeFunction("array".to_string()));
@@ -1059,6 +1068,10 @@ impl Interpreter {
 
         // File I/O functions
         self.env.define("read_file".to_string(), Value::NativeFunction("read_file".to_string()));
+        self.env.define(
+            "read_file_lossy".to_string(),
+            Value::NativeFunction("read_file_lossy".to_string()),
+        );
         self.env.define("write_file".to_string(), Value::NativeFunction("write_file".to_string()));
         self.env
             .define("append_file".to_string(), Value::NativeFunction("append_file".to_string()));
@@ -2619,6 +2632,14 @@ impl Interpreter {
             "trim" => CallableArity::exact("trim", vec!["value".to_string()]),
             "trim_start" => CallableArity::exact("trim_start", vec!["value".to_string()]),
             "trim_end" => CallableArity::exact("trim_end", vec!["value".to_string()]),
+            "pad_left" | "pad_start" => CallableArity::exact(
+                "pad_left",
+                vec!["value".to_string(), "width".to_string(), "pad_char".to_string()],
+            ),
+            "pad_right" | "pad_end" => CallableArity::exact(
+                "pad_right",
+                vec!["value".to_string(), "width".to_string(), "pad_char".to_string()],
+            ),
             "split" => {
                 CallableArity::exact("split", vec!["value".to_string(), "delimiter".to_string()])
             }
@@ -2651,6 +2672,8 @@ impl Interpreter {
             "input" => CallableArity::range("input", 0, 1, vec!["prompt".to_string()]),
             "exit" => CallableArity::range("exit", 0, 1, vec!["code".to_string()]),
             "type" | "type_of" => CallableArity::exact("type", vec!["value".to_string()]),
+            "is_truthy" => CallableArity::exact("is_truthy", vec!["value".to_string()]),
+            "read_file_lossy" => CallableArity::exact("read_file_lossy", vec!["path".to_string()]),
             "Promise.all" => CallableArity::range(
                 "Promise.all",
                 1,

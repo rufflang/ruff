@@ -333,6 +333,9 @@ mod tests {
             "count_chars",
             "pad_left",
             "pad_right",
+            "pad_start",
+            "pad_end",
+            "read_file_lossy",
             "lines",
             "words",
             "str_reverse",
@@ -346,6 +349,7 @@ mod tests {
             "trim",
             "trim_start",
             "trim_end",
+            "is_truthy",
             "split",
             "join",
             "Promise.all",
@@ -1705,13 +1709,35 @@ mod tests {
         );
         assert!(matches!(pad_right_ok, Value::Str(value) if value.as_ref() == "ruff.."));
 
+        let pad_start_ok = call_native_function(
+            &mut interpreter,
+            "pad_start",
+            &[
+                Value::Str(Arc::new("ruff".to_string())),
+                Value::Int(6),
+                Value::Str(Arc::new("0".to_string())),
+            ],
+        );
+        assert!(matches!(pad_start_ok, Value::Str(value) if value.as_ref() == "00ruff"));
+
+        let pad_end_ok = call_native_function(
+            &mut interpreter,
+            "pad_end",
+            &[
+                Value::Str(Arc::new("ruff".to_string())),
+                Value::Int(6),
+                Value::Str(Arc::new(".".to_string())),
+            ],
+        );
+        assert!(matches!(pad_end_ok, Value::Str(value) if value.as_ref() == "ruff.."));
+
         let pad_left_missing = call_native_function(
             &mut interpreter,
             "pad_left",
             &[Value::Str(Arc::new("ruff".to_string()))],
         );
         assert!(
-            matches!(pad_left_missing, Value::Error(message) if message.contains("pad_left() requires 3 arguments"))
+            matches!(pad_left_missing, Value::Error(message) if message.contains("pad_left expects 3 arguments"))
         );
 
         let pad_right_missing = call_native_function(
@@ -1720,7 +1746,25 @@ mod tests {
             &[Value::Str(Arc::new("ruff".to_string()))],
         );
         assert!(
-            matches!(pad_right_missing, Value::Error(message) if message.contains("pad_right() requires 3 arguments"))
+            matches!(pad_right_missing, Value::Error(message) if message.contains("pad_right expects 3 arguments"))
+        );
+
+        let pad_start_missing = call_native_function(
+            &mut interpreter,
+            "pad_start",
+            &[Value::Str(Arc::new("ruff".to_string()))],
+        );
+        assert!(
+            matches!(pad_start_missing, Value::Error(message) if message.contains("pad_left expects 3 arguments"))
+        );
+
+        let pad_end_missing = call_native_function(
+            &mut interpreter,
+            "pad_end",
+            &[Value::Str(Arc::new("ruff".to_string()))],
+        );
+        assert!(
+            matches!(pad_end_missing, Value::Error(message) if message.contains("pad_right expects 3 arguments"))
         );
 
         let lines_ok = call_native_function(
@@ -3501,6 +3545,20 @@ mod tests {
             matches!(read_binary_extra, Value::Error(message) if message.contains("read_binary_file requires a string path argument"))
         );
 
+        let read_lossy_missing = call_native_function(&mut interpreter, "read_file_lossy", &[]);
+        assert!(
+            matches!(read_lossy_missing, Value::Error(message) if message.contains("read_file_lossy expects 1 argument"))
+        );
+
+        let read_lossy_extra = call_native_function(
+            &mut interpreter,
+            "read_file_lossy",
+            &[Value::Str(Arc::new("/tmp/ruff-bin.txt".to_string())), Value::Int(1)],
+        );
+        assert!(
+            matches!(read_lossy_extra, Value::Error(message) if message.contains("read_file_lossy expects 1 argument"))
+        );
+
         let write_binary_missing = call_native_function(&mut interpreter, "write_binary_file", &[]);
         assert!(
             matches!(write_binary_missing, Value::Error(message) if message.contains("write_binary_file requires 2 or 3 arguments"))
@@ -3619,6 +3677,19 @@ mod tests {
         );
         assert!(
             matches!(read_binary_ok, Value::Bytes(bytes) if bytes.len() == 4 && bytes[0] == 0 && bytes[3] == 255)
+        );
+
+        let lossy_file = format!("{}/lossy.txt", base_dir);
+        std::fs::write(&lossy_file, [0x66_u8, 0x6f, 0x80, 0x6f])
+            .expect("lossy file should be written");
+        let read_lossy_ok = call_native_function(
+            &mut interpreter,
+            "read_file_lossy",
+            &[Value::Str(Arc::new(lossy_file.clone()))],
+        );
+        let expected_lossy = String::from_utf8_lossy(&[0x66_u8, 0x6f, 0x80, 0x6f]).to_string();
+        assert!(
+            matches!(read_lossy_ok, Value::Str(text) if text.as_ref() == expected_lossy.as_str())
         );
 
         let delete_binary_ok = call_native_function(

@@ -71,8 +71,10 @@ JSON conversion contract (`parse_json` / `to_json` / `to_json_pretty`):
 | `ssg_read_render_and_write_pages` | `ssg_read_render_and_write_pages(...)` | handler-defined | dynamic (Value) | Value::Error on invalid args/types/operation; capability-denied when gated. | `filesystem-write` | `result := ssg_read_render_and_write_pages(...)` |
 | `starts_with` | `starts_with(value, prefix)` | exact 2 | dynamic (Value) | Value::Error on invalid args/types/operation; capability-denied when gated. | `none` | `result := starts_with(...)` |
 | `ends_with` | `ends_with(value, suffix)` | exact 2 | dynamic (Value) | Value::Error on invalid args/types/operation; capability-denied when gated. | `none` | `result := ends_with(...)` |
-| `pad_left` | `pad_left(...)` | handler-defined | dynamic (Value) | Value::Error on invalid args/types/operation; capability-denied when gated. | `none` | `result := pad_left(...)` |
-| `pad_right` | `pad_right(...)` | handler-defined | dynamic (Value) | Value::Error on invalid args/types/operation; capability-denied when gated. | `none` | `result := pad_right(...)` |
+| `pad_left` | `pad_left(value, width, pad_char)` | exact 3 | dynamic (Value) | Value::Error on invalid args/types/operation; capability-denied when gated. | `none` | `result := pad_left(...)` |
+| `pad_right` | `pad_right(value, width, pad_char)` | exact 3 | dynamic (Value) | Value::Error on invalid args/types/operation; capability-denied when gated. | `none` | `result := pad_right(...)` |
+| `pad_start` | `pad_start(value, width, pad_char)` | exact 3 | dynamic (Value) | Value::Error on invalid args/types/operation; capability-denied when gated. | `none` | `result := pad_start(...)` |
+| `pad_end` | `pad_end(value, width, pad_char)` | exact 3 | dynamic (Value) | Value::Error on invalid args/types/operation; capability-denied when gated. | `none` | `result := pad_end(...)` |
 | `lines` | `lines(...)` | handler-defined | dynamic (Value) | Value::Error on invalid args/types/operation; capability-denied when gated. | `none` | `result := lines(...)` |
 | `words` | `words(...)` | handler-defined | dynamic (Value) | Value::Error on invalid args/types/operation; capability-denied when gated. | `none` | `result := words(...)` |
 | `str_reverse` | `str_reverse(...)` | handler-defined | dynamic (Value) | Value::Error on invalid args/types/operation; capability-denied when gated. | `none` | `result := str_reverse(...)` |
@@ -137,6 +139,7 @@ JSON conversion contract (`parse_json` / `to_json` / `to_json_pretty`):
 | `error` | `error(message)` | exact 1 | dynamic (Value) | Value::Error on invalid args/types/operation; capability-denied when gated. | `none` | `result := error(...)` |
 | `type` | `type(value)` | exact 1 | dynamic (Value) | Value::Error on invalid args/types/operation; capability-denied when gated. | `none` | `result := type(...)` |
 | `type_of` | `type_of(value)` | exact 1 | dynamic (Value) | Value::Error on invalid args/types/operation; capability-denied when gated. | `none` | `result := type_of(...)` |
+| `is_truthy` | `is_truthy(value)` | exact 1 | dynamic (Value) | Value::Error on invalid args/types/operation; capability-denied when gated. | `none` | `result := is_truthy(...)` |
 | `is_int` | `is_int(...)` | handler-defined | dynamic (Value) | Value::Error on invalid args/types/operation; capability-denied when gated. | `none` | `result := is_int(...)` |
 | `is_float` | `is_float(...)` | handler-defined | dynamic (Value) | Value::Error on invalid args/types/operation; capability-denied when gated. | `none` | `result := is_float(...)` |
 | `is_string` | `is_string(...)` | handler-defined | dynamic (Value) | Value::Error on invalid args/types/operation; capability-denied when gated. | `none` | `result := is_string(...)` |
@@ -148,6 +151,7 @@ JSON conversion contract (`parse_json` / `to_json` / `to_json_pretty`):
 | `assert` | `assert(...)` | handler-defined | dynamic (Value) | Value::Error on invalid args/types/operation; capability-denied when gated. | `none` | `result := assert(...)` |
 | `debug` | `debug(...)` | variadic (0+) | dynamic (Value) | Value::Error on invalid args/types/operation; capability-denied when gated. | `none` | `result := debug(...)` |
 | `read_file` | `read_file(...)` | handler-defined | dynamic (Value) | Value::Error on invalid args/types/operation; capability-denied when gated. | `filesystem-read` | `result := read_file(...)` |
+| `read_file_lossy` | `read_file_lossy(path)` | exact 1 | dynamic (Value) | Value::Error on invalid args/types/operation; capability-denied when gated. | `filesystem-read` | `result := read_file_lossy(...)` |
 | `write_file` | `write_file(...)` | handler-defined | dynamic (Value) | Value::Error on invalid args/types/operation; capability-denied when gated. | `filesystem-write` | `result := write_file(...)` |
 | `append_file` | `append_file(...)` | handler-defined | dynamic (Value) | Value::Error on invalid args/types/operation; capability-denied when gated. | `filesystem-write` | `result := append_file(...)` |
 | `file_exists` | `file_exists(...)` | handler-defined | dynamic (Value) | Value::Error on invalid args/types/operation; capability-denied when gated. | `filesystem-read` | `result := file_exists(...)` |

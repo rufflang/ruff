@@ -52,6 +52,10 @@ fn test_builtin_names_include_release_hardening_contract_entries() {
         "char_at",
         "is_empty",
         "count_chars",
+        "pad_start",
+        "pad_end",
+        "is_truthy",
+        "read_file_lossy",
         "db_pool",
         "db_pool_acquire",
         "db_pool_release",
@@ -128,6 +132,15 @@ fn test_builtin_aliases_match_canonical_behavior() {
 
         type_a := type(42)
         type_b := type_of(42)
+
+        pad_left_a := pad_left("ruff", 6, "0")
+        pad_start_b := pad_start("ruff", 6, "0")
+        pad_right_a := pad_right("ruff", 6, ".")
+        pad_end_b := pad_end("ruff", 6, ".")
+
+        truthy_a := is_truthy(0)
+        truthy_b := is_truthy("false")
+        truthy_c := is_truthy([1])
     "#;
 
     let interp = run_code(code);
@@ -150,6 +163,31 @@ fn test_builtin_aliases_match_canonical_behavior() {
     match (interp.env.get("type_a"), interp.env.get("type_b")) {
         (Some(Value::Str(a)), Some(Value::Str(b))) => assert_eq!(a.as_ref(), b.as_ref()),
         _ => panic!("Expected type alias results to be strings"),
+    }
+
+    match (interp.env.get("pad_left_a"), interp.env.get("pad_start_b")) {
+        (Some(Value::Str(a)), Some(Value::Str(b))) => assert_eq!(a.as_ref(), b.as_ref()),
+        _ => panic!("Expected pad_start alias results to be strings"),
+    }
+
+    match (interp.env.get("pad_right_a"), interp.env.get("pad_end_b")) {
+        (Some(Value::Str(a)), Some(Value::Str(b))) => assert_eq!(a.as_ref(), b.as_ref()),
+        _ => panic!("Expected pad_end alias results to be strings"),
+    }
+
+    match interp.env.get("truthy_a") {
+        Some(Value::Bool(v)) => assert!(!v),
+        _ => panic!("Expected truthy_a bool false"),
+    }
+
+    match interp.env.get("truthy_b") {
+        Some(Value::Bool(v)) => assert!(v),
+        _ => panic!("Expected truthy_b bool true"),
+    }
+
+    match interp.env.get("truthy_c") {
+        Some(Value::Bool(v)) => assert!(v),
+        _ => panic!("Expected truthy_c bool true"),
     }
 }
 
@@ -250,6 +288,39 @@ fn test_path_builtin_alias_and_core_operations() {
     std::fs::remove_file(&temp_file).expect("failed to clean up temp file");
     let _ = std::fs::remove_file(&symlink_file);
     std::fs::remove_dir(&temp_dir).expect("failed to clean up temp dir");
+}
+
+#[test]
+fn test_read_file_lossy_and_bytes_slice_helpers() {
+    let unique = unique_shared_key("lossy_and_bytes");
+    let temp_dir = std::env::temp_dir().join(format!("ruff_{}", unique));
+    std::fs::create_dir_all(&temp_dir).expect("failed to create temp dir for lossy tests");
+
+    let lossy_path = temp_dir.join("lossy.txt");
+    std::fs::write(&lossy_path, [0x66_u8, 0x6f, 0x80, 0x6f]).expect("failed to write lossy file");
+
+    let path_str = lossy_path.to_string_lossy().to_string();
+    let code = format!(
+        r#"
+        text := read_file_lossy("{path}")
+        data := bytes([0, 1, 2, 3, 4])
+        data_slice := slice(data, 1, 4)
+    "#,
+        path = path_str
+    );
+
+    let interp = run_code(&code);
+
+    let expected_lossy = String::from_utf8_lossy(&[0x66_u8, 0x6f, 0x80, 0x6f]).to_string();
+    match interp.env.get("text") {
+        Some(Value::Str(value)) => assert_eq!(value.as_ref(), expected_lossy.as_str()),
+        _ => panic!("Expected lossy file read to return a string"),
+    }
+
+    match interp.env.get("data_slice") {
+        Some(Value::Bytes(bytes)) => assert_eq!(bytes.as_slice(), &[1, 2, 3]),
+        _ => panic!("Expected bytes slice to return bytes"),
+    }
 }
 
 #[test]

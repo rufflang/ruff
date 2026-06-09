@@ -25,6 +25,23 @@ fn fixed_dict_to_dict(keys: &[Arc<str>], values: &[Value]) -> DictMap {
     dict
 }
 
+fn parse_slice_bound(value: &Value, label: &str) -> Result<i64, Value> {
+    match value {
+        Value::Int(number) => Ok(*number),
+        Value::Float(number) if number.is_finite() => Ok(*number as i64),
+        _ => Err(Value::Error(format!("slice() {} must be a number", label))),
+    }
+}
+
+fn normalize_slice_bounds(len: usize, start: i64, end: i64) -> (usize, usize) {
+    let len_i64 = len as i64;
+    let start_idx = if start < 0 { len_i64 + start } else { start };
+    let start_idx = start_idx.max(0).min(len_i64);
+    let end_idx = if end < 0 { len_i64 + end } else { end };
+    let end_idx = end_idx.max(start_idx).min(len_i64);
+    (start_idx as usize, end_idx as usize)
+}
+
 pub fn handle(interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Option<Value> {
     let result = match name {
         // Polymorphic len function - handles arrays, dicts, sets, queues, stacks, bytes
@@ -96,17 +113,36 @@ pub fn handle(interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Opt
         "slice" => {
             if 3 != arg_values.len() {
                 strict_arity_error("slice", 3, arg_values.len())
-            } else if let (
-                Some(Value::Array(arr)),
-                Some(Value::Int(start)),
-                Some(Value::Int(end)),
-            ) = (arg_values.first(), arg_values.get(1), arg_values.get(2))
-            {
-                let start_idx = (*start as usize).max(0).min(arr.len());
-                let end_idx = (*end as usize).max(start_idx).min(arr.len());
-                Value::Array(Arc::new(arr[start_idx..end_idx].to_vec()))
             } else {
-                Value::Error("slice() requires array and numeric start/end arguments".to_string())
+                let start = match arg_values.get(1) {
+                    Some(value) => match parse_slice_bound(value, "start") {
+                        Ok(number) => number,
+                        Err(error) => return Some(error),
+                    },
+                    None => return Some(Value::Error("slice() requires 3 arguments".to_string())),
+                };
+                let end = match arg_values.get(2) {
+                    Some(value) => match parse_slice_bound(value, "end") {
+                        Ok(number) => number,
+                        Err(error) => return Some(error),
+                    },
+                    None => return Some(Value::Error("slice() requires 3 arguments".to_string())),
+                };
+
+                match arg_values.first() {
+                    Some(Value::Array(arr)) => {
+                        let (start_idx, end_idx) = normalize_slice_bounds(arr.len(), start, end);
+                        Value::Array(Arc::new(arr[start_idx..end_idx].to_vec()))
+                    }
+                    Some(Value::Bytes(bytes)) => {
+                        let (start_idx, end_idx) = normalize_slice_bounds(bytes.len(), start, end);
+                        Value::Bytes(bytes[start_idx..end_idx].to_vec())
+                    }
+                    _ => Value::Error(
+                        "slice() requires array or bytes and numeric start/end arguments"
+                            .to_string(),
+                    ),
+                }
             }
         }
 
@@ -1749,7 +1785,7 @@ mod tests {
             handle(&mut interpreter, "slice", &[Value::Null, Value::Int(0), Value::Int(1)])
                 .expect("handler");
         assert!(
-            matches!(slice_wrong_type, Value::Error(message) if message.contains("slice() requires array and numeric start/end arguments"))
+            matches!(slice_wrong_type, Value::Error(message) if message.contains("slice() requires array or bytes and numeric start/end arguments"))
         );
 
         let concat_wrong_type =

@@ -442,37 +442,33 @@ pub fn handle(name: &str, args: &[Value]) -> Option<Value> {
             }
         }
 
-        "pad_left" => {
+        "pad_left" | "pad_start" => {
             if let (Some(Value::Str(s)), Some(width_val), Some(Value::Str(pad_char))) =
                 (args.first(), args.get(1), args.get(2))
             {
                 let width = match width_val {
                     Value::Int(n) => *n,
                     Value::Float(n) => *n as i64,
-                    _ => {
-                        return Some(Value::Error("pad_left() width must be a number".to_string()))
-                    }
+                    _ => return Some(Value::Error(format!("{}() width must be a number", name))),
                 };
                 Value::Str(Arc::new(builtins::str_pad_left(&**s, width, &**pad_char)))
             } else {
-                Value::Error("pad_left() requires 3 arguments: string, width, char".to_string())
+                Value::Error(format!("{}() requires 3 arguments: string, width, char", name))
             }
         }
 
-        "pad_right" => {
+        "pad_right" | "pad_end" => {
             if let (Some(Value::Str(s)), Some(width_val), Some(Value::Str(pad_char))) =
                 (args.first(), args.get(1), args.get(2))
             {
                 let width = match width_val {
                     Value::Int(n) => *n,
                     Value::Float(n) => *n as i64,
-                    _ => {
-                        return Some(Value::Error("pad_right() width must be a number".to_string()))
-                    }
+                    _ => return Some(Value::Error(format!("{}() width must be a number", name))),
                 };
                 Value::Str(Arc::new(builtins::str_pad_right(&**s, width, &**pad_char)))
             } else {
-                Value::Error("pad_right() requires 3 arguments: string, width, char".to_string())
+                Value::Error(format!("{}() requires 3 arguments: string, width, char", name))
             }
         }
 
