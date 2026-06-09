@@ -1,6 +1,6 @@
 # V1.0 Universal Usefulness Expansion Checklist
 
-Last updated: 2026-05-26  
+Last updated: 2026-06-08  
 Owner: Ruff core maintainers  
 Status: Active (post-hardening expansion track)
 
@@ -13,14 +13,14 @@ This list is intentionally execution-oriented so another agent can take one item
 ## Evidence Snapshot (Why This Exists)
 
 - TODO debt still present in production tree:
-  - `docs/generated/V1_CODE_TODO_TRIAGE.md` reports `30` markers, including medium-priority `src/type_checker.rs` clusters.
+  - `docs/generated/V1_CODE_TODO_TRIAGE.md` reports `29` markers, including the remaining medium-priority `src/type_checker.rs` cluster.
 - Unsafe surface remains concentrated:
   - `docs/generated/UNSAFE_INVENTORY.md` reports `Executable matches: 55`, mostly JIT boundaries in `src/jit.rs`.
 - Large complexity hotspots remain:
   - `src/interpreter/legacy_full.rs` has been removed from the active tree to eliminate mirror-runtime debt.
-  - `src/jit.rs` (`9,288` LOC), `src/vm.rs` (`9,202` LOC), `src/interpreter/mod.rs` (`6,018` LOC).
+  - `src/jit.rs` (`9,310` LOC), `src/vm.rs` (`9,260` LOC), `src/interpreter/mod.rs` (`6,193` LOC).
 - Dependency footprint remains broad in default build:
-  - `Cargo.toml` compiles heavy stacks by default (`tokio`, `reqwest`, `mysql_async`, `postgres`, `rusqlite`, `image`, `zip`, `cranelift*`) without optional dependency partitioning.
+  - `Cargo.toml` still pulls broad runtime stacks in the default feature set, but the heaviest groups are now partitioned behind optional `runtime-*` features (`runtime-db`, `runtime-image`, `runtime-archive`, `runtime-jit`) and are still enabled by default.
 - Root hygiene policy exists but local artifact creep is still easy:
   - `docs/REPO_HYGIENE_POLICY.md` + `tests/repo_hygiene_contract.rs` protect tracked root files, not all local root clutter workflows.
 

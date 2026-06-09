@@ -1,6 +1,6 @@
 # Unsafe Inventory
 
-Generated: 2026-05-25
+Generated: 2026-06-08
 Command: rg -n --glob '*.rs' --glob '!tests/unsafe_inventory_contract.rs' '\bunsafe\b' src tests benches fuzz
 
 ## Summary
@@ -60,7 +60,7 @@ Command: rg -n --glob '*.rs' --glob '!tests/unsafe_inventory_contract.rs' '\buns
 | src/jit.rs | 2873 | executable | jit_executable |         let keys = unsafe { &*(keys_ptr as *const Arc<Vec<Arc<str>>>) }; |
 | src/jit.rs | 8175 | executable | jit_executable |     unsafe extern ""C"" fn dummy_compiled_fn(_ctx: *mut VMContext) -> i64 { |
 | src/jit.rs | 8185 | executable | jit_executable |     unsafe extern ""C"" fn dummy_compiled_fn_with_arg(_ctx: *mut VMContext, arg: i64) -> i64 { |
-| src/jit.rs | 9227 | executable | jit_executable |         unsafe { |
+| src/jit.rs | 9249 | executable | jit_executable |         unsafe { |
 | src/module.rs | 645 | non_executable | src_comment_or_string |             ""expected unsafe traversal error, got: {}"", |
 | tests/fixtures/unsafe_safety_contracts/malformed_contract.rs | 1 | executable | test_executable | pub unsafe extern ""C"" fn jit_ffi(ptr: *mut i64) -> i64 { |
 | tests/fixtures/unsafe_safety_contracts/malformed_contract.rs | 4 | executable | test_executable |     unsafe { *ptr } |
