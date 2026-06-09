@@ -7,7 +7,7 @@ use std::process::{Command, Output};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::thread;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
-use zip::write::FileOptions;
+use zip::write::SimpleFileOptions;
 use zip::{CompressionMethod, ZipWriter};
 
 static TEMP_DIR_COUNTER: AtomicUsize = AtomicUsize::new(0);
@@ -164,7 +164,7 @@ fn write_zip_file_entry(
     contents: &[u8],
     unix_mode: Option<u32>,
 ) {
-    let mut options = FileOptions::default().compression_method(CompressionMethod::Deflated);
+    let mut options = SimpleFileOptions::default().compression_method(CompressionMethod::Deflated);
     if let Some(mode) = unix_mode {
         options = options.unix_permissions(mode);
     }

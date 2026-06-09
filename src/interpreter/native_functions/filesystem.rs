@@ -17,7 +17,7 @@ use std::path::PathBuf;
 use std::process::Command;
 use std::sync::{Arc, Mutex};
 #[cfg(feature = "runtime-archive")]
-use zip::{write::FileOptions, ZipArchive, ZipWriter};
+use zip::{write::SimpleFileOptions, ZipArchive, ZipWriter};
 
 const ZIP_UNIX_FILE_TYPE_MASK: u32 = 0o170000;
 const ZIP_UNIX_SYMLINK_FILE_TYPE: u32 = 0o120000;
@@ -124,7 +124,7 @@ fn zip_add_dir_recursive(
         };
 
         if entry_path.is_dir() {
-            let options = FileOptions::default();
+            let options = SimpleFileOptions::default();
             zip_writer
                 .add_directory(&zip_path, options)
                 .map_err(|error| format!("Failed to add directory '{}': {}", zip_path, error))?;
@@ -132,8 +132,8 @@ fn zip_add_dir_recursive(
         } else {
             let file_contents = std::fs::read(&entry_path)
                 .map_err(|error| format!("Failed to read '{}': {}", entry_path.display(), error))?;
-            let options =
-                FileOptions::default().compression_method(zip::CompressionMethod::Deflated);
+            let options = SimpleFileOptions::default()
+                .compression_method(zip::CompressionMethod::Deflated);
             zip_writer
                 .start_file(&zip_path, options)
                 .map_err(|error| format!("Failed to start file '{}': {}", zip_path, error))?;
@@ -152,7 +152,7 @@ fn sanitize_archive_entry_path(raw_name: &str) -> Result<PathBuf, String> {
 }
 
 #[cfg(feature = "runtime-archive")]
-fn archive_entry_is_symlink(entry: &zip::read::ZipFile<'_>) -> bool {
+fn archive_entry_is_symlink<R: std::io::Read>(entry: &zip::read::ZipFile<'_, R>) -> bool {
     entry
         .unix_mode()
         .map(|mode| (mode & ZIP_UNIX_FILE_TYPE_MASK) == ZIP_UNIX_SYMLINK_FILE_TYPE)
@@ -784,7 +784,7 @@ pub fn handle(_interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Op
                                     .file_name()
                                     .and_then(|name| name.to_str())
                                     .unwrap_or(source_path.as_ref());
-                                let options = FileOptions::default()
+                                let options = SimpleFileOptions::default()
                                     .compression_method(zip::CompressionMethod::Deflated);
 
                                 match zip_writer.start_file(file_name, options) {
@@ -872,7 +872,7 @@ pub fn handle(_interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Op
 
             if let Some(Value::ZipArchive { writer, .. }) = arg_values.first() {
                 let mut writer_guard = writer.lock().unwrap();
-                if let Some(mut zip_writer) = writer_guard.take() {
+                if let Some(zip_writer) = writer_guard.take() {
                     match zip_writer.finish() {
                         Ok(_) => Value::Bool(true),
                         Err(error) => Value::ErrorObject {
