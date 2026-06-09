@@ -52,15 +52,15 @@ fn read_fixture_source(name: &str) -> String {
     fs::read_to_string(fixtures_dir().join(name)).expect("failed to read diagnostic fixture")
 }
 
-fn run_runtime_json_diagnostic_fixture(fixture_file: &str) -> String {
+fn run_runtime_json_diagnostic_fixture(fixture_file: &str, extra_args: &[&str]) -> String {
     let fixture_path = fixtures_dir().join(fixture_file);
+    let mut args = vec!["run"];
+    args.extend_from_slice(extra_args);
+    args.push(fixture_path.to_str().expect("fixture path should be utf-8"));
+    args.push("--json-runtime-diagnostics");
+
     let output = Command::new(env!("CARGO_BIN_EXE_ruff"))
-        .args([
-            "run",
-            "--interpreter",
-            fixture_path.to_str().expect("fixture path should be utf-8"),
-            "--json-runtime-diagnostics",
-        ])
+        .args(args)
         .env("NO_COLOR", "1")
         .output()
         .expect("failed to run ruff runtime diagnostic fixture");
@@ -133,18 +133,39 @@ fn diagnostics_golden_lexer_parse_semantic_runtime_cli_and_server_contracts() {
     );
 
     let runtime_invalid_unary_envelope =
-        run_runtime_json_diagnostic_fixture("runtime_invalid_unary.ruff");
+        run_runtime_json_diagnostic_fixture("runtime_invalid_unary.ruff", &["--interpreter"]);
     assert_or_update_golden(
         "runtime_invalid_unary_run_envelope",
         "json",
         &runtime_invalid_unary_envelope,
     );
     let runtime_break_outside_loop_envelope =
-        run_runtime_json_diagnostic_fixture("runtime_break_outside_loop.ruff");
+        run_runtime_json_diagnostic_fixture("runtime_break_outside_loop.ruff", &["--interpreter"]);
     assert_or_update_golden(
         "runtime_break_outside_loop_run_envelope",
         "json",
         &runtime_break_outside_loop_envelope,
+    );
+    let runtime_missing_module_envelope =
+        run_runtime_json_diagnostic_fixture("runtime_missing_module_entry.ruff", &[]);
+    assert_or_update_golden(
+        "runtime_missing_module_run_envelope",
+        "json",
+        &runtime_missing_module_envelope,
+    );
+    let runtime_non_callable_envelope =
+        run_runtime_json_diagnostic_fixture("runtime_non_callable_call.ruff", &[]);
+    assert_or_update_golden(
+        "runtime_non_callable_call_run_envelope",
+        "json",
+        &runtime_non_callable_envelope,
+    );
+    let runtime_capability_denied_envelope =
+        run_runtime_json_diagnostic_fixture("runtime_capability_denied.ruff", &["--untrusted"]);
+    assert_or_update_golden(
+        "runtime_capability_denied_run_envelope",
+        "json",
+        &runtime_capability_denied_envelope,
     );
 
     let cli = Diagnostic::new(

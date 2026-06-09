@@ -2231,7 +2231,7 @@ pub fn handle(
                 | func @ Value::GeneratorDef(_, _) => func.clone(),
                 _ => {
                     return Some(Value::Error(
-                        "parallel_map() second argument must be a callable function".to_string(),
+                        "parallel_map() second argument must be a callable function; pass a function, closure, or imported callable value instead of a literal".to_string(),
                     ));
                 }
             };

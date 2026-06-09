@@ -461,6 +461,13 @@ impl VM {
         }
     }
 
+    fn non_callable_error_message(context: &str) -> String {
+        format!(
+            "Cannot call non-function; {}. Pass a function, closure, or imported callable value instead.",
+            context
+        )
+    }
+
     fn throw_runtime_value(&mut self, error_value: Value) -> Result<(), String> {
         let throw_stack = self.function_call_stack.clone();
 
@@ -3077,7 +3084,11 @@ impl VM {
                             let result = self.call_interpreter_callable(&function, &args)?;
                             self.stack.push(result);
                         }
-                        _ => return Err("Cannot call non-function".to_string()),
+                        _ => {
+                            return Err(Self::non_callable_error_message(
+                                "the value being called is not callable",
+                            ));
+                        }
                     }
                 }
 
@@ -5603,7 +5614,9 @@ impl VM {
 
                 result
             }
-            _ => Err("Route handler must be a callable function".to_string()),
+            _ => Err(Self::non_callable_error_message(
+                "route handlers must evaluate to a callable function",
+            )),
         }
     }
 
@@ -5621,7 +5634,7 @@ impl VM {
             if let Value::Error(message) = error {
                 return Err(message);
             }
-            return Err("Capability denied for http_server.listen".to_string());
+            return Err("Capability denied: network-server required for http_server.listen; rerun with --allow-net-server".to_string());
         }
 
         println!("Starting HTTP server on {}:{}...", host, port);
@@ -5829,7 +5842,7 @@ impl VM {
                         if let Value::Error(message) = error {
                             return Err(message);
                         }
-                        return Err("Capability denied for save".to_string());
+                        return Err("Capability denied: filesystem-write required for save; rerun with --allow-fs-write".to_string());
                     }
                 }
 
@@ -5899,9 +5912,7 @@ impl VM {
                                     if let Value::Error(message) = error {
                                         return Err(message);
                                     }
-                                    return Err(
-                                        "Capability denied for http_server.listen".to_string()
-                                    );
+                                    return Err("Capability denied: network-server required for http_server.listen; rerun with --allow-net-server".to_string());
                                 }
                                 self.start_http_server_vm(host, port, routes)
                             }
@@ -7148,7 +7159,7 @@ impl VM {
             Value::Function(..) | Value::GeneratorDef(..) => {
                 self.call_interpreter_callable(&function, &args)
             }
-            _ => Err("Cannot call non-function".to_string()),
+            _ => Err(Self::non_callable_error_message("the value being called is not callable")),
         }
     }
 
@@ -8093,10 +8104,8 @@ mod tests {
         vm.ip = 7;
         vm.stack = vec![Value::Int(99), Value::Bool(true)];
         vm.chunk = snapshot_chunk.clone();
-        vm.upvalues = vec![Upvalue {
-            value: Arc::new(Mutex::new(Value::Int(123))),
-            is_closed: true,
-        }];
+        vm.upvalues =
+            vec![Upvalue { value: Arc::new(Mutex::new(Value::Int(123))), is_closed: true }];
         vm.exception_handlers =
             vec![ExceptionHandlerFrame { catch_ip: 19, stack_offset: 2, frame_offset: 1 }];
         vm.function_call_stack = vec!["outer".to_string(), "inner".to_string()];

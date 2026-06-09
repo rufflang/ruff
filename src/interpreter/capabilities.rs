@@ -31,6 +31,23 @@ impl NativeCapability {
             NativeCapability::Random => "random",
         }
     }
+
+    pub fn allow_flag(self) -> &'static str {
+        match self {
+            NativeCapability::FilesystemRead => "--allow-fs-read",
+            NativeCapability::FilesystemWrite => "--allow-fs-write",
+            NativeCapability::FilesystemDelete => "--allow-fs-delete",
+            NativeCapability::ProcessExec => "--allow-process-exec",
+            NativeCapability::ShellExec => "--allow-shell-exec",
+            NativeCapability::EnvRead => "--allow-env-read",
+            NativeCapability::EnvWrite => "--allow-env-write",
+            NativeCapability::NetworkClient => "--allow-net-client",
+            NativeCapability::NetworkServer => "--allow-net-server",
+            NativeCapability::Database => "--allow-database",
+            NativeCapability::Clock => "--allow-clock",
+            NativeCapability::Random => "--allow-random",
+        }
+    }
 }
 
 #[derive(Clone, Debug, Default)]

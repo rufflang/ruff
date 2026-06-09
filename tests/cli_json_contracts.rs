@@ -637,3 +637,82 @@ fn run_runtime_json_diagnostic_contract_is_stable() {
     assert_eq!(diagnostic["severity"], "error");
     assert!(diagnostic["message"].as_str().is_some());
 }
+
+#[test]
+fn run_runtime_json_diagnostic_contract_includes_missing_module_help() {
+    let dir = unique_temp_dir("run_runtime_json_missing_module");
+    let file = dir.join("missing_module_entry.ruff");
+    write_fixture(&file, "import missing_module\n");
+
+    let output = run_ruff(&[
+        "run",
+        file.to_str().expect("path should be utf-8"),
+        "--json-runtime-diagnostics",
+    ]);
+
+    assert_eq!(output.status.code(), Some(4));
+    assert!(output.stderr.is_empty(), "runtime diagnostics should emit stdout-only JSON");
+
+    let body = parse_stdout_json(&output);
+    let diagnostic = &body["diagnostic"];
+    let message = diagnostic["message"].as_str().expect("message should be a string");
+    assert!(message.contains("Module not found: missing_module"));
+    assert!(
+        message.contains("flat <module>.ruff file") && message.contains("src/..."),
+        "expected module resolution help text, got: {}",
+        message
+    );
+}
+
+#[test]
+fn run_runtime_json_diagnostic_contract_reports_capability_hint() {
+    let dir = unique_temp_dir("run_runtime_json_capability_hint");
+    let file = dir.join("capability_denied.ruff");
+    write_fixture(&file, "write_file(\"blocked.txt\", \"data\")\n");
+
+    let output = run_ruff(&[
+        "run",
+        "--untrusted",
+        file.to_str().expect("path should be utf-8"),
+        "--json-runtime-diagnostics",
+    ]);
+
+    assert_eq!(output.status.code(), Some(4));
+    assert!(output.stderr.is_empty(), "runtime diagnostics should emit stdout-only JSON");
+
+    let body = parse_stdout_json(&output);
+    let diagnostic = &body["diagnostic"];
+    let message = diagnostic["message"].as_str().expect("message should be a string");
+    assert!(message.contains("Capability denied: filesystem-write required for write_file"));
+    assert!(
+        message.contains("--allow-fs-write"),
+        "expected capability hint in runtime diagnostic message, got: {}",
+        message
+    );
+}
+
+#[test]
+fn run_runtime_json_diagnostic_contract_reports_non_callable_call_hint() {
+    let dir = unique_temp_dir("run_runtime_json_non_callable");
+    let file = dir.join("non_callable.ruff");
+    write_fixture(&file, "value := 1\nvalue()\n");
+
+    let output = run_ruff(&[
+        "run",
+        file.to_str().expect("path should be utf-8"),
+        "--json-runtime-diagnostics",
+    ]);
+
+    assert_eq!(output.status.code(), Some(4));
+    assert!(output.stderr.is_empty(), "runtime diagnostics should emit stdout-only JSON");
+
+    let body = parse_stdout_json(&output);
+    let diagnostic = &body["diagnostic"];
+    let message = diagnostic["message"].as_str().expect("message should be a string");
+    assert!(message.contains("Cannot call non-function"));
+    assert!(
+        message.contains("callable value"),
+        "expected callable remediation hint, got: {}",
+        message
+    );
+}

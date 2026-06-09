@@ -86,6 +86,17 @@ impl ModuleLoader {
         ))
     }
 
+    fn runtime_error_with_help(message: String, help: String) -> Box<RuffError> {
+        Box::new(
+            RuffError::new(
+                ErrorKind::RuntimeError,
+                message,
+                crate::errors::SourceLocation::unknown(),
+            )
+            .with_help(help),
+        )
+    }
+
     fn collect_pattern_bindings(pattern: &Pattern, names: &mut Vec<String>) {
         match pattern {
             Pattern::Identifier(name) => names.push(name.clone()),
@@ -252,6 +263,13 @@ impl ModuleLoader {
         Ok(candidates)
     }
 
+    fn missing_module_help(module_name: &str) -> String {
+        format!(
+            "Check that '{}' exists as a flat <module>.ruff file or a nested src/... path under the package root, and confirm the import name matches the on-disk layout.",
+            module_name
+        )
+    }
+
     /// Resolves a module name to a file path.
     fn resolve_module_path(
         &self,
@@ -315,9 +333,13 @@ impl ModuleLoader {
 
     /// Loads a module by name, returning cached version if available.
     pub fn load_module(&mut self, module_name: &str) -> Result<Module, Box<RuffError>> {
-        let resolved_module = self
-            .resolve_module_path(module_name)?
-            .ok_or_else(|| Self::runtime_error(format!("Module not found: {}", module_name)))?;
+        let resolved_module = self.resolve_module_path(module_name)?.ok_or_else(|| {
+            let help = Self::missing_module_help(module_name);
+            Self::runtime_error_with_help(
+                format!("Module not found: {}; {}", module_name, help),
+                help,
+            )
+        })?;
         let cache_key = resolved_module.cache_key.clone();
 
         if let Some(cycle_start) = self.loading_stack_index.get(&cache_key).copied() {

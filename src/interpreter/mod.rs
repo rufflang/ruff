@@ -391,7 +391,12 @@ impl Interpreter {
     }
 
     pub fn capability_error(capability: NativeCapability, surface: &str) -> Value {
-        Value::Error(format!("Capability denied: {} required for {}", capability.as_str(), surface))
+        Value::Error(format!(
+            "Capability denied: {} required for {}; rerun with {}",
+            capability.as_str(),
+            surface,
+            capability.allow_flag()
+        ))
     }
 
     pub fn require_capability(
