@@ -10,6 +10,7 @@ Ruff is VM-first (`ruff run`), with a tree-walking interpreter available as an e
 - Ruff is usable from source today.
 - VM runtime parity for modular workflows has been significantly hardened.
 - Dotted module import workflows are supported on the default VM path.
+- Package workflows are deterministic: `ruff init`, `ruff package-add`, `ruff package-install`, and `ruff package-install --frozen` work with nested source layouts and reproducible `ruff.lock` snapshots.
 - Native capability controls are available for trusted and untrusted execution modes.
 - Ruff remains pre-1.0, and release readiness is still bounded by `ROADMAP.md` and the pre-v1 checklist.
 
@@ -19,6 +20,7 @@ Ruff is VM-first (`ruff run`), with a tree-walking interpreter available as an e
 - Practical native APIs (filesystem, process, network, async, crypto, database).
 - Security policy controls for trusted and untrusted execution.
 - Module workflows that support both flat and dotted imports.
+- Package bootstrap and lockfile workflows that stay deterministic across repeated installs.
 - Strong diagnostics, contract tests, and release-gate automation.
 - Core surfaces for `doctor`, `docgen`, and machine-readable CLI contracts keep the language agent-readable.
 
@@ -145,6 +147,7 @@ ruff run /path/to/ruff-kennel/kennel.ruff --interpreter -- new my-tool
 - Use VM by default (`ruff run <file>`).
 - Developers should not need `--interpreter` for ordinary modular project layouts.
 - Use `--interpreter` only as an explicit compatibility/debug path when isolating runtime-path issues.
+- Use `ruff package-install --frozen` to verify manifests and lockfiles without rewriting them.
 - Migration guidance and diagnostics workflow: [docs/VM_INTERPRETER_MIGRATION_PLAYBOOK.md](docs/VM_INTERPRETER_MIGRATION_PLAYBOOK.md)
 
 ## CLI Overview
@@ -158,6 +161,7 @@ Common commands:
 - `ruff docgen <path>`: generate documentation from Ruff source code.
 - `ruff test`: run snapshot fixture corpus (`--runtime vm|dual|interpreter`, `--update`).
 - `ruff test-run <file>`: run Ruff `test "..." {}` declarations in a file.
+- `ruff init`, `ruff package-add`, `ruff package-install`, `ruff package-install --frozen`: create and verify reproducible package manifests and lockfiles.
 - `ruff serve [dir]`: static file server for local preview/testing.
 - `ruff lsp`: run Ruff’s LSP server.
 

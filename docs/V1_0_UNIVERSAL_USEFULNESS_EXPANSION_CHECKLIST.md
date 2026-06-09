@@ -287,7 +287,7 @@ This list is intentionally execution-oriented so another agent can take one item
 
 ### P2 — Post-v1 Leverage Improvements
 
-- [ ] **V1X-DOC-001 (P2)**: Final architecture narrative refresh for forward-facing clarity.
+- [x] **V1X-DOC-001 (P2)**: Final architecture narrative refresh for forward-facing clarity.
   - Scope:
     - Ensure `README.md`, `docs/ARCHITECTURE.md`, `docs/LANGUAGE_SPEC.md`, and runtime-parity docs present one consistent "how Ruff works" model.
   - Acceptance:
@@ -297,8 +297,12 @@ This list is intentionally execution-oriented so another agent can take one item
     - `cargo test --test readme_contracts`
     - `cargo test --test architecture_docs_contract`
     - `cargo test --test docs_policy_consistency_contract`
+  - 2026-06-08 closure evidence:
+    - Refreshed `README.md`, `docs/ARCHITECTURE.md`, `docs/LANGUAGE_SPEC.md`, `docs/VM_INTERPRETER_MIGRATION_PLAYBOOK.md`, and `docs/VM_INTERPRETER_PARITY_MATRIX.md` to describe VM-first execution, package lockfile workflows, and nested module resolution consistently.
+    - Updated `tests/readme_contracts.rs`, `tests/architecture_docs_contract.rs`, and `tests/docs_policy_consistency_contract.rs` to guard the refreshed narrative.
+    - Verified with `cargo test --test readme_contracts --test architecture_docs_contract --test docs_policy_consistency_contract`.
 
-- [ ] **V1X-FEAT-001 (P2)**: Package/module DX improvements for large codebases.
+- [x] **V1X-FEAT-001 (P2)**: Package/module DX improvements for large codebases.
   - Scope:
     - Expand module/package workflow docs and tests for nested project layouts, lockfiles, and deterministic imports.
   - Acceptance:
@@ -306,8 +310,12 @@ This list is intentionally execution-oriented so another agent can take one item
   - Minimum tests:
     - `cargo test --test package_module_workflow_integration`
     - `cargo test --test vm_interpreter_parity_surfaces`
+  - 2026-06-08 closure evidence:
+    - Added `package_module_workflow_vm_default_supports_nested_layout_and_frozen_lockfile` to exercise `ruff init`, `ruff package-add`, `ruff package-install`, `ruff package-install --frozen`, and default `ruff run` against nested `src/...` imports.
+    - Documented package workflow and lockfile determinism in the architecture, language spec, parity matrix, and migration playbook docs.
+    - Verified with `cargo test --test package_module_workflow_integration` and the existing VM/interpreter parity coverage.
 
-- [ ] **V1X-FEAT-002 (P2)**: Improve diagnostics UX for high-friction runtime failures.
+- [x] **V1X-FEAT-002 (P2)**: Improve diagnostics UX for high-friction runtime failures.
   - Scope:
     - Add actionable remediation hints for common user blockers (module resolution, capability denials, callable/type confusion).
   - Acceptance:
@@ -315,6 +323,10 @@ This list is intentionally execution-oriented so another agent can take one item
   - Minimum tests:
     - `cargo test --test diagnostics_golden`
     - `cargo test --test cli_json_contracts`
+  - 2026-06-08 closure evidence:
+    - Added actionable runtime hints for missing modules, capability denials, and non-callable invocation errors while preserving the existing error prefixes for compatibility.
+    - Added runtime diagnostic fixtures and goldens for module-not-found, non-callable call, and capability-denied cases, plus CLI JSON contract assertions for the same surfaces.
+    - Verified with `cargo test --test diagnostics_golden`, `cargo test --test cli_json_contracts`, and `cargo test --test native_api_security_boundaries native_capability_untrusted_denies_filesystem_write`.
 
 ## Suggested Execution Order
 

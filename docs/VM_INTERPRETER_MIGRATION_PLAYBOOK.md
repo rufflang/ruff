@@ -11,6 +11,7 @@ Use VM-first paths for normal modular projects while keeping deterministic fallb
 | Scenario | Recommended command | Why |
 | --- | --- | --- |
 | Day-to-day script execution | `ruff run <file>` | VM is the default runtime and supports ordinary dotted/flat module imports. |
+| Package bootstrap and lockfile verification | `ruff package-install` / `ruff package-install --frozen` | Keeps package manifests reproducible and verifies `ruff.lock` without rewriting it. |
 | Legacy snapshot compatibility sweeps | `ruff test --runtime dual` | Runs VM first and uses bounded interpreter fallback only when snapshot drift requires it. |
 | Strict VM migration gate in CI | `ruff test --runtime vm` | Fails on VM drift directly so teams can burn down fallback dependencies. |
 | Targeted compatibility/debug isolation | `ruff run --interpreter <file>` | Explicit fallback path for runtime-difference diagnosis; not required for normal modular layout. |
@@ -23,6 +24,7 @@ Use VM-first paths for normal modular projects while keeping deterministic fallb
    - strict lane: `ruff test --runtime vm`
 3. Keep one debug recipe that still uses interpreter explicitly for diagnosis.
 4. Track VM drift burn-down by monitoring dual runtime summary counters (`vm_primary`, `interpreter_fallback`).
+5. Verify package projects with `ruff package-install --frozen` before release or CI promotion.
 
 ## Recommended Verification Commands
 
@@ -38,6 +40,9 @@ cargo test --test vm_interpreter_parity_surfaces
 
 # 4) Re-run nested module workflow integration coverage
 cargo test --test package_module_workflow_integration
+
+# 5) Verify package manifests and lockfiles without rewriting them
+cargo run -- package-install --frozen
 ```
 
 ## Known Caveat

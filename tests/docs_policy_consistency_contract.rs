@@ -20,6 +20,7 @@ fn high_risk_docs_policies_remain_consistent() {
     let inventory = read("docs/RUFF_FEATURE_INVENTORY.md");
     let unfinished = read("docs/UNFINISHED_AND_MVP_AUDIT.md");
     let parity = read("docs/VM_INTERPRETER_PARITY_MATRIX.md");
+    let migration = read("docs/VM_INTERPRETER_MIGRATION_PLAYBOOK.md");
     let stdlib_ref = read("docs/STANDARD_LIBRARY_REFERENCE.md");
     let architecture = read("docs/ARCHITECTURE.md");
 
@@ -40,9 +41,21 @@ fn high_risk_docs_policies_remain_consistent() {
         "README should document VM-first runtime recommendation for modular workflows"
     );
     assert!(
+        readme.contains("ruff package-install --frozen"),
+        "README should document package lockfile verification guidance"
+    );
+    assert!(
         parity.contains("Top-level generator iteration (`func*`, `yield`, `for ... in generator`)")
             && parity.contains("| supported |"),
         "VM/interpreter parity matrix should mark top-level generator iteration as supported"
+    );
+    assert!(
+        parity.contains("ruff package-install --frozen"),
+        "VM/interpreter parity matrix should document package workflow verification"
+    );
+    assert!(
+        migration.contains("Package bootstrap and lockfile verification"),
+        "migration playbook should call out package bootstrap and lockfile verification"
     );
 
     assert!(

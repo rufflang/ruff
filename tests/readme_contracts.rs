@@ -23,8 +23,10 @@ fn readme_covers_v1_status_cli_security_and_core_reference_links() {
         "[docs/STANDARD_LIBRARY.md](docs/STANDARD_LIBRARY.md)",
         "[docs/RELEASE_PROCESS.md](docs/RELEASE_PROCESS.md)",
         "Dotted module import workflows are supported on the default VM path",
+        "Package workflows are deterministic: `ruff init`, `ruff package-add`, `ruff package-install`, and `ruff package-install --frozen` work with nested source layouts and reproducible `ruff.lock` snapshots.",
         "## Runtime Mode Recommendations",
         "Developers should not need `--interpreter` for ordinary modular project layouts.",
+        "ruff package-install --frozen",
         "[docs/VM_INTERPRETER_MIGRATION_PLAYBOOK.md](docs/VM_INTERPRETER_MIGRATION_PLAYBOOK.md)",
     ];
 

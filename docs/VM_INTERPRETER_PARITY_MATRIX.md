@@ -36,6 +36,7 @@ This matrix tracks parity for roadmap item `V1-COMP-001`.
 | --- | --- | --- | --- | --- |
 | `ruff run <file>` | VM (default) | `ruff run --interpreter` | Production/default execution path is VM-first. | `README.md` CLI table, `tests/cli_contracts.rs` |
 | `ruff run --interpreter <file>` | Interpreter | VM via default `ruff run` | Explicit fallback/debug path for tree-walk runtime behavior. | `README.md` CLI table |
+| `ruff init` / `ruff package-add` / `ruff package-install` / `ruff package-install --frozen` | manifest/lockfile tooling | none (tooling-only) | Deterministic package bootstrap, dependency editing, and lockfile verification. | `tests/package_module_workflow_integration.rs`, `docs/RELEASE_PROCESS.md` |
 | `ruff test --runtime dual` | VM-primary with bounded interpreter fallback | `--runtime vm`, `--runtime interpreter` | Legacy fixture snapshots still need deterministic fallback while VM-first coverage expands. | `src/parser.rs::run_all_tests`, `tests/cli_contracts.rs` |
 | `ruff test --runtime vm` | VM-only | `dual`, `interpreter` | Explicit strict mode for parity-safe fixture sweeps and drift discovery. | `tests/cli_contracts.rs` (`cli_test_runtime_vm_mode_reports_mismatch_for_vm_drift_fixture`) |
 | `ruff test --runtime interpreter` | Interpreter-only | `dual`, `vm` | Explicit compatibility mode for legacy fixture baselines. | `src/main.rs` CLI arg wiring, `src/parser.rs::run_all_tests` |
@@ -63,6 +64,7 @@ Updated evidence snapshot: 2026-05-24
 ## VM-First Practical Recommendations
 
 - Prefer `ruff run <file>` (VM default) for day-to-day script execution and modular project usage.
+- Prefer `ruff package-install --frozen` when you need to verify manifests and lockfiles without rewriting them.
 - Prefer `ruff test --runtime dual` for fixture-compatibility regression checks while parity burn-down continues.
 - Prefer `ruff test --runtime vm` for strict VM-only gating in migration and parity workflows.
 - Treat `--interpreter` as an explicit compatibility/debug tool, not a default requirement for ordinary module-import workflows.

@@ -15,7 +15,7 @@ Ruff is a Rust-hosted language runtime with these primary layers:
    - VM (default `ruff run` path).
    - Tree-walking interpreter (explicit fallback path).
 3. Native function surfaces (filesystem, process, network, HTTP, crypto, etc.) with capability policy controls.
-4. Tooling commands (check/test/test-run/lsp/docgen/format/lint/package).
+4. Tooling commands (check/test/test-run/lsp/docgen/format/lint/package) with deterministic manifest/lockfile workflows.
 
 ## 2. Source-to-Execution Pipeline
 
@@ -33,6 +33,7 @@ Notes:
 
 - `ruff check` and `ruff lsp-diagnostics` use parse/diagnostic flows and do not execute runtime side effects.
 - Runtime-path command coverage is tracked in `docs/VM_INTERPRETER_PARITY_MATRIX.md` under `Command-Level Runtime Path Matrix`.
+- Package bootstrap and lockfile verification are tracked as separate tooling contracts, but their nested import examples still resolve through the same package-root-aware module loader used by `ruff run`.
 
 ## 3. Runtime Path Model
 
@@ -53,6 +54,14 @@ Notes:
 ### 3.4 Security/diagnostics suites
 
 - Several security and diagnostics integration suites intentionally exercise interpreter command paths to preserve deterministic boundary coverage.
+
+### 3.5 Package workflow and lockfiles
+
+- `ruff init` seeds a package manifest and source layout for new projects.
+- `ruff package-add` edits dependency declarations in `ruff.toml`.
+- `ruff package-install` regenerates `ruff.lock` deterministically from the manifest.
+- `ruff package-install --frozen` verifies that `ruff.lock` is current without rewriting it.
+- Nested source layouts under the project root resolve the same way on VM and interpreter paths, so ordinary package projects do not need `--interpreter` just to import `src/...` modules.
 
 ## 4. Core Components
 

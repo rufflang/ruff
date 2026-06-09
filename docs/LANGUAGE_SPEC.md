@@ -393,7 +393,15 @@ from src.util import value
 from src.core.math import add
 ```
 
-### 5.11 Diagnostics and CLI exit codes
+### 5.11 Package workflow and lockfile determinism
+
+- `ruff init` creates a package manifest (`ruff.toml`) and a starter source layout.
+- `ruff package-add <name> --version <range>` updates dependency declarations in the manifest.
+- `ruff package-install` regenerates the deterministic `ruff.lock` snapshot derived from `ruff.toml`.
+- `ruff package-install --frozen` verifies that the manifest and lockfile remain in sync without rewriting either file.
+- Package workflow imports use the same package-root-aware module resolution rules as ordinary runtime imports, so nested layouts under `src/` remain available on the default VM path.
+
+### 5.12 Diagnostics and CLI exit codes
 
 - CLI diagnostics are emitted on `stderr`.
 - Successful program output and successful `--json` payloads are emitted on `stdout`.
