@@ -32,6 +32,57 @@ fn tracked_root_files(root: &Path) -> Vec<String> {
     files
 }
 
+fn run_hygiene_audit(root: &Path) -> std::process::Output {
+    Command::new("bash")
+        .arg(repo_root().join("scripts").join("repo_hygiene_audit.sh"))
+        .arg("--root")
+        .arg(root)
+        .current_dir(root)
+        .output()
+        .expect("failed to execute repo hygiene audit")
+}
+
+fn seed_hygiene_policy_repo(root: &Path) {
+    let policy_dir = root.join("docs");
+    fs::create_dir_all(&policy_dir).expect("failed to create docs dir");
+    fs::write(
+        policy_dir.join("REPO_HYGIENE_POLICY.md"),
+        fs::read_to_string(repo_root().join("docs/REPO_HYGIENE_POLICY.md"))
+            .expect("failed to read canonical hygiene policy"),
+    )
+    .expect("failed to write policy file");
+
+    for entry in [
+        ".editorconfig",
+        ".gitignore",
+        "BUG_HUNT_REPORT.md",
+        "CHANGELOG.md",
+        "CONTRIBUTING.md",
+        "Cargo.lock",
+        "Cargo.toml",
+        "DOGFOOD_NOTES.md",
+        "INSTALLATION.md",
+        "LICENSE",
+        "README.md",
+        "ROADMAP.md",
+        "rustfmt.toml",
+    ] {
+        fs::write(root.join(entry), format!("seeded {}\n", entry)).expect("failed to write allowlisted root file");
+    }
+
+    let output = Command::new("git")
+        .current_dir(root)
+        .args(["add", "."])
+        .output()
+        .expect("failed to stage temp hygiene repo");
+    assert!(
+        output.status.success(),
+        "staging temp hygiene repo failed: stdout={} stderr={}",
+        stdout_text(&output),
+        stderr_text(&output)
+    );
+}
+
 #[test]
 fn tracked_root_surface_matches_hygiene_allowlist() {
     let root = repo_root();
@@ -69,7 +120,76 @@ fn repo_hygiene_policy_lists_current_root_contract() {
         "## Retention And Cleanup",
         "bash scripts/repo_hygiene_audit.sh",
         "cargo test --test repo_hygiene_contract",
+        "*.db",
+        "tmp/",
+        "var/",
+        "root clutter",
     ] {
         assert!(content.contains(marker), "missing policy marker: {}", marker);
     }
+}
+
+#[test]
+fn repo_hygiene_audit_rejects_disallowed_root_clutter_patterns() {
+    let root = std::env::temp_dir().join(format!(
+        "ruff_repo_hygiene_rejects_clutter_{}",
+        std::process::id()
+    ));
+    fs::create_dir_all(&root).expect("failed to create temp repo");
+    let _ = Command::new("git")
+        .current_dir(&root)
+        .arg("init")
+        .output()
+        .expect("failed to init temp repo");
+    seed_hygiene_policy_repo(&root);
+
+    fs::write(root.join("scratch.db"), "sqlite").expect("failed to write clutter file");
+    fs::create_dir_all(root.join("scratch_bundle")).expect("failed to create clutter dir");
+    fs::write(root.join("scratch_bundle").join("payload.txt"), "payload")
+        .expect("failed to write clutter payload");
+
+    let output = run_hygiene_audit(&root);
+    assert!(
+        !output.status.success(),
+        "repo hygiene audit should reject disallowed clutter: stdout={} stderr={}",
+        stdout_text(&output),
+        stderr_text(&output)
+    );
+    let combined_output = format!("{}\n{}", stdout_text(&output), stderr_text(&output));
+    assert!(
+        combined_output.contains("disallowed local root clutter"),
+        "repo hygiene audit should explain clutter rejection, got stdout={} stderr={}",
+        stdout_text(&output),
+        stderr_text(&output)
+    );
+}
+
+#[test]
+fn repo_hygiene_audit_allows_practical_tmp_and_var_workflows() {
+    let root = std::env::temp_dir().join(format!(
+        "ruff_repo_hygiene_allows_tmp_{}",
+        std::process::id()
+    ));
+    fs::create_dir_all(&root).expect("failed to create temp repo");
+    let _ = Command::new("git")
+        .current_dir(&root)
+        .arg("init")
+        .output()
+        .expect("failed to init temp repo");
+    seed_hygiene_policy_repo(&root);
+
+    fs::create_dir_all(root.join("tmp").join("nested")).expect("failed to create tmp dir");
+    fs::write(root.join("tmp").join("nested").join("payload.txt"), "scratch")
+        .expect("failed to write tmp payload");
+    fs::create_dir_all(root.join("var").join("cache")).expect("failed to create var dir");
+    fs::write(root.join("var").join("cache").join("payload.db"), "scratch")
+        .expect("failed to write var payload");
+
+    let output = run_hygiene_audit(&root);
+    assert!(
+        output.status.success(),
+        "repo hygiene audit should allow practical tmp/var workflows: stdout={} stderr={}",
+        stdout_text(&output),
+        stderr_text(&output)
+    );
 }

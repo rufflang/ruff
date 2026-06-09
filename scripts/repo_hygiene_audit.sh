@@ -6,6 +6,32 @@ set -euo pipefail
 # broader compile/test work when hygiene drifts.
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --root)
+      repo_root="${2:?missing value for --root}"
+      shift 2
+      ;;
+    -h|--help)
+      cat <<'USAGE'
+Usage: bash scripts/repo_hygiene_audit.sh [--root <repo-root>]
+
+Cross-check tracked root files and untracked local clutter against the
+canonical policy list in docs/REPO_HYGIENE_POLICY.md.
+USAGE
+      exit 0
+      ;;
+    *)
+      echo "Repo hygiene audit: unknown option: $1" >&2
+      exit 2
+      ;;
+  esac
+done
+
+if [[ "$repo_root" != /* ]]; then
+  repo_root="$(cd "$repo_root" && pwd)"
+fi
+
 policy_file="${repo_root}/docs/REPO_HYGIENE_POLICY.md"
 
 if [[ ! -f "${policy_file}" ]]; then
@@ -39,12 +65,41 @@ git -C "${repo_root}" ls-files | awk -F/ 'NF==1 {print $0}' | sort > "${tracked_
 
 if diff -u "${policy_root_files}" "${tracked_root_files}" > "${tmp_dir}/drift.diff"; then
   echo "Repo hygiene audit: tracked root files match docs/REPO_HYGIENE_POLICY.md."
-  exit 0
+else
+  echo "Repo hygiene audit: tracked root surface drifted from docs/REPO_HYGIENE_POLICY.md."
+  echo
+  cat "${tmp_dir}/drift.diff"
+  echo
+  echo "Suggested next step: update docs/REPO_HYGIENE_POLICY.md and tests/repo_hygiene_contract.rs together if the drift is intentional."
+  exit 1
 fi
 
-echo "Repo hygiene audit: tracked root surface drifted from docs/REPO_HYGIENE_POLICY.md."
-echo
-cat "${tmp_dir}/drift.diff"
-echo
-echo "Suggested next step: update docs/REPO_HYGIENE_POLICY.md and tests/repo_hygiene_contract.rs together if the drift is intentional."
-exit 1
+clutter_candidates="$(
+  git -C "${repo_root}" ls-files -o --exclude-standard \
+    | awk -F/ 'NF >= 1 { print $1 }' \
+    | sort -u
+)"
+
+disallowed_clutter=""
+while IFS= read -r entry; do
+  [[ -z "$entry" ]] && continue
+  case "$entry" in
+    *.db|*.sqlite|*.sqlite3|*.zip|*.tar|*.tgz|*.tar.gz|*.bak|*.backup|*.orig|*.tmp|*.dmp)
+      disallowed_clutter="${disallowed_clutter}${entry}"$'\n'
+      ;;
+    tmp-*|temp-*|scratch*|backup*|extract*|unzipped*|*_tmp|*_temp|*_backup|*_backup_*|*_extract*)
+      disallowed_clutter="${disallowed_clutter}${entry}"$'\n'
+      ;;
+  esac
+done <<< "${clutter_candidates}"
+
+if [[ -n "${disallowed_clutter}" ]]; then
+  echo "Repo hygiene audit: disallowed local root clutter detected."
+  echo
+  printf '%s' "${disallowed_clutter}" | sort -u | sed '/^$/d' | sed 's/^/- /'
+  echo
+  echo "Allowed local scratch should stay under tmp/ or var/ instead of root-level clutter names."
+  exit 1
+fi
+
+echo "Repo hygiene audit: tracked root files and untracked root clutter patterns match docs/REPO_HYGIENE_POLICY.md."
