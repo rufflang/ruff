@@ -9,6 +9,10 @@ RUNNER=""
 MAX_FIXTURES=""
 STRICT_MODE=0
 VM_COVERAGE_TARGET_PERCENT="70.0"
+# Keep the inventory from hanging forever on pathological fixtures, but allow
+# slow normal fixtures enough time to finish consistently before they are
+# classified as harness debt.
+FIXTURE_TIMEOUT_SECONDS="${RUFF_MISMATCH_FIXTURE_TIMEOUT_SECONDS:-15}"
 
 resolve_output_path() {
   local path="$1"
@@ -101,15 +105,20 @@ run_fixture() {
   local runtime="$2"
   local output_file="$3"
   local status_file="$4"
+  local timeout_cmd=()
+
+  if command -v timeout >/dev/null 2>&1; then
+    timeout_cmd=(timeout --preserve-status --kill-after=5s "${FIXTURE_TIMEOUT_SECONDS}s")
+  fi
 
   if [[ "$runtime" == "interpreter" ]]; then
-    if "$RUNNER" run "$fixture" --interpreter >"$output_file" 2>/dev/null; then
+    if "${timeout_cmd[@]}" "$RUNNER" run "$fixture" --interpreter >"$output_file" 2>/dev/null; then
       echo "0" > "$status_file"
     else
       echo "$?" > "$status_file"
     fi
   else
-    if "$RUNNER" run "$fixture" >"$output_file" 2>/dev/null; then
+    if "${timeout_cmd[@]}" "$RUNNER" run "$fixture" >"$output_file" 2>/dev/null; then
       echo "0" > "$status_file"
     else
       echo "$?" > "$status_file"
@@ -159,6 +168,11 @@ classify_mismatch_cause() {
 
   if [[ "$vm_exit" == "3" && "$interpreter_exit" == "3" ]]; then
     echo "parser-invalid-fixture|language-owner|P1|both runtimes fail with parser diagnostics and fixture/snapshot contract should be refreshed"
+    return
+  fi
+
+  if [[ "$vm_exit" == "124" || "$interpreter_exit" == "124" || "$vm_exit" == "137" || "$interpreter_exit" == "137" ]]; then
+    echo "harness-debt|harness-owner|P2|fixture exceeded inventory generation timeout and needs a dedicated harness follow-up"
     return
   fi
 
