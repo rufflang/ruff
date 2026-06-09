@@ -31,6 +31,13 @@ pub fn handle(interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Opt
             Value::Null
         }
 
+        "eprint" => {
+            let output_parts: Vec<String> =
+                arg_values.iter().map(Interpreter::stringify_value).collect();
+            eprintln!("{}", output_parts.join(" "));
+            Value::Null
+        }
+
         "io_read_bytes" => {
             if 2 != arg_values.len() {
                 Value::Error("io_read_bytes requires two arguments: path and count".to_string())
@@ -490,6 +497,14 @@ mod tests {
         assert!(matches!(read_result, Value::Bytes(bytes) if bytes == vec![1, 2, 3, 4, 5]));
 
         let _ = std::fs::remove_file(path);
+    }
+
+    #[test]
+    fn test_io_eprint_returns_null() {
+        let mut interpreter = Interpreter::new();
+        let result =
+            handle(&mut interpreter, "eprint", &[Value::Str(Arc::new("err".to_string()))]).unwrap();
+        assert!(matches!(result, Value::Null));
     }
 
     #[test]

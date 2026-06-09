@@ -1062,13 +1062,13 @@ mod tests {
 
         let type_missing = call_native_function(&mut interpreter, "type", &[]);
         assert!(
-            matches!(type_missing, Value::Error(message) if message.contains("type() requires one argument"))
+            matches!(type_missing, Value::Error(message) if message.contains("type expects 1 arguments, got 0"))
         );
 
         let type_extra =
             call_native_function(&mut interpreter, "type", &[Value::Int(1), Value::Int(2)]);
         assert!(
-            matches!(type_extra, Value::Error(message) if message.contains("type() requires one argument"))
+            matches!(type_extra, Value::Error(message) if message.contains("type expects 1 arguments, got 2"))
         );
 
         let is_int_true = call_native_function(&mut interpreter, "is_int", &[Value::Int(7)]);
@@ -1403,6 +1403,11 @@ mod tests {
         );
         assert!(matches!(replace_str, Value::Str(s) if s.as_ref() == "ruff_lang_2026"));
         assert!(matches!(replace, Value::Str(s) if s.as_ref() == "ruff_lang_2026"));
+
+        let type_value = call_native_function(&mut interpreter, "type", &[Value::Int(42)]);
+        let type_alias = call_native_function(&mut interpreter, "type_of", &[Value::Int(42)]);
+        assert!(matches!(type_value, Value::Str(s) if s.as_ref() == "int"));
+        assert!(matches!(type_alias, Value::Str(s) if s.as_ref() == "int"));
 
         let push = call_native_function(
             &mut interpreter,
@@ -3208,6 +3213,27 @@ mod tests {
         assert!(
             matches!(path_is_file_extra, Value::Error(message) if message.contains("path_is_file() expects 1 argument"))
         );
+
+        let path_is_symlink_true = call_native_function(
+            &mut interpreter,
+            "path_is_symlink",
+            &[Value::Str(Arc::new(file_path.clone()))],
+        );
+        assert!(matches!(path_is_symlink_true, Value::Bool(false)));
+
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::symlink;
+            let symlink_path = format!("{}/sample-link.ruff", temp_dir_string);
+            symlink(&file_path, &symlink_path).expect("symlink should be created");
+            let path_is_symlink_link = call_native_function(
+                &mut interpreter,
+                "path_is_symlink",
+                &[Value::Str(Arc::new(symlink_path.clone()))],
+            );
+            assert!(matches!(path_is_symlink_link, Value::Bool(true)));
+            let _ = std::fs::remove_file(symlink_path);
+        }
 
         let path_extension_result = call_native_function(
             &mut interpreter,
@@ -5703,7 +5729,7 @@ mod tests {
 
         let sha_missing = call_native_function(&mut interpreter, "sha256", &[]);
         assert!(
-            matches!(sha_missing, Value::Error(message) if message.contains("sha256 requires a string argument"))
+            matches!(sha_missing, Value::Error(message) if message.contains("sha256 requires a string or bytes argument"))
         );
 
         let sha_extra = call_native_function(
@@ -5715,8 +5741,29 @@ mod tests {
             ],
         );
         assert!(
-            matches!(sha_extra, Value::Error(message) if message.contains("sha256 requires a string argument"))
+            matches!(sha_extra, Value::Error(message) if message.contains("sha256 requires a string or bytes argument"))
         );
+
+        let sha_bytes = call_native_function(
+            &mut interpreter,
+            "sha256",
+            &[Value::Bytes(vec![0, 1, 2, 0x80, 0xFF, 0])],
+        );
+        assert!(
+            matches!(sha_bytes, Value::Str(message) if message.as_ref() == "5b35354055af6a5442460fc80a36f4c47cf5fe7cade16773e1c474a2d37e9a3d")
+        );
+
+        let sha_file_path = std::env::temp_dir().join("ruff_sha256_file_dispatch.bin");
+        std::fs::write(&sha_file_path, [0u8, 1, 2, 0x80, 0xFF, 0]).expect("seed sha file");
+        let sha_file = call_native_function(
+            &mut interpreter,
+            "sha256_file",
+            &[Value::Str(std::sync::Arc::new(sha_file_path.to_string_lossy().to_string()))],
+        );
+        assert!(
+            matches!(sha_file, Value::Str(message) if message.as_ref() == "5b35354055af6a5442460fc80a36f4c47cf5fe7cade16773e1c474a2d37e9a3d")
+        );
+        let _ = std::fs::remove_file(sha_file_path);
 
         let verify_missing = call_native_function(
             &mut interpreter,

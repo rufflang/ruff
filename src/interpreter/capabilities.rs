@@ -112,9 +112,10 @@ pub fn capability_for_native_function(name: &str) -> Option<NativeCapability> {
         "read_file" | "read_file_sync" | "read_file_async" | "read_binary_file" | "read_lines"
         | "list_dir" | "list_dir_sync" | "list_dir_async" | "file_exists" | "file_size"
         | "path_exists" | "path_is_dir" | "path_is_file" | "path_extension" | "path_absolute"
-        | "dirname" | "basename" | "join_path" | "path_join" | "os_getcwd" | "os_environ"
-        | "io_read_bytes" | "io_read_at" | "io_seek_read" | "io_file_metadata" | "load_image"
-        | "md5_file" | "async_read_file" | "async_read_files" | "kv_get" => {
+        | "path_is_symlink" | "dirname" | "basename" | "join_path" | "path_join"
+        | "os_getcwd" | "os_environ" | "io_read_bytes" | "io_read_at" | "io_seek_read"
+        | "io_file_metadata" | "load_image" | "md5_file" | "sha256_file" | "async_read_file"
+        | "async_read_files" | "kv_get" => {
             Some(NativeCapability::FilesystemRead)
         }
 

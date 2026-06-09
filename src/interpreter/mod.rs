@@ -339,6 +339,7 @@ impl Interpreter {
     pub fn canonical_native_function_name(name: &str) -> &str {
         match name {
             "println" => "print",
+            "type_of" => "type",
             "str" => "to_string",
             "time" => "current_timestamp",
             "substr" => "substring",
@@ -480,6 +481,7 @@ impl Interpreter {
             // I/O functions
             "print",
             "println",
+            "eprint",
             // Math functions
             "abs",
             "sqrt",
@@ -494,6 +496,12 @@ impl Interpreter {
             "tan",
             "log",
             "exp",
+            "bit_and",
+            "bit_or",
+            "bit_xor",
+            "bit_not",
+            "bit_shl",
+            "bit_shr",
             // String functions
             "len",
             "__vm_for_iterable",
@@ -594,6 +602,7 @@ impl Interpreter {
             "error",
             // Type checking functions
             "type",
+            "type_of",
             "is_int",
             "is_float",
             "is_string",
@@ -699,6 +708,7 @@ impl Interpreter {
             "path_absolute",
             "path_is_dir",
             "path_is_file",
+            "path_is_symlink",
             "path_extension",
             // Regular expression functions
             "regex_match",
@@ -819,6 +829,7 @@ impl Interpreter {
             "unzip",
             // Hashing & Cryptography functions
             "sha256",
+            "sha256_file",
             "md5",
             "md5_file",
             "hash_password",
@@ -856,6 +867,7 @@ impl Interpreter {
         // I/O functions
         self.env.define("print".to_string(), Value::NativeFunction("print".to_string()));
         self.env.define("println".to_string(), Value::NativeFunction("print".to_string()));
+        self.env.define("eprint".to_string(), Value::NativeFunction("eprint".to_string()));
 
         // Legacy/null compatibility alias
         self.env.define("null".to_string(), Value::Null);
@@ -878,6 +890,12 @@ impl Interpreter {
         self.env.define("tan".to_string(), Value::NativeFunction("tan".to_string()));
         self.env.define("log".to_string(), Value::NativeFunction("log".to_string()));
         self.env.define("exp".to_string(), Value::NativeFunction("exp".to_string()));
+        self.env.define("bit_and".to_string(), Value::NativeFunction("bit_and".to_string()));
+        self.env.define("bit_or".to_string(), Value::NativeFunction("bit_or".to_string()));
+        self.env.define("bit_xor".to_string(), Value::NativeFunction("bit_xor".to_string()));
+        self.env.define("bit_not".to_string(), Value::NativeFunction("bit_not".to_string()));
+        self.env.define("bit_shl".to_string(), Value::NativeFunction("bit_shl".to_string()));
+        self.env.define("bit_shr".to_string(), Value::NativeFunction("bit_shr".to_string()));
 
         // String functions
         self.env.define("len".to_string(), Value::NativeFunction("len".to_string()));
@@ -1024,6 +1042,7 @@ impl Interpreter {
 
         // Type introspection functions
         self.env.define("type".to_string(), Value::NativeFunction("type".to_string()));
+        self.env.define("type_of".to_string(), Value::NativeFunction("type".to_string()));
         self.env.define("is_int".to_string(), Value::NativeFunction("is_int".to_string()));
         self.env.define("is_float".to_string(), Value::NativeFunction("is_float".to_string()));
         self.env.define("is_string".to_string(), Value::NativeFunction("is_string".to_string()));
@@ -1211,6 +1230,10 @@ impl Interpreter {
             .define("path_is_dir".to_string(), Value::NativeFunction("path_is_dir".to_string()));
         self.env
             .define("path_is_file".to_string(), Value::NativeFunction("path_is_file".to_string()));
+        self.env.define(
+            "path_is_symlink".to_string(),
+            Value::NativeFunction("path_is_symlink".to_string()),
+        );
         self.env.define(
             "path_extension".to_string(),
             Value::NativeFunction("path_extension".to_string()),
@@ -1484,6 +1507,8 @@ impl Interpreter {
 
         // Hashing & Crypto functions
         self.env.define("sha256".to_string(), Value::NativeFunction("sha256".to_string()));
+        self.env
+            .define("sha256_file".to_string(), Value::NativeFunction("sha256_file".to_string()));
         self.env.define("md5".to_string(), Value::NativeFunction("md5".to_string()));
         self.env.define("md5_file".to_string(), Value::NativeFunction("md5_file".to_string()));
         self.env.define(
@@ -2266,6 +2291,34 @@ impl Interpreter {
                         .unwrap_or_else(|| Value::Error(format!("Index out of bounds: {}", i)))
                 }
             }
+            (Value::Bytes(bytes), Value::Int(i)) => {
+                let idx = if *i < 0 { (bytes.len() as i64) + *i } else { *i };
+                if idx < 0 {
+                    Value::Error(format!("Index out of bounds: {}", i))
+                } else {
+                    bytes
+                        .get(idx as usize)
+                        .copied()
+                        .map(|byte| Value::Int(byte as i64))
+                        .unwrap_or_else(|| Value::Error(format!("Index out of bounds: {}", i)))
+                }
+            }
+            (Value::Bytes(bytes), Value::Float(i)) => {
+                if !i.is_finite() {
+                    return Value::Error("Invalid index operation".to_string());
+                }
+                let idx = *i as i64;
+                let resolved = if idx < 0 { (bytes.len() as i64) + idx } else { idx };
+                if resolved < 0 {
+                    Value::Error(format!("Index out of bounds: {}", i))
+                } else {
+                    bytes
+                        .get(resolved as usize)
+                        .copied()
+                        .map(|byte| Value::Int(byte as i64))
+                        .unwrap_or_else(|| Value::Error(format!("Index out of bounds: {}", i)))
+                }
+            }
             (Value::Dict(map), Value::Str(key)) => map
                 .get(key.as_str())
                 .cloned()
@@ -2556,6 +2609,10 @@ impl Interpreter {
             "error" => CallableArity::exact("error", vec!["message".to_string()]),
             "collect" => CallableArity::exact("collect", vec!["iterable".to_string()]),
             "len" => CallableArity::exact("len", vec!["value".to_string()]),
+            "bit_not" => CallableArity::exact("bit_not", vec!["value".to_string()]),
+            "bit_and" | "bit_or" | "bit_xor" | "bit_shl" | "bit_shr" => {
+                CallableArity::exact(name, vec!["left".to_string(), "right".to_string()])
+            }
             "to_upper" | "upper" => CallableArity::exact(name, vec!["value".to_string()]),
             "to_lower" | "lower" => CallableArity::exact(name, vec!["value".to_string()]),
             "capitalize" => CallableArity::exact("capitalize", vec!["value".to_string()]),
@@ -2593,6 +2650,7 @@ impl Interpreter {
             }
             "input" => CallableArity::range("input", 0, 1, vec!["prompt".to_string()]),
             "exit" => CallableArity::range("exit", 0, 1, vec!["code".to_string()]),
+            "type" | "type_of" => CallableArity::exact("type", vec!["value".to_string()]),
             "Promise.all" => CallableArity::range(
                 "Promise.all",
                 1,
@@ -2633,7 +2691,9 @@ impl Interpreter {
                 "ai_tool_loop",
                 vec!["prompt_or_messages".to_string(), "options".to_string()],
             ),
-            "print" | "debug" | "array" => CallableArity::variadic(name, 0, vec![]),
+            "print" | "eprint" | "debug" | "array" => CallableArity::variadic(name, 0, vec![]),
+            "sha256_file" => CallableArity::exact("sha256_file", vec!["path".to_string()]),
+            "path_is_symlink" => CallableArity::exact("path_is_symlink", vec!["path".to_string()]),
             _ => return None,
         };
 

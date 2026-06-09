@@ -16,6 +16,16 @@ fn number_arg(name: &str, arg_name: &str, value: &Value) -> Result<f64, Value> {
     }
 }
 
+fn int_arg(name: &str, arg_name: &str, value: &Value) -> Result<i64, Value> {
+    match value {
+        Value::Int(n) => Ok(*n),
+        _ => Err(Value::Error(format!(
+            "{}() expects integer argument '{}' , got {:?}",
+            name, arg_name, value
+        ))),
+    }
+}
+
 /// Handle math-related function calls  
 /// Returns Some(value) if the function was handled, None if not recognized
 pub fn handle(name: &str, arg_values: &[Value]) -> Option<Value> {
@@ -80,6 +90,73 @@ pub fn handle(name: &str, arg_values: &[Value]) -> Option<Value> {
                 _ => 0.0,
             };
             Value::Float(result)
+        }
+
+        "bit_and" | "bit_or" | "bit_xor" => {
+            if arg_values.len() != 2 {
+                return Some(Value::Error(format!("{}() expects 2 arguments", name)));
+            }
+
+            let left = match int_arg(name, "left", &arg_values[0]) {
+                Ok(value) => value,
+                Err(error) => return Some(error),
+            };
+            let right = match int_arg(name, "right", &arg_values[1]) {
+                Ok(value) => value,
+                Err(error) => return Some(error),
+            };
+
+            let result = match name {
+                "bit_and" => left & right,
+                "bit_or" => left | right,
+                "bit_xor" => left ^ right,
+                _ => unreachable!(),
+            };
+            Value::Int(result)
+        }
+
+        "bit_not" => {
+            if arg_values.len() != 1 {
+                return Some(Value::Error("bit_not() expects 1 argument".to_string()));
+            }
+
+            let value = match int_arg(name, "value", &arg_values[0]) {
+                Ok(value) => value,
+                Err(error) => return Some(error),
+            };
+            Value::Int(!value)
+        }
+
+        "bit_shl" | "bit_shr" => {
+            if arg_values.len() != 2 {
+                return Some(Value::Error(format!("{}() expects 2 arguments", name)));
+            }
+
+            let left = match int_arg(name, "left", &arg_values[0]) {
+                Ok(value) => value,
+                Err(error) => return Some(error),
+            };
+            let shift = match int_arg(name, "right", &arg_values[1]) {
+                Ok(value) => value,
+                Err(error) => return Some(error),
+            };
+
+            let amount = match u32::try_from(shift) {
+                Ok(value) if value < 64 => value,
+                _ => {
+                    return Some(Value::Error(format!(
+                        "{}() expects a shift amount between 0 and 63",
+                        name
+                    )));
+                }
+            };
+
+            let result = match name {
+                "bit_shl" => left << amount,
+                "bit_shr" => left >> amount,
+                _ => unreachable!(),
+            };
+            Value::Int(result)
         }
 
         _ => return None,
@@ -168,5 +245,37 @@ mod tests {
         let pow_success =
             handle("pow", &[Value::Int(2), Value::Int(8)]).expect("pow should return a result");
         assert!(matches!(pow_success, Value::Float(value) if (value - 256.0).abs() < f64::EPSILON));
+    }
+
+    #[test]
+    fn test_bitwise_api_contracts() {
+        let bit_and = handle("bit_and", &[Value::Int(0b1100), Value::Int(0b1010)])
+            .expect("bit_and should return a result");
+        assert!(matches!(bit_and, Value::Int(value) if value == 0b1000));
+
+        let bit_or = handle("bit_or", &[Value::Int(0b1100), Value::Int(0b1010)])
+            .expect("bit_or should return a result");
+        assert!(matches!(bit_or, Value::Int(value) if value == 0b1110));
+
+        let bit_xor = handle("bit_xor", &[Value::Int(0b1100), Value::Int(0b1010)])
+            .expect("bit_xor should return a result");
+        assert!(matches!(bit_xor, Value::Int(value) if value == 0b0110));
+
+        let bit_not = handle("bit_not", &[Value::Int(0)]).expect("bit_not should return a result");
+        assert!(matches!(bit_not, Value::Int(value) if value == -1));
+
+        let bit_shl = handle("bit_shl", &[Value::Int(3), Value::Int(4)])
+            .expect("bit_shl should return a result");
+        assert!(matches!(bit_shl, Value::Int(value) if value == 48));
+
+        let bit_shr = handle("bit_shr", &[Value::Int(16), Value::Int(2)])
+            .expect("bit_shr should return a result");
+        assert!(matches!(bit_shr, Value::Int(value) if value == 4));
+
+        let bit_shr_bad = handle("bit_shr", &[Value::Int(16), Value::Int(64)])
+            .expect("bit_shr should return a result");
+        assert!(
+            matches!(bit_shr_bad, Value::Error(message) if message.contains("shift amount between 0 and 63"))
+        );
     }
 }

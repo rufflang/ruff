@@ -88,16 +88,12 @@ fn run_examples() -> HashSet<&'static str> {
     ])
 }
 
-fn expected_fail_examples_with_reason() -> [(&'static str, &'static str); 29] {
+fn expected_fail_examples_with_reason() -> [(&'static str, &'static str); 28] {
     [
         ("examples/benchmark_async.ruff", "legacy control-flow syntax drift"),
         (
             "examples/benchmarks/file_io.ruff",
             "benchmark fixture contains parser-incompatible syntax",
-        ),
-        (
-            "examples/benchmarks/run_benchmarks.ruff",
-            "known VM duplicate-declaration compile error in fixture",
         ),
         (
             "examples/benchmarks/sorting_algorithms.ruff",
@@ -147,11 +143,8 @@ fn expected_fail_examples_with_reason() -> [(&'static str, &'static str); 29] {
         ),
         ("examples/projects/log_parser.ruff", "project example has unresolved parse/runtime debt"),
         ("examples/projects/streaming_downloader.ruff", "legacy loop syntax drift"),
-        (
-            "examples/projects/weather_dashboard.ruff",
-            "known VM duplicate-declaration compile error in fixture",
-        ),
         ("examples/spread_operator_demo.ruff", "spread/index syntax drift in legacy example"),
+        ("examples/string_functions.ruff", "legacy single-quote argument syntax drift"),
         ("examples/stdlib_crypto.ruff", "legacy loop syntax drift"),
         ("examples/struct_self_methods.ruff", "struct method example has unresolved syntax debt"),
         ("examples/testing_demo.ruff", "legacy test helper syntax drift"),

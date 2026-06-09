@@ -7,6 +7,7 @@ use crate::interpreter::{AsyncRuntime, Interpreter, Value};
 use crate::path_security;
 use crate::runtime_limits;
 use crate::{builtins, interpreter::DictMap};
+use std::fs;
 #[cfg(feature = "runtime-archive")]
 use std::fs::File;
 use std::fs::OpenOptions;
@@ -132,8 +133,8 @@ fn zip_add_dir_recursive(
         } else {
             let file_contents = std::fs::read(&entry_path)
                 .map_err(|error| format!("Failed to read '{}': {}", entry_path.display(), error))?;
-            let options = SimpleFileOptions::default()
-                .compression_method(zip::CompressionMethod::Deflated);
+            let options =
+                SimpleFileOptions::default().compression_method(zip::CompressionMethod::Deflated);
             zip_writer
                 .start_file(&zip_path, options)
                 .map_err(|error| format!("Failed to start file '{}': {}", zip_path, error))?;
@@ -1346,6 +1347,28 @@ pub fn handle(_interp: &mut Interpreter, name: &str, arg_values: &[Value]) -> Op
                 Value::Bool(Path::new(path.as_ref()).is_file())
             } else {
                 Value::Error("path_is_file requires a string argument (path)".to_string())
+            }
+        }
+
+        "path_is_symlink" => {
+            if arg_values.len() != 1 {
+                return Some(Value::Error(format!(
+                    "path_is_symlink() expects 1 argument (path), got {}",
+                    arg_values.len()
+                )));
+            }
+
+            if let Some(Value::Str(path)) = arg_values.first() {
+                match fs::symlink_metadata(path.as_ref()) {
+                    Ok(metadata) => Value::Bool(metadata.file_type().is_symlink()),
+                    Err(e) => Value::Error(format!(
+                        "Cannot inspect symlink status for '{}': {}",
+                        path.as_ref(),
+                        e
+                    )),
+                }
+            } else {
+                Value::Error("path_is_symlink requires a string argument (path)".to_string())
             }
         }
 

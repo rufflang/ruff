@@ -170,7 +170,7 @@ pub fn handle(name: &str, arg_values: &[Value]) -> Option<Value> {
         }
 
         // Type introspection functions
-        "type" => {
+        "type" | "type_of" => {
             if arg_values.len() != 1 {
                 return Some(Value::Error("type() requires one argument".to_string()));
             }
@@ -638,6 +638,10 @@ mod tests {
         assert!(
             matches!(bytes_extra, Value::Error(message) if message.contains("bytes() requires an array argument"))
         );
+
+        let type_alias =
+            handle("type_of", &[Value::Int(1)]).expect("type_of should return a result");
+        assert!(matches!(type_alias, Value::Str(name) if name.as_ref() == "int"));
 
         let type_extra =
             handle("type", &[Value::Int(1), Value::Int(2)]).expect("type should return a result");

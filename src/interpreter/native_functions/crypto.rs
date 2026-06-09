@@ -19,35 +19,62 @@ fn error_object(message: String) -> Value {
     Value::ErrorObject { message, stack: Vec::new(), line: None, cause: None }
 }
 
+fn sha256_hex(bytes: &[u8]) -> String {
+    let mut hasher = Sha256::new();
+    hasher.update(bytes);
+    format!("{:x}", hasher.finalize())
+}
+
+fn md5_hex(bytes: &[u8]) -> String {
+    let mut hasher = Md5::new();
+    hasher.update(bytes);
+    format!("{:x}", hasher.finalize())
+}
+
 pub fn handle(name: &str, arg_values: &[Value]) -> Option<Value> {
     let result = match name {
         "sha256" => {
             if arg_values.len() != 1 {
-                return Some(Value::Error("sha256 requires a string argument".to_string()));
+                return Some(Value::Error(
+                    "sha256 requires a string or bytes argument".to_string(),
+                ));
             }
 
-            if let Some(Value::Str(data)) = arg_values.first() {
-                let mut hasher = Sha256::new();
-                hasher.update(data.as_bytes());
-                let result = hasher.finalize();
-                Value::Str(Arc::new(format!("{:x}", result)))
-            } else {
-                Value::Error("sha256 requires a string argument".to_string())
+            match arg_values.first() {
+                Some(Value::Str(data)) => Value::Str(Arc::new(sha256_hex(data.as_bytes()))),
+                Some(Value::Bytes(bytes)) => Value::Str(Arc::new(sha256_hex(bytes))),
+                _ => Value::Error("sha256 requires a string or bytes argument".to_string()),
             }
         }
 
         "md5" => {
             if arg_values.len() != 1 {
-                return Some(Value::Error("md5 requires a string argument".to_string()));
+                return Some(Value::Error("md5 requires a string or bytes argument".to_string()));
             }
 
-            if let Some(Value::Str(data)) = arg_values.first() {
-                let mut hasher = Md5::new();
-                hasher.update(data.as_bytes());
-                let result = hasher.finalize();
-                Value::Str(Arc::new(format!("{:x}", result)))
+            match arg_values.first() {
+                Some(Value::Str(data)) => Value::Str(Arc::new(md5_hex(data.as_bytes()))),
+                Some(Value::Bytes(bytes)) => Value::Str(Arc::new(md5_hex(bytes))),
+                _ => Value::Error("md5 requires a string or bytes argument".to_string()),
+            }
+        }
+
+        "sha256_file" => {
+            if arg_values.len() != 1 {
+                return Some(Value::Error(
+                    "sha256_file requires a string path argument".to_string(),
+                ));
+            }
+
+            if let Some(Value::Str(path)) = arg_values.first() {
+                match std::fs::read(path.as_ref()) {
+                    Ok(contents) => Value::Str(Arc::new(sha256_hex(&contents))),
+                    Err(e) => {
+                        error_object(format!("Failed to read file '{}': {}", path.as_ref(), e))
+                    }
+                }
             } else {
-                Value::Error("md5 requires a string argument".to_string())
+                Value::Error("sha256_file requires a string path argument".to_string())
             }
         }
 
@@ -58,12 +85,7 @@ pub fn handle(name: &str, arg_values: &[Value]) -> Option<Value> {
 
             if let Some(Value::Str(path)) = arg_values.first() {
                 match std::fs::read(path.as_ref()) {
-                    Ok(contents) => {
-                        let mut hasher = Md5::new();
-                        hasher.update(&contents);
-                        let result = hasher.finalize();
-                        Value::Str(Arc::new(format!("{:x}", result)))
-                    }
+                    Ok(contents) => Value::Str(Arc::new(md5_hex(&contents))),
                     Err(e) => {
                         error_object(format!("Failed to read file '{}': {}", path.as_ref(), e))
                     }
@@ -517,9 +539,19 @@ mod tests {
             matches!(sha, Value::Str(value) if value.as_ref() == "acadbba99747a5451261c15ae4f389a22e9273135dc696de72c8ceae660cf2b0")
         );
 
+        let sha_bytes = handle("sha256", &[Value::Bytes(b"ruff".to_vec())]).unwrap();
+        assert!(
+            matches!(sha_bytes, Value::Str(value) if value.as_ref() == "acadbba99747a5451261c15ae4f389a22e9273135dc696de72c8ceae660cf2b0")
+        );
+
         let md5 = handle("md5", &[string_value("ruff")]).unwrap();
         assert!(
             matches!(md5, Value::Str(value) if value.as_ref() == "a5e1a5d93ff242b745f5cf87aeb726d5")
+        );
+
+        let md5_bytes = handle("md5", &[Value::Bytes(b"ruff".to_vec())]).unwrap();
+        assert!(
+            matches!(md5_bytes, Value::Str(value) if value.as_ref() == "a5e1a5d93ff242b745f5cf87aeb726d5")
         );
     }
 
@@ -530,6 +562,24 @@ mod tests {
 
         let result = handle("md5_file", &[string_value(&path)]).unwrap();
         assert!(matches!(result, Value::Str(_)));
+
+        let _ = fs::remove_file(&path);
+    }
+
+    #[test]
+    fn test_sha256_file_hashes_binary_contents() {
+        let path = unique_temp_file("ruff_crypto_sha256_file");
+        fs::write(&path, [0u8, 1, 2, 0x80, 0xFF, 0]).unwrap();
+
+        let result = handle("sha256_file", &[string_value(&path)]).unwrap();
+        assert!(
+            matches!(result, Value::Str(value) if value.as_ref() == "5b35354055af6a5442460fc80a36f4c47cf5fe7cade16773e1c474a2d37e9a3d")
+        );
+
+        let direct = handle("sha256", &[Value::Bytes(vec![0, 1, 2, 0x80, 0xFF, 0])]).unwrap();
+        assert!(
+            matches!(direct, Value::Str(value) if value.as_ref() == "5b35354055af6a5442460fc80a36f4c47cf5fe7cade16773e1c474a2d37e9a3d")
+        );
 
         let _ = fs::remove_file(&path);
     }
@@ -652,12 +702,17 @@ mod tests {
     fn test_crypto_argument_validation_contracts() {
         let sha_missing = handle("sha256", &[]).unwrap();
         assert!(
-            matches!(sha_missing, Value::Error(message) if message.contains("sha256 requires a string argument"))
+            matches!(sha_missing, Value::Error(message) if message.contains("sha256 requires a string or bytes argument"))
         );
 
         let sha_extra = handle("sha256", &[string_value("data"), string_value("extra")]).unwrap();
         assert!(
-            matches!(sha_extra, Value::Error(message) if message.contains("sha256 requires a string argument"))
+            matches!(sha_extra, Value::Error(message) if message.contains("sha256 requires a string or bytes argument"))
+        );
+
+        let sha_file_missing = handle("sha256_file", &[]).unwrap();
+        assert!(
+            matches!(sha_file_missing, Value::Error(message) if message.contains("sha256_file requires a string path argument"))
         );
 
         let verify_missing = handle("verify_password", &[string_value("only_one")]).unwrap();

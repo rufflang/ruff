@@ -39,7 +39,14 @@ fn test_builtin_names_include_release_hardening_contract_entries() {
     let builtins: HashSet<&str> = Interpreter::get_builtin_names().into_iter().collect();
 
     let required = vec![
+        "eprint",
         "bytes",
+        "bit_and",
+        "bit_or",
+        "bit_xor",
+        "bit_not",
+        "bit_shl",
+        "bit_shr",
         "index_of",
         "repeat",
         "char_at",
@@ -77,7 +84,10 @@ fn test_builtin_names_include_release_hardening_contract_entries() {
         "path_absolute",
         "path_is_dir",
         "path_is_file",
+        "path_is_symlink",
         "path_extension",
+        "sha256_file",
+        "type_of",
         "queue_size",
         "stack_size",
         "shared_set",
@@ -115,6 +125,9 @@ fn test_builtin_aliases_match_canonical_behavior() {
 
         replace_a := replace_str("a-b-c", "-", "_")
         replace_b := replace("a-b-c", "-", "_")
+
+        type_a := type(42)
+        type_b := type_of(42)
     "#;
 
     let interp = run_code(code);
@@ -133,6 +146,11 @@ fn test_builtin_aliases_match_canonical_behavior() {
         (Some(Value::Str(a)), Some(Value::Str(b))) => assert_eq!(a.as_ref(), b.as_ref()),
         _ => panic!("Expected replace alias results to be strings"),
     }
+
+    match (interp.env.get("type_a"), interp.env.get("type_b")) {
+        (Some(Value::Str(a)), Some(Value::Str(b))) => assert_eq!(a.as_ref(), b.as_ref()),
+        _ => panic!("Expected type alias results to be strings"),
+    }
 }
 
 #[test]
@@ -141,6 +159,7 @@ fn test_path_builtin_alias_and_core_operations() {
     let temp_dir = std::env::temp_dir().join(format!("ruff_{}", unique));
     std::fs::create_dir_all(&temp_dir).expect("failed to create temp dir for path tests");
     let temp_file = temp_dir.join("sample.txt");
+    let symlink_file = temp_dir.join("sample-link.txt");
     std::fs::write(&temp_file, "hardening").expect("failed to write temp file");
 
     let dir_str = temp_dir.to_string_lossy().to_string();
@@ -152,6 +171,7 @@ fn test_path_builtin_alias_and_core_operations() {
         joined_b := path_join("{dir}", "sample.txt")
         exists_flag := path_exists("{file}")
         is_file_flag := path_is_file("{file}")
+        is_symlink_flag := path_is_symlink("{file}")
         is_dir_flag := path_is_dir("{dir}")
         ext := path_extension("{file}")
         base := basename("{file}")
@@ -179,6 +199,11 @@ fn test_path_builtin_alias_and_core_operations() {
         _ => panic!("Expected is_file_flag bool true"),
     }
 
+    match interp.env.get("is_symlink_flag") {
+        Some(Value::Bool(v)) => assert!(!v),
+        _ => panic!("Expected is_symlink_flag bool false"),
+    }
+
     match interp.env.get("is_dir_flag") {
         Some(Value::Bool(v)) => assert!(v),
         _ => panic!("Expected is_dir_flag bool true"),
@@ -204,8 +229,61 @@ fn test_path_builtin_alias_and_core_operations() {
         _ => panic!("Expected abs_path string"),
     }
 
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::symlink;
+
+        symlink(&temp_file, &symlink_file).expect("failed to create symlink");
+        let symlink_code = format!(
+            r#"
+            link_flag := path_is_symlink("{link}")
+        "#,
+            link = symlink_file.to_string_lossy()
+        );
+        let symlink_interp = run_code(&symlink_code);
+        match symlink_interp.env.get("link_flag") {
+            Some(Value::Bool(v)) => assert!(v),
+            _ => panic!("Expected link_flag bool true"),
+        }
+    }
+
     std::fs::remove_file(&temp_file).expect("failed to clean up temp file");
+    let _ = std::fs::remove_file(&symlink_file);
     std::fs::remove_dir(&temp_dir).expect("failed to clean up temp dir");
+}
+
+#[test]
+fn test_bytes_indexing_and_interpolated_invalid_expression_are_rejected() {
+    let code = r#"
+        data := bytes([0, 1, 2, 255])
+        first := data[0]
+        last := data[-1]
+    "#;
+
+    let interp = run_code(code);
+
+    match interp.env.get("first") {
+        Some(Value::Int(v)) => assert_eq!(0, v),
+        _ => panic!("Expected first byte int"),
+    }
+
+    match interp.env.get("last") {
+        Some(Value::Int(v)) => assert_eq!(255, v),
+        _ => panic!("Expected last byte int"),
+    }
+
+    let tokens = tokenize(r#"result := "${5 & 3}""#).expect("interpolated source should tokenize");
+    let mut parser = Parser::new(tokens);
+    let output = parser.parse_with_diagnostics();
+    assert!(
+        !output.diagnostics.is_empty(),
+        "expected interpolation parse error for unsupported expression"
+    );
+    assert!(output
+        .diagnostics
+        .iter()
+        .any(|d| d.message.contains("Invalid interpolated string expression")
+            || d.message.contains("Expected expression")));
 }
 
 #[test]

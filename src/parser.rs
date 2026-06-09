@@ -2037,6 +2037,7 @@ impl Parser {
         use crate::lexer::InterpolatedPart as LexerPart;
 
         let mut ast_parts = Vec::new();
+        let mut had_error = false;
 
         for part in parts {
             match part {
@@ -2049,21 +2050,49 @@ impl Parser {
                         Ok(tokens) => {
                             let mut parser = Parser::new(tokens);
                             if let Some(expr) = parser.parse_expr() {
-                                ast_parts.push(InterpolatedStringPart::Expr(Box::new(expr)));
+                                if matches!(parser.peek(), TokenKind::Eof) {
+                                    ast_parts.push(InterpolatedStringPart::Expr(Box::new(expr)));
+                                } else {
+                                    had_error = true;
+                                    self.push_diagnostic(
+                                        "Invalid interpolated string expression".to_string(),
+                                    );
+                                }
                             } else {
-                                // Failed to parse expression, treat as empty string
-                                ast_parts.push(InterpolatedStringPart::Text(String::new()));
+                                had_error = true;
+                                if parser.diagnostics.is_empty() {
+                                    self.push_diagnostic(
+                                        "Invalid interpolated string expression".to_string(),
+                                    );
+                                } else {
+                                    for diagnostic in parser.diagnostics {
+                                        self.push_diagnostic(diagnostic.message);
+                                    }
+                                }
                             }
                         }
-                        Err(_) => {
-                            ast_parts.push(InterpolatedStringPart::Text(String::new()));
+                        Err(diagnostics) => {
+                            had_error = true;
+                            if diagnostics.is_empty() {
+                                self.push_diagnostic(
+                                    "Invalid interpolated string expression".to_string(),
+                                );
+                            } else {
+                                for diagnostic in diagnostics {
+                                    self.push_diagnostic(diagnostic.message);
+                                }
+                            }
                         }
                     }
                 }
             }
         }
 
-        Some(Expr::InterpolatedString(ast_parts))
+        if had_error {
+            None
+        } else {
+            Some(Expr::InterpolatedString(ast_parts))
+        }
     }
 
     /// Parse a type annotation (: type_name)
