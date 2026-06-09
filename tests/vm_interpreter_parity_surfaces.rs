@@ -1727,6 +1727,31 @@ fn vm_and_interpreter_reject_duplicate_const_declaration_in_same_scope() {
 }
 
 #[test]
+fn vm_and_interpreter_allow_reusing_loop_local_names_in_sibling_while_scopes() {
+    let script = r#"
+        func check_loop_scope_reuse() {
+            while true {
+                mut idx := 0
+                idx = idx + 1
+                break
+            }
+
+            while true {
+                mut idx := 0
+                idx = idx + 2
+                break
+            }
+
+            return true
+        }
+
+        loop_scope_reuse_ok := check_loop_scope_reuse()
+    "#;
+
+    assert_interpreter_and_vm_bool(script, "loop_scope_reuse_ok");
+}
+
+#[test]
 fn vm_and_interpreter_reject_block_variable_leakage() {
     let script = r#"
         func leak_test() {

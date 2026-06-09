@@ -37,6 +37,9 @@ pub struct Compiler {
     /// Variables that are read in this compiler scope
     used_locals: HashSet<String>,
 
+    /// Stack of local counts for nested lexical scopes.
+    scope_markers: Vec<usize>,
+
     /// Parent compiler (for nested functions/closures)
     parent: Option<Box<Compiler>>,
 
@@ -86,6 +89,7 @@ impl Compiler {
             next_local_slot: 0,
             upvalue_names: HashSet::new(),
             used_locals: HashSet::new(),
+            scope_markers: Vec::new(),
             parent: None,
             has_logical_short_circuit: false,
             has_exception_flow: false,
@@ -211,6 +215,18 @@ impl Compiler {
         Ok(self.add_local(name, self.scope_depth, binding_kind))
     }
 
+    fn enter_scope(&mut self) {
+        self.scope_markers.push(self.locals.len());
+        self.scope_depth += 1;
+    }
+
+    fn exit_scope(&mut self) {
+        if let Some(marker) = self.scope_markers.pop() {
+            self.locals.truncate(marker);
+        }
+        self.scope_depth = self.scope_depth.saturating_sub(1);
+    }
+
     fn is_upvalue(&self, name: &str) -> bool {
         self.upvalue_names.contains(name)
     }
@@ -304,13 +320,13 @@ impl Compiler {
                 self.chunk.emit(OpCode::Pop); // Pop condition
 
                 // Compile then block
-                self.scope_depth += 1;
                 self.chunk.emit(OpCode::PushScope);
+                self.enter_scope();
                 for stmt in then_branch {
                     self.compile_stmt(stmt)?;
                 }
+                self.exit_scope();
                 self.chunk.emit(OpCode::PopScope);
-                self.scope_depth -= 1;
 
                 // Jump over else block
                 let end_jump = self.chunk.emit(OpCode::Jump(0));
@@ -321,13 +337,13 @@ impl Compiler {
 
                 // Compile else block if present
                 if let Some(else_stmts) = else_branch {
-                    self.scope_depth += 1;
                     self.chunk.emit(OpCode::PushScope);
+                    self.enter_scope();
                     for stmt in else_stmts {
                         self.compile_stmt(stmt)?;
                     }
+                    self.exit_scope();
                     self.chunk.emit(OpCode::PopScope);
-                    self.scope_depth -= 1;
                 }
 
                 // Patch end jump
@@ -379,11 +395,11 @@ impl Compiler {
                 self.chunk.emit(OpCode::Pop); // Pop condition
 
                 // Compile body
-                self.scope_depth += 1;
+                self.enter_scope();
                 for stmt in body {
                     self.compile_stmt(stmt)?;
                 }
-                self.scope_depth -= 1;
+                self.exit_scope();
 
                 // Jump back to condition
                 self.chunk.emit(OpCode::JumpBack(loop_start));
@@ -406,7 +422,7 @@ impl Compiler {
             Stmt::For { var, iterable, body } => {
                 // For now, compile as a while loop with an iterator
                 // This is a simplified implementation
-                self.scope_depth += 1;
+                self.enter_scope();
 
                 let loop_var_slot = if self.uses_local_slots && !self.is_upvalue(var) {
                     Some(self.declare_local(var, BytecodeBindingKind::Mutable)?)
@@ -534,7 +550,7 @@ impl Compiler {
                     }
                 }
                 self.loop_starts.pop();
-                self.scope_depth -= 1;
+                self.exit_scope();
 
                 Ok(())
             }
@@ -758,11 +774,11 @@ impl Compiler {
                     self.chunk.emit(OpCode::Pop); // Pop condition
 
                     // Compile body
-                    self.scope_depth += 1;
+                    self.enter_scope();
                     for stmt in body {
                         self.compile_stmt(stmt)?;
                     }
-                    self.scope_depth -= 1;
+                    self.exit_scope();
 
                     // Jump back to start
                     self.chunk.emit(OpCode::JumpBack(loop_start));
@@ -772,11 +788,11 @@ impl Compiler {
                     self.chunk.emit(OpCode::Pop); // Pop condition
                 } else {
                     // Unconditional loop
-                    self.scope_depth += 1;
+                    self.enter_scope();
                     for stmt in body {
                         self.compile_stmt(stmt)?;
                     }
-                    self.scope_depth -= 1;
+                    self.exit_scope();
 
                     // Jump back to start
                     self.chunk.emit(OpCode::JumpBack(loop_start));
@@ -847,7 +863,7 @@ impl Compiler {
             Stmt::Block(statements) => {
                 // Enter new scope
                 self.chunk.emit(OpCode::PushScope);
-                self.scope_depth += 1;
+                self.enter_scope();
 
                 // Compile block statements
                 for stmt in statements {
@@ -855,7 +871,7 @@ impl Compiler {
                 }
 
                 // Exit scope
-                self.scope_depth -= 1;
+                self.exit_scope();
                 self.chunk.emit(OpCode::PopScope);
 
                 Ok(())
