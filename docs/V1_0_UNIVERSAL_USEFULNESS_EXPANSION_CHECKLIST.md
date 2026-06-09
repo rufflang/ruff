@@ -182,7 +182,7 @@ This list is intentionally execution-oriented so another agent can take one item
 
 ### P1 — High-Value Launch Polish
 
-- [ ] **V1X-TYPE-001 (P1)**: Close next medium-priority type checker TODO cluster.
+- [x] **V1X-TYPE-001 (P1)**: Close next medium-priority type checker TODO cluster.
   - Scope:
     - `src/type_checker.rs` TODOs around:
       - destructuring inference,
@@ -200,8 +200,9 @@ This list is intentionally execution-oriented so another agent can take one item
     - Forwarded `entry_script_search_paths(&file)` into interpreter-mode type checking in `src/main.rs`, which keeps optional typing warnings aligned with the same module roots runtime uses.
     - Added a focused import-signature regression in `src/type_checker.rs` that validates `add_one(value: int) -> int` is inferred from a real module file, plus the interpreter integration regression in `tests/optional_typing_v1_contract.rs`.
     - The sibling `while`-loop scope reuse fix is covered separately in `tests/vm_interpreter_parity_surfaces.rs` and keeps the default VM path aligned with interpreter scope behavior.
+    - Verified on 2026-06-08 with `cargo test type_checker::tests::` and `cargo test --test v1_code_todo_triage_contract`.
 
-- [ ] **V1X-DRY-002 (P1)**: Reduce dead-code/`#[allow(dead_code)]` sprawl on production paths.
+- [x] **V1X-DRY-002 (P1)**: Reduce dead-code/`#[allow(dead_code)]` sprawl on production paths.
   - Scope:
     - Audit `#[allow(dead_code)]` in:
       - `src/builtins.rs`
@@ -216,8 +217,12 @@ This list is intentionally execution-oriented so another agent can take one item
     - `cargo clippy --all-targets --all-features -- -D warnings`
     - focused touched suites
     - `cargo test --test vm_interpreter_parity_surfaces`
+  - 2026-06-08 closure evidence:
+    - Trimmed or justified the remaining dead-code suppressions across `src/builtins.rs`, `src/vm.rs`, `src/jit.rs`, and the benchmark-sensitive runtime paths touched by the cleanup.
+    - Rewired `src/main.rs` to consume builtin constants through `crate::builtins::get_builtins()`, eliminating one dead-code suppression source.
+    - Verified the cleanup with `cargo clippy --all-targets --all-features -- -D warnings` and `cargo test --test vm_interpreter_parity_surfaces`.
 
-- [ ] **V1X-TEST-001 (P1)**: Strengthen generated-artifact freshness contracts.
+- [x] **V1X-TEST-001 (P1)**: Strengthen generated-artifact freshness contracts.
   - Scope:
     - Ensure key generated docs (`docs/generated/*`) are not stale relative to code/checklist claims.
     - Add explicit recency/content contract checks for mismatch, unsafe, and TODO triage artifacts.
@@ -227,8 +232,13 @@ This list is intentionally execution-oriented so another agent can take one item
     - `cargo test --test vm_runtime_mismatch_inventory_contract`
     - `cargo test --test unsafe_inventory_contract`
     - `cargo test --test v1_code_todo_triage_contract`
+  - 2026-06-08 closure evidence:
+    - Added `tests/generated_artifact_freshness_contract.rs` to assert fresh dates for the TODO triage, unsafe inventory, and VM mismatch inventory artifacts while checking stable content markers.
+    - Stabilized `scripts/generate_vm_runtime_mismatch_inventory.sh` with a configurable per-fixture timeout so the mismatch inventory can be regenerated without hanging on pathological fixtures.
+    - Regenerated `docs/generated/UNSAFE_INVENTORY.md`, `docs/generated/UNSAFE_INVENTORY.csv`, `docs/generated/VM_RUNTIME_MISMATCH_INVENTORY.md`, and `docs/generated/VM_RUNTIME_MISMATCH_INVENTORY.csv` during validation.
+    - Verified with `cargo test --test generated_artifact_freshness_contract`, `cargo test --test unsafe_inventory_contract`, `cargo test --test vm_runtime_mismatch_inventory_contract`, and `cargo test --test v1_code_todo_triage_contract`.
 
-- [ ] **V1X-SEC-003 (P1)**: Security negative-path expansion for HTTP/network/process.
+- [x] **V1X-SEC-003 (P1)**: Security negative-path expansion for HTTP/network/process.
   - Scope:
     - Add hostile-input tests for:
       - malformed URLs/hosts/ports,
@@ -239,8 +249,12 @@ This list is intentionally execution-oriented so another agent can take one item
   - Minimum tests:
     - `cargo test --test native_api_security_boundaries`
     - `cargo test --test runtime_security`
+  - 2026-06-08 closure evidence:
+    - Added hostile-input coverage for invalid HTTP ports and process env precedence corner cases in `tests/native_api_security_boundaries.rs`.
+    - Kept the rejection paths deterministic so the negative-path contract remains stable across VM and interpreter execution.
+    - Verified with `cargo test --test native_api_security_boundaries` and `cargo test --test runtime_security`.
 
-- [ ] **V1X-PERF-001 (P1)**: Expand import-heavy and startup performance guardrails.
+- [x] **V1X-PERF-001 (P1)**: Expand import-heavy and startup performance guardrails.
   - Scope:
     - Add/extend reproducible startup/import-heavy perf measurements.
     - Track and enforce tolerance in generated perf artifacts/contracts.
@@ -251,8 +265,12 @@ This list is intentionally execution-oriented so another agent can take one item
     - `cargo bench --bench v1_perf_benchmarks`
     - `cargo test --test vm_import_heavy_perf_comparison_contract`
     - `cargo test --test vm_import_heavy_cache_lookup_contract`
+  - 2026-06-08 closure evidence:
+    - Tightened the import-heavy perf contracts so they assert explicit tolerances instead of only checking marker presence.
+    - Ran `cargo bench --bench v1_perf_benchmarks` and recorded the benchmark baseline deltas alongside the guardrail contracts.
+    - Verified with `cargo test --test vm_import_heavy_perf_comparison_contract` and `cargo test --test vm_import_heavy_cache_lookup_contract`.
 
-- [ ] **V1X-REPO-001 (P1)**: Tighten root-local artifact hygiene beyond tracked files.
+- [x] **V1X-REPO-001 (P1)**: Tighten root-local artifact hygiene beyond tracked files.
   - Scope:
     - Extend hygiene policy and tooling for local clutter classes (`*.db`, ad-hoc backup zips, extracted temp dirs).
     - Keep developer workflows practical (allow local temp under designated dirs).
@@ -262,6 +280,10 @@ This list is intentionally execution-oriented so another agent can take one item
   - Minimum tests:
     - `cargo test --test repo_hygiene_contract`
     - any new hygiene contract tests
+  - 2026-06-08 closure evidence:
+    - Extended `scripts/repo_hygiene_audit.sh` to accept `--root` and detect disallowed root clutter patterns while still allowing normal `tmp/` and `var/` workflows.
+    - Updated `docs/REPO_HYGIENE_POLICY.md` and `tests/repo_hygiene_contract.rs` to model both rejected clutter and approved temp workflows using seeded temp repos.
+    - Verified with `cargo test --test repo_hygiene_contract`.
 
 ### P2 — Post-v1 Leverage Improvements
 
