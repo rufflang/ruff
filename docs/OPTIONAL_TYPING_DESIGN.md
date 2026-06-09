@@ -124,6 +124,10 @@ Compatibility note:
 - Method-call inference is intentionally partial:
     - known core method surfaces on `string`, `array`, and `dict` return concrete inferred types in the checker.
     - unknown/custom method surfaces intentionally fall back to `Any` instead of claiming unsupported precision.
+- Selective imports now resolve exported function signatures from Ruff module files when the module can be discovered on the configured search paths:
+    - `ruff run --interpreter` forwards the entry script's search roots into the checker so imported callables do not show up as false `Undefined function` warnings.
+    - When a module cannot be analyzed safely, the checker still falls back to permissive imported-callable placeholders instead of rejecting dynamic code.
+    - Dotted module names resolve the same way runtime module loading does (`from src.foo import bar` and `from foo.bar import baz` both use the search-path-based module lookup).
 - Await/generator/struct-field inference remains conservative in v1 and may return `Any` or unknown where full static shape information is not yet modeled.
 - These boundaries are deliberate for additive, non-breaking typing behavior and are tracked in generated TODO triage artifacts under `docs/generated/V1_CODE_TODO_TRIAGE.*`.
 

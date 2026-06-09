@@ -195,6 +195,11 @@ This list is intentionally execution-oriented so another agent can take one item
   - Minimum tests:
     - `cargo test type_checker::tests::`
     - `cargo test --test v1_code_todo_triage_contract`
+  - 2026-06-08 closure evidence:
+    - Hardened selective-import typing so module exports are parsed into callable signatures from real Ruff source files, including dotted `from src.foo import bar` paths on configured search roots.
+    - Forwarded `entry_script_search_paths(&file)` into interpreter-mode type checking in `src/main.rs`, which keeps optional typing warnings aligned with the same module roots runtime uses.
+    - Added a focused import-signature regression in `src/type_checker.rs` that validates `add_one(value: int) -> int` is inferred from a real module file, plus the interpreter integration regression in `tests/optional_typing_v1_contract.rs`.
+    - The sibling `while`-loop scope reuse fix is covered separately in `tests/vm_interpreter_parity_surfaces.rs` and keeps the default VM path aligned with interpreter scope behavior.
 
 - [ ] **V1X-DRY-002 (P1)**: Reduce dead-code/`#[allow(dead_code)]` sprawl on production paths.
   - Scope:
