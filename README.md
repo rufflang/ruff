@@ -11,6 +11,7 @@ Ruff is VM-first (`ruff run`), with a tree-walking interpreter available as an e
 - VM runtime parity for modular workflows has been significantly hardened.
 - Dotted module import workflows are supported on the default VM path.
 - Package workflows are deterministic: `ruff init`, `ruff package-add`, `ruff package-install`, and `ruff package-install --frozen` work with nested source layouts and reproducible `ruff.lock` snapshots.
+- Native helper coverage has expanded for everyday scripting work: hashing (`sha256`, `sha256_file`, `md5`), file inspection (`read_file_lossy`, `path_is_symlink`), formatting (`pad_start`, `pad_end`), introspection (`type_of`, `is_truthy`), and stderr output (`eprint`) are all available without shelling out.
 - Native capability controls are available for trusted and untrusted execution modes.
 - Ruff remains pre-1.0, and release readiness is still bounded by `ROADMAP.md` and the pre-v1 checklist.
 
@@ -18,6 +19,7 @@ Ruff is VM-first (`ruff run`), with a tree-walking interpreter available as an e
 
 - VM-first execution for predictable runtime behavior in local and production scripts.
 - Practical native APIs (filesystem, process, network, async, crypto, database).
+- The native standard library keeps growing with practical helper surfaces for checksums, padding, truthiness, file inspection, and stderr-friendly output, which makes common automation scripts more self-contained.
 - Security policy controls for trusted and untrusted execution.
 - Module workflows that support both flat and dotted imports.
 - Package bootstrap and lockfile workflows that stay deterministic across repeated installs.

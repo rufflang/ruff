@@ -1,7 +1,7 @@
 # Standard Library Reference (v1.0.0)
 
 Status: v1.0.0 baseline draft (active)
-Last updated: 2026-05-01
+Last updated: 2026-06-09
 
 This is the canonical native standard library reference for major builtin categories in v1.
 
@@ -24,6 +24,14 @@ Source of truth:
 
 - runtime registration and dispatch are implemented in `src/interpreter/mod.rs`
 - builtin name inventory is returned by `Interpreter::get_builtin_names()`
+
+Recently promoted helper surfaces worth calling out:
+
+- `eprint(...)` for stderr-friendly output when you want normal stdout reserved for machine-readable data.
+- `bit_and(...)`, `bit_or(...)`, `bit_xor(...)`, `bit_not(...)`, `bit_shl(...)`, and `bit_shr(...)` for masks, flags, and other low-level integer work.
+- `type_of(...)` and `is_truthy(...)` for runtime introspection in dynamic scripts.
+- `pad_start(...)` and `pad_end(...)` for aligned CLI output and human-readable reports.
+- `read_file_lossy(...)`, `path_is_symlink(...)`, and `sha256_file(...)` for practical filesystem workflows that need tolerant reads, symlink checks, and integrity validation.
 
 ## Core IO and Formatting
 
