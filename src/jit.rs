@@ -8138,6 +8138,7 @@ impl JitCompiler {
     }
 
     /// Get JIT statistics
+    #[allow(dead_code)] // Future runtime reporting/benchmark plumbing consumes this accessor.
     pub fn stats(&self) -> JitStats {
         JitStats {
             total_functions: self.execution_counts.len(),

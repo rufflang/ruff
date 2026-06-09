@@ -1227,14 +1227,9 @@ async fn main() {
                             // Register constant globals that are not callable native functions.
                             {
                                 let mut env_lock = env.lock().unwrap();
-                                env_lock.set(
-                                    "PI".to_string(),
-                                    interpreter::Value::Float(std::f64::consts::PI),
-                                );
-                                env_lock.set(
-                                    "E".to_string(),
-                                    interpreter::Value::Float(std::f64::consts::E),
-                                );
+                                for (name, value) in crate::builtins::get_builtins() {
+                                    env_lock.set(name, value);
+                                }
                                 env_lock.set("null".to_string(), interpreter::Value::Null);
                             }
 

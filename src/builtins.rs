@@ -32,7 +32,6 @@ fn lock_seeded_rng() -> std::sync::MutexGuard<'static, Option<StdRng>> {
 }
 
 /// Returns a HashMap of all built-in functions
-#[allow(dead_code)]
 pub fn get_builtins() -> HashMap<String, Value> {
     let mut builtins = HashMap::new();
 

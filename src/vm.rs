@@ -51,20 +51,16 @@ pub struct VmSchedulerRoundResult {
 #[derive(Debug, Clone)]
 /// Upvalue - captured variable for closures
 /// Infrastructure for closure variable capture
-#[allow(dead_code)] // Deferred post-v1 runtime backlog: full closure upvalue implementation (see docs/V1_SCOPE.md deferred runtime execution section)
 struct Upvalue {
     /// The captured value
     value: Arc<Mutex<Value>>,
 
     /// Whether the upvalue is still on the stack (false) or has been closed (true)
+    #[allow(dead_code)] // Exposed for regression assertions around closure state.
     is_closed: bool,
-
-    /// If still on stack, the stack index
-    stack_index: Option<usize>,
 }
 
 /// Virtual Machine for executing bytecode
-#[allow(dead_code)] // VM not yet integrated into execution path
 pub struct VM {
     /// Value stack for computation
     stack: Vec<Value>,
@@ -343,8 +339,8 @@ pub struct VmExecutionSnapshot {
 
 /// Generator state for suspended execution
 /// Infrastructure for generator resume functionality
-#[allow(dead_code)]
 // Deferred post-v1 runtime backlog: full generator-state restoration (see docs/V1_SCOPE.md deferred runtime execution section)
+#[allow(dead_code)] // Generator resume metadata is kept for parity with the future restoration path.
 #[derive(Debug, Clone)]
 pub struct GeneratorState {
     /// Instruction pointer where generator yielded
@@ -388,7 +384,6 @@ pub struct CallFrameData {
 
 /// Call frame for function calls
 #[derive(Debug, Clone)]
-#[allow(dead_code)] // CallFrame not yet used - nested calls incomplete
 pub(crate) struct CallFrame {
     /// Return address (instruction pointer)
     return_ip: usize,
@@ -424,7 +419,7 @@ pub(crate) struct CallFrame {
     is_async: bool,
 }
 
-#[allow(dead_code)] // VM not yet integrated into execution path
+#[allow(dead_code)] // These VM helpers are retained for scheduler/JIT/debug follow-through paths.
 impl VM {
     fn env_binding_kind(kind: BytecodeBindingKind) -> BindingKind {
         match kind {
@@ -5021,7 +5016,6 @@ impl VM {
                     let upvalue = Upvalue {
                         value: Arc::new(Mutex::new(value)),
                         is_closed: true, // Immediately close it (move to heap)
-                        stack_index: None,
                     };
 
                     let upvalue_index = self.upvalues.len();
@@ -8102,7 +8096,6 @@ mod tests {
         vm.upvalues = vec![Upvalue {
             value: Arc::new(Mutex::new(Value::Int(123))),
             is_closed: true,
-            stack_index: None,
         }];
         vm.exception_handlers =
             vec![ExceptionHandlerFrame { catch_ip: 19, stack_offset: 2, frame_offset: 1 }];
