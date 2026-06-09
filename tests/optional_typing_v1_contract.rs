@@ -144,3 +144,59 @@ fn v1_optional_typing_warnings_are_interpreter_only() {
         "vm mode should not emit interpreter-only type checker warnings; stderr={vm_stderr}"
     );
 }
+
+#[test]
+fn v1_selective_imports_do_not_trigger_false_undefined_function_warnings() {
+    let dir = unique_temp_dir("import_warning_boundary");
+    let module_path = dir.join("math_helper.ruff");
+    let source_path = dir.join("import_warning_boundary.ruff");
+
+    fs::write(
+        &module_path,
+        r#"
+            export func add_one(value) {
+                return value + 1
+            }
+        "#,
+    )
+    .expect("failed to write module source");
+
+    fs::write(
+        &source_path,
+        r#"
+            from math_helper import add_one
+            result := add_one(41)
+            print(result)
+        "#,
+    )
+    .expect("failed to write import test source");
+
+    let interpreter_output = Command::new(env!("CARGO_BIN_EXE_ruff"))
+        .arg("run")
+        .arg("--interpreter")
+        .arg(&source_path)
+        .output()
+        .expect("failed to execute interpreter mode");
+
+    assert!(
+        interpreter_output.status.success(),
+        "interpreter mode should execute selective imports cleanly: stdout={} stderr={}",
+        String::from_utf8_lossy(&interpreter_output.stdout),
+        String::from_utf8_lossy(&interpreter_output.stderr)
+    );
+
+    let interpreter_stdout = String::from_utf8_lossy(&interpreter_output.stdout);
+    let interpreter_stderr = String::from_utf8_lossy(&interpreter_output.stderr);
+    assert!(
+        interpreter_stdout.contains("42"),
+        "expected imported function call to print 42; stdout={interpreter_stdout} stderr={interpreter_stderr}"
+    );
+    assert!(
+        !interpreter_stderr.contains("Type checking warnings:"),
+        "selective imports should not emit false type-check warnings; stderr={interpreter_stderr}"
+    );
+    assert!(
+        !interpreter_stderr.contains("Undefined function 'add_one'"),
+        "selective imports should not be flagged as undefined; stderr={interpreter_stderr}"
+    );
+}

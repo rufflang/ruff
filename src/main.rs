@@ -1310,6 +1310,9 @@ async fn main() {
                 // Use tree-walking interpreter (fallback mode)
                 // Type checking phase (optional - won't stop execution even if errors found)
                 let mut type_checker = type_checker::TypeChecker::new();
+                for search_path in entry_script_search_paths(&file) {
+                    type_checker.add_search_path(search_path);
+                }
                 if let Err(errors) = type_checker.check(&stmts) {
                     eprintln!("Type checking warnings:");
                     for error in &errors {

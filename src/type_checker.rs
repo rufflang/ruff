@@ -13,9 +13,14 @@
 // 1. First pass: Collect function signatures
 // 2. Second pass: Check statements and infer types
 
-use crate::ast::{Expr, Stmt, TypeAnnotation};
+use crate::ast::{Expr, Pattern, Stmt, TypeAnnotation};
 use crate::errors::{ErrorKind, RuffError, SourceLocation};
-use std::collections::HashMap;
+use crate::lexer::tokenize_with_file;
+use crate::parser::Parser;
+use crate::path_security;
+use std::collections::{HashMap, HashSet};
+use std::fs;
+use std::path::{Path, PathBuf};
 
 /// Represents a function signature with parameter and return types
 #[derive(Debug, Clone)]
@@ -38,6 +43,10 @@ pub struct TypeChecker {
     errors: Vec<RuffError>,
     /// Recursion depth counter to prevent infinite loops
     recursion_depth: usize,
+    /// Search roots used to resolve module imports for static signature inference.
+    module_search_paths: Vec<PathBuf>,
+    /// Cache of parsed module export signatures keyed by canonical module path.
+    module_export_signatures: HashMap<PathBuf, HashMap<String, FunctionSignature>>,
 }
 
 /// Maximum recursion depth for type checking to prevent infinite loops
@@ -53,12 +62,19 @@ impl TypeChecker {
             current_function_return: None,
             errors: Vec::new(),
             recursion_depth: 0,
+            module_search_paths: vec![PathBuf::from("."), PathBuf::from("./modules")],
+            module_export_signatures: HashMap::new(),
         };
 
         // Register built-in functions
         checker.register_builtins();
 
         checker
+    }
+
+    /// Adds a module search path used to resolve imported Ruff files during static analysis.
+    pub fn add_search_path<P: AsRef<Path>>(&mut self, path: P) {
+        self.module_search_paths.push(path.as_ref().to_path_buf());
     }
 
     /// Registers all built-in function signatures
@@ -2018,6 +2034,334 @@ impl TypeChecker {
         );
     }
 
+    fn function_signature_to_type_annotation(signature: &FunctionSignature) -> TypeAnnotation {
+        TypeAnnotation::Function {
+            params: signature
+                .param_types
+                .iter()
+                .map(|param_type| param_type.clone().unwrap_or(TypeAnnotation::Any))
+                .collect(),
+            return_type: Box::new(signature.return_type.clone().unwrap_or(TypeAnnotation::Any)),
+        }
+    }
+
+    fn register_imported_symbol(
+        &mut self,
+        name: &str,
+        signature: Option<FunctionSignature>,
+        allow_callable_fallback: bool,
+    ) {
+        // Imported Ruff values should be visible to the checker even when the
+        // module export cannot be resolved statically. If we do know the
+        // exported function signature, keep it precise so later calls type-check
+        // instead of falling back to `Any`.
+        match signature {
+            Some(signature) => {
+                self.variables.insert(
+                    name.to_string(),
+                    Some(Self::function_signature_to_type_annotation(&signature)),
+                );
+                self.functions.insert(name.to_string(), signature);
+            }
+            None => {
+                self.variables.insert(name.to_string(), Some(TypeAnnotation::Any));
+                if allow_callable_fallback {
+                    self.functions.insert(
+                        name.to_string(),
+                        FunctionSignature {
+                            param_types: vec![],
+                            return_type: Some(TypeAnnotation::Any),
+                        },
+                    );
+                }
+            }
+        }
+    }
+
+    fn module_resolution_candidates(module_name: &str) -> Result<Vec<PathBuf>, String> {
+        let mut candidates = Vec::new();
+        let mut seen = HashSet::new();
+
+        let flat_filename = format!("{}.ruff", module_name);
+        let normalized_flat =
+            path_security::sanitize_relative_path(&flat_filename, "module import")
+                .map_err(|error| format!("Unsafe module import '{}': {}", module_name, error))?;
+        if seen.insert(normalized_flat.clone()) {
+            candidates.push(normalized_flat);
+        }
+
+        if module_name.contains('.') {
+            let segments: Vec<&str> = module_name.split('.').collect();
+            if segments.iter().any(|segment| segment.is_empty()) {
+                return Err(format!(
+                    "Unsafe module import '{}': dotted module path contains an empty segment",
+                    module_name
+                ));
+            }
+
+            let nested_filename = format!("{}.ruff", segments.join("/"));
+            let normalized_nested =
+                path_security::sanitize_relative_path(&nested_filename, "module import").map_err(
+                    |error| format!("Unsafe module import '{}': {}", module_name, error),
+                )?;
+
+            if seen.insert(normalized_nested.clone()) {
+                candidates.push(normalized_nested);
+            }
+        }
+
+        Ok(candidates)
+    }
+
+    fn resolve_module_import_path(&self, module_name: &str) -> Option<PathBuf> {
+        let resolution_candidates = Self::module_resolution_candidates(module_name).ok()?;
+        let mut visited_roots = HashSet::new();
+
+        for search_path in &self.module_search_paths {
+            let canonical_search_root =
+                match path_security::canonicalize_root(search_path, "module search path") {
+                    Ok(path) => path,
+                    Err(_) => continue,
+                };
+
+            if !visited_roots.insert(canonical_search_root.clone()) {
+                continue;
+            }
+
+            for normalized_filename in &resolution_candidates {
+                let full_path = canonical_search_root.join(normalized_filename);
+                if full_path.exists() {
+                    let canonical_module_path = match fs::canonicalize(&full_path) {
+                        Ok(path) => path,
+                        Err(_) => continue,
+                    };
+
+                    if path_security::ensure_path_within_root(
+                        &canonical_module_path,
+                        &canonical_search_root,
+                        "module import path",
+                    )
+                    .is_err()
+                    {
+                        continue;
+                    }
+
+                    return Some(canonical_module_path);
+                }
+            }
+        }
+
+        None
+    }
+
+    fn function_signature_from_params(
+        params: &[String],
+        param_types: &[Option<TypeAnnotation>],
+        return_type: &Option<TypeAnnotation>,
+    ) -> FunctionSignature {
+        FunctionSignature {
+            param_types: param_types
+                .iter()
+                .cloned()
+                .chain(std::iter::repeat(None))
+                .take(params.len())
+                .collect(),
+            return_type: return_type.clone(),
+        }
+    }
+
+    fn signature_from_imported_value(
+        value: &Expr,
+        known_functions: &HashMap<String, FunctionSignature>,
+    ) -> Option<FunctionSignature> {
+        match value {
+            Expr::Identifier(name) => known_functions.get(name).cloned(),
+            Expr::Function { params, param_types, return_type, .. } => {
+                Some(Self::function_signature_from_params(params, param_types, return_type))
+            }
+            _ => None,
+        }
+    }
+
+    fn collect_binding_signatures_from_stmt(
+        &mut self,
+        stmt: &Stmt,
+        binding_signatures: &mut HashMap<String, FunctionSignature>,
+        active_modules: &mut Vec<PathBuf>,
+    ) {
+        match stmt {
+            Stmt::FuncDef { name, params, param_types, return_type, .. } => {
+                binding_signatures.insert(
+                    name.clone(),
+                    Self::function_signature_from_params(params, param_types, return_type),
+                );
+            }
+            Stmt::Import { module, symbols: Some(symbols) } => {
+                if let Some(module_signatures) =
+                    self.module_export_signatures(module, active_modules)
+                {
+                    for symbol in symbols {
+                        if let Some(signature) = module_signatures.get(symbol) {
+                            binding_signatures.insert(symbol.clone(), signature.clone());
+                        }
+                    }
+                }
+            }
+            Stmt::Const { name, value, .. } => {
+                if let Some(signature) =
+                    Self::signature_from_imported_value(value, binding_signatures)
+                {
+                    binding_signatures.insert(name.clone(), signature);
+                }
+            }
+            Stmt::Let { pattern: Pattern::Identifier(name), value, .. } => {
+                if let Some(signature) =
+                    Self::signature_from_imported_value(value, binding_signatures)
+                {
+                    binding_signatures.insert(name.clone(), signature);
+                }
+            }
+            Stmt::Assign { target: Expr::Identifier(name), value } => {
+                if let Some(signature) =
+                    Self::signature_from_imported_value(value, binding_signatures)
+                {
+                    binding_signatures.insert(name.clone(), signature);
+                }
+            }
+            Stmt::Export { stmt } => {
+                self.collect_binding_signatures_from_stmt(stmt, binding_signatures, active_modules);
+            }
+            Stmt::Block(stmts) => {
+                let mut nested_bindings = binding_signatures.clone();
+                for nested_stmt in stmts {
+                    self.collect_binding_signatures_from_stmt(
+                        nested_stmt,
+                        &mut nested_bindings,
+                        active_modules,
+                    );
+                }
+            }
+            _ => {}
+        }
+    }
+
+    fn module_export_signatures(
+        &mut self,
+        module_name: &str,
+        active_modules: &mut Vec<PathBuf>,
+    ) -> Option<HashMap<String, FunctionSignature>> {
+        let module_path = self.resolve_module_import_path(module_name)?;
+
+        if let Some(cached) = self.module_export_signatures.get(&module_path) {
+            return Some(cached.clone());
+        }
+
+        if active_modules.contains(&module_path) {
+            return None;
+        }
+
+        let source = fs::read_to_string(&module_path).ok()?;
+        let tokens = tokenize_with_file(&source, Some(&module_path.to_string_lossy())).ok()?;
+        let mut parser = Parser::new(tokens);
+        let parse_output = parser.parse_with_diagnostics();
+        if !parse_output.diagnostics.is_empty() {
+            return None;
+        }
+
+        active_modules.push(module_path.clone());
+
+        let mut binding_signatures = HashMap::new();
+        let mut export_signatures = HashMap::new();
+        for stmt in &parse_output.stmts {
+            self.collect_binding_signatures_from_stmt(
+                stmt,
+                &mut binding_signatures,
+                active_modules,
+            );
+
+            if let Stmt::Export { stmt } = stmt {
+                self.collect_export_signatures_from_stmt(
+                    stmt,
+                    &binding_signatures,
+                    &mut export_signatures,
+                    active_modules,
+                );
+            }
+        }
+
+        active_modules.pop();
+        self.module_export_signatures.insert(module_path, export_signatures.clone());
+        Some(export_signatures)
+    }
+
+    fn collect_export_signatures_from_stmt(
+        &mut self,
+        stmt: &Stmt,
+        binding_signatures: &HashMap<String, FunctionSignature>,
+        export_signatures: &mut HashMap<String, FunctionSignature>,
+        active_modules: &mut Vec<PathBuf>,
+    ) {
+        match stmt {
+            Stmt::FuncDef { name, params, param_types, return_type, .. } => {
+                export_signatures.insert(
+                    name.clone(),
+                    Self::function_signature_from_params(params, param_types, return_type),
+                );
+            }
+            Stmt::Const { name, value, .. } => {
+                if let Some(signature) =
+                    Self::signature_from_imported_value(value, binding_signatures)
+                {
+                    export_signatures.insert(name.clone(), signature);
+                }
+            }
+            Stmt::Let { pattern: Pattern::Identifier(name), value, .. } => {
+                if let Some(signature) =
+                    Self::signature_from_imported_value(value, binding_signatures)
+                {
+                    export_signatures.insert(name.clone(), signature);
+                }
+            }
+            Stmt::Assign { target: Expr::Identifier(name), value } => {
+                if let Some(signature) =
+                    Self::signature_from_imported_value(value, binding_signatures)
+                {
+                    export_signatures.insert(name.clone(), signature);
+                }
+            }
+            Stmt::ExprStmt(Expr::Identifier(name)) => {
+                if let Some(signature) = binding_signatures.get(name) {
+                    export_signatures.insert(name.clone(), signature.clone());
+                }
+            }
+            Stmt::Block(stmts) => {
+                let mut nested_bindings = binding_signatures.clone();
+                for nested_stmt in stmts {
+                    self.collect_binding_signatures_from_stmt(
+                        nested_stmt,
+                        &mut nested_bindings,
+                        active_modules,
+                    );
+                    self.collect_export_signatures_from_stmt(
+                        nested_stmt,
+                        &nested_bindings,
+                        export_signatures,
+                        active_modules,
+                    );
+                }
+            }
+            Stmt::Export { stmt } => {
+                self.collect_export_signatures_from_stmt(
+                    stmt,
+                    binding_signatures,
+                    export_signatures,
+                    active_modules,
+                );
+            }
+            _ => {}
+        }
+    }
+
     /// Type check a list of statements
     ///
     /// Returns Ok(()) if type checking succeeds, or Err with collected errors
@@ -2318,9 +2662,25 @@ impl TypeChecker {
                 // Enums don't require type checking
             }
 
-            Stmt::Import { module: _, symbols: _ } => {
-                // Module imports don't require type checking
-                // TODO: When module system is implemented, verify module exists
+            Stmt::Import { module, symbols } => {
+                let mut active_modules = Vec::new();
+                let module_signatures = self.module_export_signatures(module, &mut active_modules);
+
+                if let Some(symbols) = symbols {
+                    for symbol in symbols {
+                        let signature = module_signatures
+                            .as_ref()
+                            .and_then(|signatures| signatures.get(symbol))
+                            .cloned();
+                        self.register_imported_symbol(
+                            symbol,
+                            signature,
+                            module_signatures.is_none(),
+                        );
+                    }
+                } else {
+                    self.variables.insert(module.clone(), Some(TypeAnnotation::Any));
+                }
             }
 
             Stmt::Export { stmt } => {
@@ -2375,7 +2735,9 @@ impl TypeChecker {
 
             Expr::Identifier(name) => {
                 // Look up variable type in symbol table
-                self.variables.get(name).cloned().flatten()
+                self.variables.get(name).cloned().flatten().or_else(|| {
+                    self.functions.get(name).map(Self::function_signature_to_type_annotation)
+                })
             }
 
             Expr::UnaryOp { op, operand } => {
@@ -3184,5 +3546,89 @@ mod tests {
         });
 
         assert_eq!(inferred, Some(TypeAnnotation::Any));
+    }
+
+    #[test]
+    fn test_selective_import_registers_callable_binding() {
+        let mut checker = TypeChecker::new();
+        let stmts = vec![
+            Stmt::Import {
+                module: "math_helper".to_string(),
+                symbols: Some(vec!["add_one".to_string()]),
+            },
+            Stmt::Let {
+                pattern: crate::ast::Pattern::Identifier("result".to_string()),
+                value: Expr::Call {
+                    function: Box::new(Expr::Identifier("add_one".to_string())),
+                    args: vec![Expr::Int(41)],
+                },
+                mutable: false,
+                type_annotation: None,
+            },
+        ];
+
+        assert!(checker.check(&stmts).is_ok());
+        assert_eq!(checker.variables.get("add_one"), Some(&Some(TypeAnnotation::Any)));
+        assert_eq!(checker.variables.get("result"), Some(&Some(TypeAnnotation::Any)));
+    }
+
+    #[test]
+    fn test_selective_import_resolves_function_signature_from_module_file() {
+        fn unique_name(prefix: &str) -> String {
+            let nanos = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .expect("system time should be after unix epoch")
+                .as_nanos();
+            format!("{}_{}_{}", prefix, std::process::id(), nanos)
+        }
+
+        let mut checker = TypeChecker::new();
+        let temp_root = std::env::temp_dir().join(unique_name("ruff_type_checker_import"));
+        let src_dir = temp_root.join("src");
+        std::fs::create_dir_all(&src_dir).expect("failed to create temp module dir");
+
+        let module_name = unique_name("math_helper");
+        let module_path = src_dir.join(format!("{}.ruff", module_name));
+        std::fs::write(
+            &module_path,
+            "export func add_one(value: int) -> int {\n    return value + 1\n}\n",
+        )
+        .expect("failed to write module source");
+
+        checker.add_search_path(&temp_root);
+
+        let stmts = vec![
+            Stmt::Import {
+                module: format!("src.{}", module_name),
+                symbols: Some(vec!["add_one".to_string()]),
+            },
+            Stmt::Let {
+                pattern: crate::ast::Pattern::Identifier("result".to_string()),
+                value: Expr::Call {
+                    function: Box::new(Expr::Identifier("add_one".to_string())),
+                    args: vec![Expr::Int(41)],
+                },
+                mutable: false,
+                type_annotation: None,
+            },
+        ];
+
+        assert!(checker.check(&stmts).is_ok());
+
+        let imported_signature =
+            checker.functions.get("add_one").expect("imported function should be registered");
+        assert_eq!(imported_signature.param_types, vec![Some(TypeAnnotation::Int)]);
+        assert_eq!(imported_signature.return_type, Some(TypeAnnotation::Int));
+        assert_eq!(
+            checker.infer_expr(&Expr::Identifier("add_one".to_string())),
+            Some(TypeAnnotation::Function {
+                params: vec![TypeAnnotation::Int],
+                return_type: Box::new(TypeAnnotation::Int),
+            })
+        );
+        assert_eq!(checker.variables.get("result"), Some(&Some(TypeAnnotation::Int)));
+
+        std::fs::remove_file(&module_path).expect("failed to remove temp module");
+        std::fs::remove_dir_all(&temp_root).expect("failed to clean up temp module dir");
     }
 }
