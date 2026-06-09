@@ -1,6 +1,6 @@
 # Unsafe Inventory
 
-Generated: 2026-06-08
+Generated: 2026-06-09
 Command: rg -n --glob '*.rs' --glob '!tests/unsafe_inventory_contract.rs' '\bunsafe\b' src tests benches fuzz
 
 ## Summary
@@ -61,7 +61,7 @@ Command: rg -n --glob '*.rs' --glob '!tests/unsafe_inventory_contract.rs' '\buns
 | src/jit.rs | 8176 | executable | jit_executable |     unsafe extern ""C"" fn dummy_compiled_fn(_ctx: *mut VMContext) -> i64 { |
 | src/jit.rs | 8186 | executable | jit_executable |     unsafe extern ""C"" fn dummy_compiled_fn_with_arg(_ctx: *mut VMContext, arg: i64) -> i64 { |
 | src/jit.rs | 9250 | executable | jit_executable |         unsafe { |
-| src/module.rs | 645 | non_executable | src_comment_or_string |             ""expected unsafe traversal error, got: {}"", |
+| src/module.rs | 667 | non_executable | src_comment_or_string |             ""expected unsafe traversal error, got: {}"", |
 | tests/fixtures/unsafe_safety_contracts/malformed_contract.rs | 1 | executable | test_executable | pub unsafe extern ""C"" fn jit_ffi(ptr: *mut i64) -> i64 { |
 | tests/fixtures/unsafe_safety_contracts/malformed_contract.rs | 4 | executable | test_executable |     unsafe { *ptr } |
 | tests/fixtures/unsafe_safety_contracts/missing_contract.rs | 1 | executable | test_executable | pub unsafe extern ""C"" fn jit_ffi(ptr: *mut i64) -> i64 { |
@@ -72,8 +72,8 @@ Command: rg -n --glob '*.rs' --glob '!tests/unsafe_inventory_contract.rs' '\buns
 | tests/fixtures/unsafe_safety_contracts/valid_jit_like.rs | 15 | executable | test_executable |     unsafe { *raw } |
 | tests/fixtures/unsafe_safety_contracts/wrong_headings.rs | 1 | executable | test_executable | pub unsafe extern ""C"" fn jit_ffi(ptr: *mut i64) -> i64 { |
 | tests/fixtures/unsafe_safety_contracts/wrong_headings.rs | 5 | executable | test_executable |     unsafe { *ptr } |
-| tests/generated_artifact_freshness_contract.rs | 121 | non_executable | test_comment_or_string |     let output_md = temp_dir.join(""unsafe.md""); |
-| tests/generated_artifact_freshness_contract.rs | 122 | non_executable | test_comment_or_string |     let output_csv = temp_dir.join(""unsafe.csv""); |
+| tests/generated_artifact_freshness_contract.rs | 125 | non_executable | test_comment_or_string |     let output_md = temp_dir.join(""unsafe.md""); |
+| tests/generated_artifact_freshness_contract.rs | 126 | non_executable | test_comment_or_string |     let output_csv = temp_dir.join(""unsafe.csv""); |
 | tests/jit_safety_contract_checker.rs | 152 | non_executable | test_comment_or_string |     assert!(stdout.contains(""Checked 0 executable unsafe boundaries"")); |
 | tests/runtime_security.rs | 324 | non_executable | test_comment_or_string |         ""expected unsafe traversal error, got: {}"", |
 | tests/unsafe_safety_gate_contract.rs | 14 | non_executable | test_comment_or_string |         .expect(""failed to run unsafe safety gate help""); |

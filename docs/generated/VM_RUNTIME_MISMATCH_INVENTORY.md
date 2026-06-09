@@ -1,6 +1,6 @@
 # VM Runtime Mismatch Inventory
 
-Generated: 2026-06-08
+Generated: 2026-06-09
 Runner: `/Users/robertdevore/2026/ruff/target/debug/ruff`
 Fixture root: `tests`
 
@@ -18,7 +18,10 @@ Fixture root: `tests`
 | `tests/fixtures/diagnostics/lexer_invalid_escape.ruff` | 3 | 3 | yes | yes | `both_match_snapshot` | `none` | n/a | `P4` | snapshot matches in both runtimes |
 | `tests/fixtures/diagnostics/parser_missing_paren.ruff` | 3 | 3 | yes | yes | `both_match_snapshot` | `none` | n/a | `P4` | snapshot matches in both runtimes |
 | `tests/fixtures/diagnostics/runtime_break_outside_loop.ruff` | 4 | 4 | yes | yes | `both_match_snapshot` | `none` | n/a | `P4` | snapshot matches in both runtimes |
+| `tests/fixtures/diagnostics/runtime_capability_denied.ruff` | 4 | 4 | yes | yes | `both_match_snapshot` | `none` | n/a | `P4` | snapshot matches in both runtimes |
 | `tests/fixtures/diagnostics/runtime_invalid_unary.ruff` | 4 | 4 | yes | yes | `both_match_snapshot` | `none` | n/a | `P4` | snapshot matches in both runtimes |
+| `tests/fixtures/diagnostics/runtime_missing_module_entry.ruff` | 4 | 4 | yes | yes | `both_match_snapshot` | `none` | n/a | `P4` | snapshot matches in both runtimes |
+| `tests/fixtures/diagnostics/runtime_non_callable_call.ruff` | 4 | 0 | yes | yes | `both_match_snapshot` | `none` | n/a | `P4` | snapshot matches in both runtimes |
 | `tests/fixtures/diagnostics/runtime_undefined_identifier.ruff` | 4 | 4 | yes | yes | `both_match_snapshot` | `none` | n/a | `P4` | snapshot matches in both runtimes |
 | `tests/fixtures/diagnostics/semantic_invalid_assignment.ruff` | 3 | 3 | yes | yes | `both_match_snapshot` | `none` | n/a | `P4` | snapshot matches in both runtimes |
 | `tests/fixtures/docgen/conformance_edges.ruff` | 4 | 4 | yes | yes | `both_match_snapshot` | `none` | n/a | `P4` | snapshot matches in both runtimes |
@@ -35,7 +38,7 @@ Fixture root: `tests`
 | `tests/jit_direct_recursion.ruff` | 143 | 4 | no | no | `both_mismatch_different_output` | `runtime-parity-bug` | runtime-owner | `P0` | both runtimes diverge from snapshot and from each other, indicating runtime-path parity drift rather than stale fixture expectations |
 | `tests/jit_inline_cache.ruff` | 0 | 0 | yes | yes | `both_match_snapshot` | `none` | n/a | `P4` | snapshot matches in both runtimes |
 | `tests/jit_loop_tests.ruff` | 0 | 4 | no | no | `both_mismatch_different_output` | `runtime-parity-bug` | runtime-owner | `P0` | both runtimes diverge from snapshot and from each other, indicating runtime-path parity drift rather than stale fixture expectations |
-| `tests/jit_register_locals.ruff` | 143 | 143 | no | no | `both_mismatch_different_output` | `runtime-parity-bug` | runtime-owner | `P0` | both runtimes diverge from snapshot and from each other, indicating runtime-path parity drift rather than stale fixture expectations |
+| `tests/jit_register_locals.ruff` | 143 | 0 | no | yes | `vm_only_mismatch` | `runtime-parity-bug` | runtime-owner | `P0` | runtime-path mismatch against snapshot indicates parity defect or runtime-specific contract drift |
 | `tests/match_empty_body.ruff` | 0 | 0 | yes | yes | `both_match_snapshot` | `none` | n/a | `P4` | snapshot matches in both runtimes |
 | `tests/match_no_param.ruff` | 0 | 0 | yes | yes | `both_match_snapshot` | `none` | n/a | `P4` | snapshot matches in both runtimes |
 | `tests/minimal_match_test.ruff` | 0 | 0 | yes | yes | `both_match_snapshot` | `none` | n/a | `P4` | snapshot matches in both runtimes |
@@ -50,10 +53,10 @@ Fixture root: `tests`
 | `tests/simple_ok.ruff` | 0 | 0 | yes | yes | `both_match_snapshot` | `none` | n/a | `P4` | snapshot matches in both runtimes |
 | `tests/simple_result_test.ruff` | 0 | 0 | yes | yes | `both_match_snapshot` | `none` | n/a | `P4` | snapshot matches in both runtimes |
 | `tests/spread_operator.ruff` | 0 | 0 | yes | yes | `both_match_snapshot` | `none` | n/a | `P4` | snapshot matches in both runtimes |
-| `tests/stdlib_crypto_test.ruff` | 143 | 143 | no | no | `both_mismatch_same_output` | `stale-snapshot-expectation` | docs-owner | `P1` | both runtimes agree on output but snapshot expectation diverges |
+| `tests/stdlib_crypto_test.ruff` | 143 | 143 | no | no | `both_mismatch_different_output` | `runtime-parity-bug` | runtime-owner | `P0` | both runtimes diverge from snapshot and from each other, indicating runtime-path parity drift rather than stale fixture expectations |
 | `tests/stdlib_io_test.ruff` | 0 | 0 | yes | yes | `both_match_snapshot` | `none` | n/a | `P4` | snapshot matches in both runtimes |
 | `tests/stdlib_os_path_test.ruff` | 0 | 0 | yes | yes | `both_match_snapshot` | `none` | n/a | `P4` | snapshot matches in both runtimes |
-| `tests/stdlib_test.ruff` | 143 | 143 | no | no | `both_mismatch_same_output` | `stale-snapshot-expectation` | docs-owner | `P1` | both runtimes agree on output but snapshot expectation diverges |
+| `tests/stdlib_test.ruff` | 0 | 0 | yes | yes | `both_match_snapshot` | `none` | n/a | `P4` | snapshot matches in both runtimes |
 | `tests/string_methods_test.ruff` | 0 | 0 | yes | yes | `both_match_snapshot` | `none` | n/a | `P4` | snapshot matches in both runtimes |
 | `tests/test_arithmetic.ruff` | 0 | 0 | yes | yes | `both_match_snapshot` | `none` | n/a | `P4` | snapshot matches in both runtimes |
 | `tests/test_array_contains.ruff` | 0 | 0 | yes | yes | `both_match_snapshot` | `none` | n/a | `P4` | snapshot matches in both runtimes |
@@ -172,21 +175,21 @@ Fixture root: `tests`
 | `tests/vm_closure_simple.ruff` | 0 | 0 | yes | yes | `both_match_snapshot` | `none` | n/a | `P4` | snapshot matches in both runtimes |
 | `tests/vm_native_functions_test.ruff` | 0 | 0 | yes | yes | `both_match_snapshot` | `none` | n/a | `P4` | snapshot matches in both runtimes |
 
-Summary: `165` fixtures scanned
-- both match snapshot: `152`
-- VM-only mismatch: `0`
+Summary: `168` fixtures scanned
+- both match snapshot: `156`
+- VM-only mismatch: `1`
 - interpreter-only mismatch: `2`
-- both mismatch: `11`
+- both mismatch: `9`
 
 Mismatch classification totals (priority order):
-- P0 runtime-parity-bug (`runtime-owner`): `7`
-- P1 stale-snapshot-expectation (`docs-owner`): `6`
+- P0 runtime-parity-bug (`runtime-owner`): `8`
+- P1 stale-snapshot-expectation (`docs-owner`): `4`
 - P1 parser-invalid-fixture (`language-owner`): `0`
 - P2 harness-debt (`harness-owner`): `0`
 - P2 intentional-divergence (`runtime-owner`): `0`
 
 VM coverage gate:
 - metric: `vm_matches_snapshot / fixtures_scanned`
-- vm_matches_snapshot: `154/165` (`93.3%`)
+- vm_matches_snapshot: `158/168` (`94.0%`)
 - target threshold: `70.0%`
 - gate status: `PASS`
