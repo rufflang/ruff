@@ -190,6 +190,113 @@ fn package_module_workflow_end_to_end_contract() {
 }
 
 #[test]
+fn package_module_workflow_vm_default_supports_nested_layout_and_frozen_lockfile() {
+    let project_root = unique_temp_dir("package_module_vm_default_nested_layout");
+    let project_root_str = project_root.to_str().expect("path should be utf-8");
+
+    let init =
+        run_ruff(&["init", "--dir", project_root_str, "--name", "vm_default_demo"], &project_root);
+    assert!(
+        init.status.success(),
+        "ruff init failed: stdout={} stderr={}",
+        stdout_text(&init),
+        stderr_text(&init)
+    );
+
+    let manifest_path = project_root.join("ruff.toml");
+    let lockfile_path = project_root.join("ruff.lock");
+    let manifest_path_str = manifest_path.to_str().expect("manifest path should be utf-8");
+    let lockfile_path_str = lockfile_path.to_str().expect("lockfile path should be utf-8");
+
+    let package_add = run_ruff(
+        &["package-add", "nested_dep", "--version", "2.3.4", "--manifest", manifest_path_str],
+        &project_root,
+    );
+    assert!(
+        package_add.status.success(),
+        "package-add failed: stdout={} stderr={}",
+        stdout_text(&package_add),
+        stderr_text(&package_add)
+    );
+
+    let package_install = run_ruff(
+        &["package-install", "--manifest", manifest_path_str, "--lockfile", lockfile_path_str],
+        &project_root,
+    );
+    assert!(
+        package_install.status.success(),
+        "package-install failed: stdout={} stderr={}",
+        stdout_text(&package_install),
+        stderr_text(&package_install)
+    );
+    assert!(
+        stdout_text(&package_install).contains("lockfile written"),
+        "expected package-install output to include lockfile write marker, got: {}",
+        stdout_text(&package_install)
+    );
+
+    let frozen_verify = run_ruff(
+        &[
+            "package-install",
+            "--manifest",
+            manifest_path_str,
+            "--lockfile",
+            lockfile_path_str,
+            "--frozen",
+        ],
+        &project_root,
+    );
+    assert!(
+        frozen_verify.status.success(),
+        "frozen verification failed: stdout={} stderr={}",
+        stdout_text(&frozen_verify),
+        stderr_text(&frozen_verify)
+    );
+    assert!(
+        stdout_text(&frozen_verify).contains("lockfile verified"),
+        "expected frozen verification output to include lockfile verification marker, got: {}",
+        stdout_text(&frozen_verify)
+    );
+
+    let src_core_dir = project_root.join("src").join("core");
+    let src_rag_dir = project_root.join("src").join("rag");
+    fs::create_dir_all(&src_core_dir).expect("failed to create src/core directory");
+    fs::create_dir_all(&src_rag_dir).expect("failed to create src/rag directory");
+
+    fs::write(
+        src_core_dir.join("math.ruff"),
+        "func add(left, right) {\n    return left + right\n}\nexport add := add\n",
+    )
+    .expect("failed to write src/core/math module");
+    fs::write(src_rag_dir.join("config.ruff"), "export base := 40\n")
+        .expect("failed to write src/rag/config module");
+    fs::write(
+        src_rag_dir.join("pipeline.ruff"),
+        "from src.core.math import add\nfrom src.rag.config import base\nexport answer := add(base, 2)\n",
+    )
+    .expect("failed to write src/rag/pipeline module");
+
+    let nested_workflow = project_root.join("nested_vm_default_workflow.ruff");
+    fs::write(&nested_workflow, "from src.rag.pipeline import answer\nprint(answer)\n")
+        .expect("failed to write nested VM-default workflow");
+
+    let output =
+        run_ruff(&["run", nested_workflow.to_str().expect("path should be utf-8")], &project_root);
+    assert!(
+        output.status.success(),
+        "VM-default nested workflow failed: stdout={} stderr={}",
+        stdout_text(&output),
+        stderr_text(&output)
+    );
+    assert!(
+        stdout_text(&output).contains("42"),
+        "expected VM-default nested workflow to print 42, got stdout={} stderr={}",
+        stdout_text(&output),
+        stderr_text(&output)
+    );
+}
+
+#[test]
 fn package_install_frozen_detects_lockfile_drift_and_verifies_after_regeneration() {
     let project_root = unique_temp_dir("package_install_frozen_lockfile");
     let project_root_str = project_root.to_str().expect("path should be utf-8");
