@@ -15,9 +15,7 @@ fn parse_percent_delta(content: &str) -> f64 {
         .nth(1)
         .expect("computed delta should be wrapped in backticks")
         .trim_end_matches('%');
-    percent_text
-        .parse::<f64>()
-        .expect("computed delta should parse as a float")
+    percent_text.parse::<f64>().expect("computed delta should parse as a float")
 }
 
 #[test]

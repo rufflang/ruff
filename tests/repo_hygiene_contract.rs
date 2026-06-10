@@ -67,7 +67,8 @@ fn seed_hygiene_policy_repo(root: &Path) {
         "ROADMAP.md",
         "rustfmt.toml",
     ] {
-        fs::write(root.join(entry), format!("seeded {}\n", entry)).expect("failed to write allowlisted root file");
+        fs::write(root.join(entry), format!("seeded {}\n", entry))
+            .expect("failed to write allowlisted root file");
     }
 
     let output = Command::new("git")
@@ -131,10 +132,8 @@ fn repo_hygiene_policy_lists_current_root_contract() {
 
 #[test]
 fn repo_hygiene_audit_rejects_disallowed_root_clutter_patterns() {
-    let root = std::env::temp_dir().join(format!(
-        "ruff_repo_hygiene_rejects_clutter_{}",
-        std::process::id()
-    ));
+    let root = std::env::temp_dir()
+        .join(format!("ruff_repo_hygiene_rejects_clutter_{}", std::process::id()));
     fs::create_dir_all(&root).expect("failed to create temp repo");
     let _ = Command::new("git")
         .current_dir(&root)
@@ -166,10 +165,8 @@ fn repo_hygiene_audit_rejects_disallowed_root_clutter_patterns() {
 
 #[test]
 fn repo_hygiene_audit_allows_practical_tmp_and_var_workflows() {
-    let root = std::env::temp_dir().join(format!(
-        "ruff_repo_hygiene_allows_tmp_{}",
-        std::process::id()
-    ));
+    let root =
+        std::env::temp_dir().join(format!("ruff_repo_hygiene_allows_tmp_{}", std::process::id()));
     fs::create_dir_all(&root).expect("failed to create temp repo");
     let _ = Command::new("git")
         .current_dir(&root)

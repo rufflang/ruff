@@ -15,9 +15,7 @@ fn parse_cache_ratio(content: &str) -> u32 {
         .nth(3)
         .expect("cache ratio should appear in backticks")
         .trim_end_matches('x');
-    ratio_text
-        .parse::<u32>()
-        .expect("cache ratio should parse as an integer")
+    ratio_text.parse::<u32>().expect("cache ratio should parse as an integer")
 }
 
 #[test]
@@ -42,5 +40,9 @@ fn import_heavy_cache_lookup_artifact_contains_required_markers() {
     }
 
     let ratio = parse_cache_ratio(&content);
-    assert!(ratio >= 100, "cache lookup ratio should show a strong warm-path benefit, got {}x", ratio);
+    assert!(
+        ratio >= 100,
+        "cache lookup ratio should show a strong warm-path benefit, got {}x",
+        ratio
+    );
 }

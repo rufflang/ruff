@@ -66,8 +66,7 @@ fn spawn_serve_process(root: &Path) -> Option<ServeProcess> {
 fn spawn_serve_process_with_extra_args(root: &Path, extra_args: &[&str]) -> Option<ServeProcess> {
     // Avoid TOCTOU port-allocation races across parallel tests:
     // reserve a port and launch the process while holding a shared lock.
-    let _spawn_guard =
-        serve_spawn_lock().lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+    let _spawn_guard = serve_spawn_lock().lock().unwrap_or_else(|poisoned| poisoned.into_inner());
 
     let mut last_port = None;
     for _attempt in 0..5 {

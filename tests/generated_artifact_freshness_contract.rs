@@ -28,7 +28,8 @@ fn normalized_markdown(text: &str) -> String {
 }
 
 fn read_text(path: &Path) -> String {
-    fs::read_to_string(path).unwrap_or_else(|error| panic!("failed to read {}: {}", path.display(), error))
+    fs::read_to_string(path)
+        .unwrap_or_else(|error| panic!("failed to read {}: {}", path.display(), error))
 }
 
 fn run_script(script: &str, args: &[&str], output_md: &Path, output_csv: &Path) {
@@ -61,8 +62,8 @@ fn assert_fresh_date(path: &Path, prefix: &str) {
         .strip_prefix(prefix)
         .unwrap_or_else(|| panic!("{} should parse with {} prefix", path.display(), prefix))
         .trim();
-    let generated_date =
-        NaiveDate::parse_from_str(raw_date, "%Y-%m-%d").expect("generated date should be YYYY-MM-DD");
+    let generated_date = NaiveDate::parse_from_str(raw_date, "%Y-%m-%d")
+        .expect("generated date should be YYYY-MM-DD");
     let today = chrono::Utc::now().date_naive();
     let age_days = today.signed_duration_since(generated_date).num_days();
     assert!(
@@ -79,7 +80,8 @@ fn assert_normalized_file_match(script_output: &Path, checked_in: &Path) {
     let generated = normalized_markdown(&read_text(script_output));
     let committed = normalized_markdown(&read_text(checked_in));
     assert_eq!(
-        committed, generated,
+        committed,
+        generated,
         "generated artifact drifted from checked-in baseline: {}",
         checked_in.display()
     );
@@ -87,17 +89,21 @@ fn assert_normalized_file_match(script_output: &Path, checked_in: &Path) {
 
 #[test]
 fn generated_todo_triage_artifact_is_fresh_and_matches_generator_output() {
-    let temp_dir = std::env::temp_dir().join(format!(
-        "ruff_generated_artifact_freshness_todo_{}",
-        std::process::id()
-    ));
+    let temp_dir = std::env::temp_dir()
+        .join(format!("ruff_generated_artifact_freshness_todo_{}", std::process::id()));
     fs::create_dir_all(&temp_dir).expect("failed to create temp dir");
     let output_md = temp_dir.join("todo.md");
     let output_csv = temp_dir.join("todo.csv");
 
     run_script(
         "generate_v1_code_todo_triage.sh",
-        &["--strict", "--output-md", output_md.to_str().expect("utf-8"), "--output-csv", output_csv.to_str().expect("utf-8")],
+        &[
+            "--strict",
+            "--output-md",
+            output_md.to_str().expect("utf-8"),
+            "--output-csv",
+            output_csv.to_str().expect("utf-8"),
+        ],
         &output_md,
         &output_csv,
     );
@@ -113,17 +119,21 @@ fn generated_todo_triage_artifact_is_fresh_and_matches_generator_output() {
 
 #[test]
 fn generated_unsafe_inventory_artifact_is_fresh_and_matches_generator_output() {
-    let temp_dir = std::env::temp_dir().join(format!(
-        "ruff_generated_artifact_freshness_unsafe_{}",
-        std::process::id()
-    ));
+    let temp_dir = std::env::temp_dir()
+        .join(format!("ruff_generated_artifact_freshness_unsafe_{}", std::process::id()));
     fs::create_dir_all(&temp_dir).expect("failed to create temp dir");
     let output_md = temp_dir.join("unsafe.md");
     let output_csv = temp_dir.join("unsafe.csv");
 
     run_script(
         "generate_unsafe_inventory.sh",
-        &["--strict", "--output-md", output_md.to_str().expect("utf-8"), "--output-csv", output_csv.to_str().expect("utf-8")],
+        &[
+            "--strict",
+            "--output-md",
+            output_md.to_str().expect("utf-8"),
+            "--output-csv",
+            output_csv.to_str().expect("utf-8"),
+        ],
         &output_md,
         &output_csv,
     );
@@ -139,10 +149,8 @@ fn generated_unsafe_inventory_artifact_is_fresh_and_matches_generator_output() {
 
 #[test]
 fn generated_vm_mismatch_inventory_artifact_is_fresh_and_matches_generator_output() {
-    let temp_dir = std::env::temp_dir().join(format!(
-        "ruff_generated_artifact_freshness_vm_mismatch_{}",
-        std::process::id()
-    ));
+    let temp_dir = std::env::temp_dir()
+        .join(format!("ruff_generated_artifact_freshness_vm_mismatch_{}", std::process::id()));
     fs::create_dir_all(&temp_dir).expect("failed to create temp dir");
     let output_md = temp_dir.join("vm_mismatch.md");
     let output_csv = temp_dir.join("vm_mismatch.csv");
@@ -191,6 +199,12 @@ fn generated_vm_mismatch_inventory_artifact_is_fresh_and_matches_generator_outpu
     let expected_csv_header = "fixture,vm_exit,interpreter_exit,vm_matches_snapshot,interpreter_matches_snapshot,delta_type,mismatch_bucket,bucket_owner,priority,rationale";
     assert!(generated_csv.lines().next() == Some(expected_csv_header));
     assert!(committed_csv.lines().next() == Some(expected_csv_header));
-    assert!(generated_csv.lines().count() > 1, "generated mismatch inventory should include data rows");
-    assert!(committed_csv.lines().count() > 1, "checked-in mismatch inventory should include data rows");
+    assert!(
+        generated_csv.lines().count() > 1,
+        "generated mismatch inventory should include data rows"
+    );
+    assert!(
+        committed_csv.lines().count() > 1,
+        "checked-in mismatch inventory should include data rows"
+    );
 }
