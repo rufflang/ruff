@@ -91,6 +91,7 @@ Icon?
 /extracted_dir/
 /organize_test/
 /test_dir/
+blocked.txt
 test_roadmap_spec.ruff
 /examples/ssg/
 
