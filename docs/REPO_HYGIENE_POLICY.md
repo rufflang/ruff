@@ -1,7 +1,7 @@
 # Repository Hygiene Policy
 
 Status: Active
-Last updated: 2026-05-26
+Last updated: 2026-06-09
 
 ## Purpose
 
@@ -20,7 +20,6 @@ Current allowed tracked root files:
 - `CONTRIBUTING.md`
 - `Cargo.lock`
 - `Cargo.toml`
-- `DOGFOOD_NOTES.md`
 - `INSTALLATION.md`
 - `LICENSE`
 - `README.md`
